@@ -2,7 +2,14 @@
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
-Currently, two official plugins are available:
+Provide a .env in the main project folder following the template. You can find your URL and KEY on
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+supabase -> home -> connect -> react/vite
+
+`VITE_SUPABASE_URL = <url here>
+VITE_SUPABASE_KEY = <key here>`
+
+To install node packages and start server run the following commands.
+
+`npm install`\
+`npm run dev`
