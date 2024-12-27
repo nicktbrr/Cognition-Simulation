@@ -123,13 +123,13 @@ const supabase = createClient(
 );
 
 function App() {
-  const [seed, setSeed] = useState("chopsticks");
-  const [metric, setMetric] = useState("creativity");
+  const [seed, setSeed] = useState("");
+  const [metric, setMetric] = useState("");
   const [chatBoxes, setChatBoxes] = useState([{ title: "", content: "" }]);
   const [jsonData, setJsonData] = useState({
-    seed: "chopsticks",
+    seed: "",
     steps: {},
-    metric: "creativity",
+    metric: "",
     iters: 10,
   });
   const [validationErrors, setValidationErrors] = useState([]); // Track errors
@@ -204,22 +204,23 @@ function App() {
       <div className="input-group">
         <div>
           <label>Seed:</label>
-          <input
-            type="text"
+          <textarea
+            placeholder="seed"
             value={seed}
             onChange={(e) => setSeed(e.target.value)}
           />
         </div>
         <div>
-          <label>Metric:</label>
+        <label>Metric:</label>
           <input
             type="text"
             value={metric}
             onChange={(e) => setMetric(e.target.value)}
           />
-        </div>
+          </div>
+        
       </div>
-
+      
       {/* Add New Step and Save JSON */}
       <div className="buttons">
         <button onClick={addNewStep}>Add New Step</button>
