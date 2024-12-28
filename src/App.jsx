@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import ChatBox from "./components/ChatBox";
 import "./App.css";
+import { v4 as uuidv4 } from 'uuid';
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -9,6 +10,7 @@ const supabase = createClient(
 );
 
 function App() {
+  const uuid = uuidv4()
   const [seed, setSeed] = useState("");
   const [metrics, setMetrics] = useState([
   ]);
@@ -89,11 +91,36 @@ function App() {
 
     const response = await supabase
       .from("users")
-      .insert([{ user: jsonData }]);
+      .insert([{id: uuid, user: jsonData }]);
     if (response.error) {
       alert("Error saving data to Supabase");
     } else {
       alert("JSON data saved successfully!");
+      const url = 'http://127.0.0.1:5000/api/evaluate'
+      try {
+        const response2 = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({'uuid':uuid}), // Convert payload to JSON
+        });
+
+        if (!response.ok) {
+            // Handle non-2xx responses
+            const errorDetails = await response.json();
+            throw new Error(errorDetails.message || 'Something went wrong');
+        }
+
+        // Parse and return response data
+        const a = await response2.json()
+        console.log(a)
+        return a
+      } catch (error) {
+          // Handle fetch or parsing errors
+          console.error('Error in POST request:', error);
+          throw error; // Re-throw the error if needed
+      }
     }
   };
 
