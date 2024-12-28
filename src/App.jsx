@@ -18,7 +18,9 @@ function App() {
     steps: {},
     metric: [],
     iters: 10,
+    temperature: 0.5
   });
+  const [temperature, setTemperature] = useState(0.5); 
   const [validationErrors, setValidationErrors] = useState([]); // Track errors
   const [metricsError, setMetricsError] = useState(false);
   const availableMetrics = [
@@ -46,6 +48,7 @@ function App() {
       seed,
       metric: metrics,
       steps,
+      temperature: temperature
     }));
   };
 
@@ -62,6 +65,15 @@ function App() {
     }
 
     return errors.every((isValid) => !isValid);
+  };
+
+  const handleSliderChange = (value) => {
+    const roundedValue = Math.round(value * 100) / 100.0; // Round to 2 decimal places
+    setTemperature(roundedValue);
+    setJsonData((prev) => ({
+      ...prev,
+      temperature: roundedValue,
+    }));
   };
 
   const addNewStep = () => {
@@ -127,6 +139,7 @@ function App() {
     steps,
     metric: updatedMetrics,
     iters: 10,
+    temperature
   });
   };
 
@@ -168,6 +181,23 @@ function App() {
         ))}
           </div>
         </div>
+      </div>
+
+      {/* Variation Slider */}
+      <div className="slider-group">
+        <h3 htmlFor="variation-slider">
+          Variation: {temperature * 100}
+        </h3>
+        <input
+          
+          id="variation-slider"
+          type="range"
+          min="0.0"
+          max="1.0"
+          step="0.01" // Allow finer granularity
+          value={temperature}
+          onChange={(e) => handleSliderChange(Number(e.target.value))}
+        />
       </div>
       
       {/* Add New Step and Save JSON */}
