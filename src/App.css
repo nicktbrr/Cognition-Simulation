@@ -48,6 +48,16 @@ h1 {
   gap: 0.5rem; /* Add spacing between label and input/textarea */
 }
 
+.slider-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 2rem;
+}
+
+
+
 .input-group div textarea {
   max-width: 350px;
   width: 350px;
@@ -74,6 +84,13 @@ input, textarea {
   border: 1px solid #ccc;
   border-radius: 4px;
   font-size: 1rem;
+}
+
+.slider-group #variation-slider {
+  width: 100%;
+  max-width: 450px;
+  padding: 0;
+  border: 1px solid #ccc;
 }
 
 input:focus, textarea:focus {
@@ -140,6 +157,91 @@ button:active {
   width: 100%;
   max-width: 200px;
   align-self: center;
+}
+
+
+.metrics-group {
+  margin: 20px 0;
+}
+
+.checkbox-container {
+  display: flex;
+  flex-direction: row !important;
+  flex-wrap: wrap; /* Wrap the checkboxes */
+  gap: 20px; /* Space between checkboxes */
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  font-size: 1rem; /* Make the text bigger */
+  cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 20px; /* Increase checkbox size */
+  height: 20px;
+  font-size: 1rem;
+  font-weight: bold;
+  margin-right: 10px; /* Space between checkbox and label text */
+  cursor: pointer;
+}
+
+
+.checkbox-container.error {
+  border: 1px solid red;
+  background-color: #ffe6e6;
+  padding: 10px;
+  border-radius: 5px;
+}
+
+.error-message {
+  border: 1px solid red;
+  background-color: #ffe6e6;
+  font-size: 1rem;
+  margin-top: 5px;
+}
+
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  font-size: 1.2rem;
+  cursor: pointer;
+  position: relative;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 24px;
+  height: 24px;
+  margin-right: 10px;
+}
+
+.tooltip {
+  position: relative;
+}
+
+.tooltip::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  top: 110%;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #333;
+  color: #fff;
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s;
+  pointer-events: none;
+}
+
+.tooltip:hover::after {
+  opacity: 1;
+  visibility: visible;
 }
 
 /* Textarea */
