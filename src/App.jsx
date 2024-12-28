@@ -1,3 +1,5 @@
+// TODO fix bug where putting seed last before pushing json doesnt actually update the seed
+
 import React, { useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import ChatBox from "./components/ChatBox";
@@ -97,6 +99,7 @@ function App() {
     } else {
       alert("JSON data saved successfully!");
       const url = 'http://127.0.0.1:5000/api/evaluate'
+      // const url = 'http://localhost:5000/api/evaluate'
       try {
         const response2 = await fetch(url, {
             method: 'POST',
@@ -106,11 +109,11 @@ function App() {
             body: JSON.stringify({'uuid':uuid}), // Convert payload to JSON
         });
 
-        if (!response.ok) {
-            // Handle non-2xx responses
-            const errorDetails = await response.json();
-            throw new Error(errorDetails.message || 'Something went wrong');
-        }
+        // if (!response.ok) {
+        //     // Handle non-2xx responses
+        //     const errorDetails = await response.json();
+        //     throw new Error(errorDetails.message || 'Something went wrong');
+        // }
 
         // Parse and return response data
         const a = await response2.json()
