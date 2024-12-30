@@ -14,6 +14,7 @@ const supabase = createClient(
 function App() {
   const uuid = uuidv4()
   const [seed, setSeed] = useState("");
+  const [evaluation, setEvaluation] = useState("");
   const [metrics, setMetrics] = useState([
   ]);
   const [chatBoxes, setChatBoxes] = useState([{ title: "", content: "" }]);
@@ -118,6 +119,7 @@ function App() {
         // Parse and return response data
         const a = await response2.json()
         console.log(a)
+        setEvaluation(JSON.parse(a.evaluation))
         return a
       } catch (error) {
           // Handle fetch or parsing errors
@@ -234,6 +236,17 @@ function App() {
       <div className="buttons">
         <button onClick={addNewStep}>Add New Step</button>
         <button onClick={saveJson}>Save JSON</button>
+      </div>
+
+      <div>
+        <h3>Cosine Similarity:</h3>
+        <div>
+          {Object.entries(evaluation).map(([key, value]) => (
+            <div key={key}>
+              <strong>Step {key}</strong>: {value}
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Display chat boxes */}
