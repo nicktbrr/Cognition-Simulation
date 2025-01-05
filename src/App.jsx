@@ -13,6 +13,7 @@ const supabase = createClient(
 
 const token = import.meta.env.VITE_GCP_TOKEN;
 
+
 function App() {
   const uuid = uuidv4()
   const [seed, setSeed] = useState("");
@@ -38,9 +39,6 @@ function App() {
     { name: "fairness", description: "By fairness we are referring to the degree to which something is free from bias, favoritism, or injustice." },
     { name: "quality", description: "By quality we are referring to the degree to which the content is communicated more effectively." }
   ]
-
-
-
 
 
   const updateJson = () => {
@@ -101,15 +99,13 @@ function App() {
       alert("Error saving data to Supabase");
     } else {
       alert("JSON data saved successfully!");
-      // const url = 'http://127.0.0.1:5000/api/evaluate'
-      const url = 'https://cognition-backend-81313456654.us-west1.run.app/api/evaluate'
+      const url = 'http://127.0.0.1:5000/api/evaluate'
+      // const url = 'https://cognition-backend-81313456654.us-west1.run.app/api/evaluate'
       try {
         const response2 = await fetch(url, {
             method: 'POST',
-            mode: 'no-cors',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
             },
             body: JSON.stringify({'uuid':uuid}), // Convert payload to JSON
         });
