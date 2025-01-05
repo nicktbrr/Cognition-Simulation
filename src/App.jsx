@@ -6,6 +6,9 @@ import ChatBox from "./components/ChatBox";
 import "./App.css";
 import { v4 as uuidv4 } from 'uuid';
 
+
+const auth_token = 'eyJhbGciOiJSUzI1NiIsImtpZCI6ImFiODYxNGZmNjI4OTNiYWRjZTVhYTc5YTc3MDNiNTk2NjY1ZDI0NzgiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLCJhenAiOiIzMjU1NTk0MDU1OS5hcHBzLmdvb2dsZXVzZXJjb250ZW50LmNvbSIsImF1ZCI6IjMyNTU1OTQwNTU5LmFwcHMuZ29vZ2xldXNlcmNvbnRlbnQuY29tIiwic3ViIjoiMTE3NDc0Njc5MTI0NzA3OTc1NzI0IiwiZW1haWwiOiJuaWNrYmFyc2lAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsImF0X2hhc2giOiJ2ZGZfZ21TY3pFNENhRmlOX3ZobjBBIiwiaWF0IjoxNzM2MDM2MTY1LCJleHAiOjE3MzYwMzk3NjV9.UcB2_QvF9y2lp16H1Jc1N9WM1GpPBMdT2U2LN7itwGTBy5czzy9qXktfZwG2nExAz5vL9wuQccyam6tSKv6PGebc-VI4S8Ge1CeU7Bgx9QRKUigygvjGnz1xv_CQ-P18PFxi-hfkXJZAOgGOaeOJVRUB3fQR9Oamht48KPvQljoGyxUmPgEgrMjEdEUtvDYJ1hJw_brix8-wc4JA6DJ1sNXmeBgO80uCHYKbJ8D7LvZWd0kO0eIzrDicNlX_aLyuhx51RIOE-33B08Ugv_8pOjJGSCE__MX_TFF8rqM5VGc6SBpvlBP3ADYZlCZXND1CsCypXCUCVHI1ivn-2qPaCw'
+
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_KEY
@@ -99,13 +102,15 @@ function App() {
       alert("Error saving data to Supabase");
     } else {
       alert("JSON data saved successfully!");
-      const url = 'http://127.0.0.1:5000/api/evaluate'
-      // const url = 'http://localhost:5000/api/evaluate'
+      // const url = 'http://127.0.0.1:5000/api/evaluate'
+      const url = 'https://cognition-backend-81313456654.us-west1.run.app/api/evaluate'
       try {
         const response2 = await fetch(url, {
             method: 'POST',
+            mode: 'no-cors',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${auth_token}`
             },
             body: JSON.stringify({'uuid':uuid}), // Convert payload to JSON
         });
