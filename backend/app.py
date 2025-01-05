@@ -21,18 +21,19 @@ load_dotenv()
 # Start app instance
 app = Flask(__name__)
 
-# CORS(app)
+prod = os.environ.get("VITE_SUPABASE_URL") or 'production'
 
-CORS(app, resources={
-     r"/api/*": {"origins": "http://localhost:5173"}})
-
-# CORS(app, resources={
-#     r"/api/*": {
-#         "origins": "https://cognition-simulation.vercel.app",
-#         "methods": ["GET", "POST", "OPTIONS"],
-#         "allow_headers": ["Content-Type", "Authorization"]
-#     }
-# })
+if prod == 'development':
+    CORS(app, resources={
+        r"/api/*": {"origins": "http://localhost:5173"}})
+else:
+    CORS(app, resources={
+        r"/api/*": {
+            "origins": "https://cognition-simulation.vercel.app",
+            "methods": ["GET", "POST", "OPTIONS"],
+            "allow_headers": ["Content-Type", "Authorization"]
+        }
+    })
 
 # Register API blueprint
 api_bp = Blueprint("api", __name__)
@@ -43,6 +44,8 @@ api = Api(api_bp)
 # Set up supabase key, url
 url: str = os.environ.get("VITE_SUPABASE_URL")
 key: str = os.environ.get("VITE_SUPABASE_KEY")
+
+print(url)
 
 env_path = Path('.') / '.env'
 load_dotenv(dotenv_path=env_path)
