@@ -23,8 +23,16 @@ app = Flask(__name__)
 
 # CORS(app)
 
+# CORS(app, resources={
+#      r"/api/*": {"origins": "https://cognition-simulation.vercel.app"}})
+
 CORS(app, resources={
-     r"/api/*": {"origins": "https://cognition-simulation.vercel.app"}})
+    r"/api/*": {
+        "origins": "https://cognition-simulation.vercel.app",
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"]
+    }
+})
 
 # Register API blueprint
 api_bp = Blueprint("api", __name__)
