@@ -127,37 +127,39 @@ function App() {
         url =
           "https://cognition-backend-81313456654.us-west1.run.app/api/evaluate";
       }
-    }
-    try {
-      let response2 = "";
-      if (prod == "development") {
-        response2 = await fetch(url, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ uuid: uuid }), // Convert payload to JSON
-        });
-      } else {
-        response2 = await fetch(url, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ uuid: uuid }), // Convert payload to JSON
-        });
-      }
 
-      // Parse and return response data
-      const a = await response2.json();
-      console.log(a);
-      setEvaluation(JSON.parse(a.evaluation));
-      return a;
-    } catch (error) {
-      // Handle fetch or parsing errors
-      console.error("Error in POST request:", error);
-      throw error; // Re-throw the error if needed
+      try {
+        let response2 = "";
+        console.log(url);
+        if (prod == "development") {
+          response2 = await fetch(url, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ uuid: uuid }), // Convert payload to JSON
+          });
+        } else {
+          response2 = await fetch(url, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ uuid: uuid }), // Convert payload to JSON
+          });
+        }
+
+        // Parse and return response data
+        const a = await response2.json();
+        console.log(a);
+        setEvaluation(JSON.parse(a.evaluation));
+        return a;
+      } catch (error) {
+        // Handle fetch or parsing errors
+        console.error("Error in POST request:", error);
+        throw error; // Re-throw the error if needed
+      }
     }
   };
 
