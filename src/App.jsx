@@ -103,10 +103,10 @@ function App() {
       alert("JSON data saved successfully!");
       // const url = 'http://127.0.0.1:5000/api/evaluate'
       const url = 'https://cognition-backend-81313456654.us-west1.run.app/api/evaluate'
+      console.log(token)
       try {
         const response2 = await fetch(url, {
             method: 'POST',
-            mode: 'no-cors',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`
