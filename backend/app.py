@@ -21,18 +21,19 @@ load_dotenv()
 # Start app instance
 app = Flask(__name__)
 
-# CORS(app)
+prod = os.environ.get("DEV") or 'production'
 
-# CORS(app, resources={
-#      r"/api/*": {"origins": "https://cognition-simulation.vercel.app"}})
-
-CORS(app, resources={
-    r"/api/*": {
-        "origins": "https://cognition-simulation.vercel.app",
-        "methods": ["GET", "POST", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization"]
-    }
-})
+if prod == 'development':
+    CORS(app, resources={
+        r"/api/*": {"origins": "http://localhost:5173"}})
+else:
+    CORS(app, resources={
+        r"/api/*": {
+            "origins": "https://cognition-simulation.vercel.app",
+            "methods": ["GET", "POST", "OPTIONS"],
+            "allow_headers": ["Content-Type", "Authorization"]
+        }
+    })
 
 # Register API blueprint
 api_bp = Blueprint("api", __name__)
@@ -43,6 +44,8 @@ api = Api(api_bp)
 # Set up supabase key, url
 url: str = os.environ.get("VITE_SUPABASE_URL")
 key: str = os.environ.get("VITE_SUPABASE_KEY")
+
+print(url)
 
 env_path = Path('.') / '.env'
 load_dotenv(dotenv_path=env_path)
@@ -84,22 +87,23 @@ def prompt_llm(responses):
 class Evaluation(Resource):  # Inherit from Resource
     def post(self):
         try:
-            auth_header = request.headers.get('Authorization')
+            if prod != 'development':
+                auth_header = request.headers.get('Authorization')
+                if not auth_header or not auth_header.startswith("Bearer "):
+                    return jsonify({"status": "error", "message": "Missing or invalid Authorization header"}), 401
 
-            if not auth_header or not auth_header.startswith("Bearer "):
-                return jsonify({"status": "error", "message": "Missing or invalid Authorization header"}), 401
+                # Extract the token
+                token = auth_header.split("Bearer ")[1]
+                if token != os.environ.get("VITE_GCP_TOKEN"):
+                    return jsonify({"status": "error", "message": "Missing or invalid Authorization header"}), 401
 
-            # Extract the token
-            token = auth_header.split("Bearer ")[1]
-            if token != os.environ.get("VITE_GCP_TOKEN"):
-                return jsonify({"status": "error", "message": "Missing or invalid Authorization header"}), 401
             uuid = request.get_json()['uuid']
             supabase: Client = create_client(url, key)
             response = supabase.table("users").select(
                 "*").eq("id", uuid).execute().data
             print(response)
             df = prompt_llm(response)
-            print(df)
+            print('before cos', df.shape)
             sim_matrix = create_sim_matrix(df)
             print(sim_matrix)
 
@@ -115,6 +119,9 @@ api.add_resource(Evaluation, "/evaluate")
 app.register_blueprint(api_bp, url_prefix="/api")
 
 if __name__ == "__main__":
-
-    # app.run(debug=True, use_reloader=False)
-    app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
+    prod = os.environ.get("DEV") or 'production'
+    if prod == 'development':
+        app.run(debug=True, use_reloader=False)
+    else:
+        app.run(debug=True, host="0.0.0.0", port=int(
+            os.environ.get("PORT", 8080)))
