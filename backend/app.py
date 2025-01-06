@@ -21,7 +21,7 @@ load_dotenv()
 # Start app instance
 app = Flask(__name__)
 
-prod = os.environ.get("VITE_SUPABASE_URL") or 'production'
+prod = os.environ.get("DEV") or 'production'
 
 if prod == 'development':
     CORS(app, resources={
@@ -94,7 +94,7 @@ class Evaluation(Resource):  # Inherit from Resource
                 "*").eq("id", uuid).execute().data
             print(response)
             df = prompt_llm(response)
-            print(df)
+            print('before cos', df.shape)
             sim_matrix = create_sim_matrix(df)
             print(sim_matrix)
 

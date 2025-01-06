@@ -66,45 +66,99 @@ def get_bert_embeddings(indexed_tokens):
     return sentence_embedding
 
 
+# def calculate_cosine_similarity(embedding1, embedding2):
+#     embedding1 = embedding1.unsqueeze(0)  # Add batch dimension
+#     embedding2 = embedding2.unsqueeze(0)  # Add batch dimension
+#     similarity = cosine_similarity(embedding1, embedding2)
+#     return similarity[0][0]
+
 def calculate_cosine_similarity(embedding1, embedding2):
-    embedding1 = embedding1.unsqueeze(0)  # Add batch dimension
-    embedding2 = embedding2.unsqueeze(0)  # Add batch dimension
+    """
+    Calculate cosine similarity between two embeddings.
+    Works with NumPy arrays.
+    """
+    embedding1 = embedding1.reshape(1, -1)  # Reshape to 2D
+    embedding2 = embedding2.reshape(1, -1)  # Reshape to 2D
     similarity = cosine_similarity(embedding1, embedding2)
     return similarity[0][0]
 
 
 def create_sim_matrix(df):
+    print("Step 1: Precomputing embeddings...")
+    num_rows = len(df)
+    num_steps = len(df.columns) - 1  # Exclude the first column
+    embedding_dim = get_bert_embeddings(preprocess_text(
+        "sample")).shape[0]  # Assuming fixed embedding size
+
+    # Initialize a NumPy array to store all embeddings
+    all_embeddings = np.zeros((num_rows, num_steps, embedding_dim))
+
+    for i in range(num_rows):
+        for j in range(num_steps):
+            text = preprocess_text(df.iloc[i, j + 1])  # Skip the first column
+            all_embeddings[i, j] = get_bert_embeddings(text)
+    print('df', df.shape)
+    print('embeds', all_embeddings.shape)
+
+    print("Step 2: Calculating cosine similarities...")
+    similarity_tensor = np.ones((num_steps, num_steps, num_rows))
+
+    for i in range(num_rows):
+        embeddings = all_embeddings[i]  # Embeddings for the current trial
+        for j in range(num_steps):
+            for k in range(j, num_steps):
+                similarity = calculate_cosine_similarity(
+                    embeddings[j], embeddings[k])
+                similarity_tensor[j, k, i] = similarity
+                # Reflect in lower triangle
+                similarity_tensor[k, j, i] = similarity
+
+    # Step 3: Compute the average similarity matrix across trials
+    print('sim ten', similarity_tensor.shape)
+    print("Step 3: Averaging similarity matrices...")
+    mean_similarity_matrix = np.mean(similarity_tensor, axis=2)
+
+    print("Mean Similarity Matrix:")
+    print(mean_similarity_matrix)
+
+    # Step 4: Convert the result into a DataFrame and return as JSON
+    mean_similarity_df = pd.DataFrame(mean_similarity_matrix,
+                                      columns=range(1, num_steps + 1),
+                                      index=range(1, num_steps + 1))
+    return mean_similarity_df.to_json()
+
     # for every row in the df, preprocess the value of each column after the first one
-    all_similarities = []
-    for i in range(len(df)):
-        print(f'Processing row {i+1}...')
-        steps = []
-        for j in range(1, len(df.columns)):
-            steps.append(get_bert_embeddings(preprocess_text(df.iloc[i, j])))
+    # all_similarities = []
+    # for i in range(len(df)):
+    #     print(f'Processing row {i+1}...')
+    #     steps = []
+    #     for j in range(1, len(df.columns)):
+    #         steps.append(get_bert_embeddings(preprocess_text(df.iloc[i, j])))
 
-        # for every pair of steps, compute the cosine similarity
+    #     # for every pair of steps, compute the cosine similarity
 
-        # initializing a dataframe that is as long as the number of steps
-        df_similarities = pd.DataFrame(np.ones((len(steps), len(steps))), columns=range(
-            1, len(steps)+1), index=range(1, len(steps)+1))
+    #     # initializing a dataframe that is as long as the number of steps
+    #     df_similarities = pd.DataFrame(np.ones((len(steps), len(steps))), columns=range(
+    #         1, len(steps)+1), index=range(1, len(steps)+1))
 
-        for j in range(len(steps)):
-            for k in range(j+1, len(steps)):
-                df_similarities.iloc[j, k] = calculate_cosine_similarity(
-                    steps[j], steps[k])
+    #     for j in range(len(steps)):
+    #         for k in range(j+1, len(steps)):
+    #             df_similarities.iloc[j, k] = calculate_cosine_similarity(
+    #                 steps[j], steps[k])
+    #     print('df sims', df_similarities)
+    #     # make the bottom triangle of the matrix reflect the top triangle
+    #     for j in range(len(steps)):
+    #         for k in range(j+1, len(steps)):
+    #             df_similarities.iloc[k, j] = df_similarities.iloc[j, k]
 
-        # make the bottom triangle of the matrix reflect the top triangle
-        for j in range(len(steps)):
-            for k in range(j+1, len(steps)):
-                df_similarities.iloc[k, j] = df_similarities.iloc[j, k]
+    #     df_similarities['Trial'] = i + 1
 
-        df_similarities['Trial'] = i + 1
+    #     # Append the dataframe to the list
+    #     all_similarities.append(df_similarities)
 
-        # Append the dataframe to the list
-        all_similarities.append(df_similarities)
-
-    # Concatenate all similarity matrices into one dataframe
-    full_sim_matrix = pd.concat(all_similarities, ignore_index=True)
-    print(full_sim_matrix)
-    average_matrix = full_sim_matrix.groupby("Trial").mean().mean(axis=0)
-    return average_matrix.to_json()
+    # # Concatenate all similarity matrices into one dataframe
+    # full_sim_matrix = pd.concat(all_similarities, ignore_index=True)
+    # print('full sim', full_sim_matrix)
+    # average_matrix = full_sim_matrix.groupby("Trial").mean()
+    # print('avg', average_matrix)
+    # return average_matrix.to_json()
