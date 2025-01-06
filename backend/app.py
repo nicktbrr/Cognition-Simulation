@@ -87,8 +87,16 @@ def prompt_llm(responses):
 class Evaluation(Resource):  # Inherit from Resource
     def post(self):
         try:
+            auth_header = request.headers.get('Authorization')
+
+            if not auth_header or not auth_header.startswith("Bearer "):
+                return jsonify({"status": "error", "message": "Missing or invalid Authorization header"}), 401
+
+            # Extract the token
+            token = auth_header.split("Bearer ")[1]
+            if token != os.environ.get("VITE_GCP_TOKEN"):
+                return jsonify({"status": "error", "message": "Missing or invalid Authorization header"}), 401
             uuid = request.get_json()['uuid']
-            print(uuid)
             supabase: Client = create_client(url, key)
             response = supabase.table("users").select(
                 "*").eq("id", uuid).execute().data
