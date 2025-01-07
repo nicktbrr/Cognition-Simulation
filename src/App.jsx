@@ -12,6 +12,7 @@ const supabase = createClient(
 );
 
 const prod = import.meta.env.VITE_DEV || "production";
+const token = import.meta.env.VITE_GCP_TOKEN;
 
 function App() {
   const uuid = uuidv4();
