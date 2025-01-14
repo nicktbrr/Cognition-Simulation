@@ -133,6 +133,7 @@ function App() {
         let response2 = "";
         console.log(url);
         if (prod == "development") {
+          console.log(prod);
           response2 = await fetch(url, {
             method: "POST",
             headers: {

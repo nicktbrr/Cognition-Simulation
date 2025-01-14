@@ -14,6 +14,8 @@ from pathlib import Path
 import google.generativeai as genai
 import pandas as pd
 from utils.cosine_sim import *
+import io
+from datetime import datetime
 
 
 load_dotenv()
@@ -25,7 +27,9 @@ prod = os.environ.get("DEV") or 'production'
 
 if prod == 'development':
     CORS(app, resources={
-        r"/api/*": {"origins": "http://localhost:5173"}})
+        r"/api/*": {"origins": ["http://localhost:5173"],
+                    "methods": ["GET", "POST", "OPTIONS"],
+                    "allow_headers": ["Content-Type"]}})
 else:
     CORS(app, resources={
         r"/api/*": {
@@ -44,6 +48,7 @@ api = Api(api_bp)
 # Set up supabase key, url
 url: str = os.environ.get("VITE_SUPABASE_URL")
 key: str = os.environ.get("VITE_SUPABASE_KEY")
+
 
 print(url)
 
@@ -76,7 +81,8 @@ def prompt_llm(responses):
                 f"Step {str.upper(df.columns[col])}: {label} Please respond with ONLY the {df.columns[col]} step and absolutely no additional text or explanation."
             )
             genai.configure(api_key=key_g)
-            model = genai.GenerativeModel("gemini-1.5-flash")
+            model = genai.GenerativeModel("gemini-1.5-flash",
+                                          system_instruction='Return responses with no newline characters, \\n. Always end on just a period.')
             response = model.generate_content(prompt,
                                               generation_config=genai.types.GenerationConfig(
                                                   temperature=1.0))
@@ -87,6 +93,7 @@ def prompt_llm(responses):
 class Evaluation(Resource):  # Inherit from Resource
     def post(self):
         try:
+            print(prod)
             if prod != 'development':
                 auth_header = request.headers.get('Authorization')
                 if not auth_header or not auth_header.startswith("Bearer "):
@@ -103,12 +110,27 @@ class Evaluation(Resource):  # Inherit from Resource
                 "*").eq("id", uuid).execute().data
             print(response)
             df = prompt_llm(response)
+            df = df.replace('\n', '', regex=True)
+            # Generate a unique filename for the CSV
+            timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+            fn = f'csv_{timestamp}.csv'
+            df.to_csv(fn, index=False)
+
+            # Upload the CSV to the Supabase bucket
+            bucket_name = "llm-responses"  # Replace with your bucket name
+            with open(fn, 'rb') as f:
+                upload_response = supabase.storage.from_(bucket_name).upload(
+                    path=f'llm/{fn}',
+                    file=f,
+                )
+            os.remove(fn)
             print('before cos', df.shape)
             sim_matrix = create_sim_matrix(df)
             print(sim_matrix)
 
             return jsonify({"status": "success", "evaluation": sim_matrix})
         except Exception as e:
+            os.remove(fn)
             return jsonify({"status": "error", "message": str(e)})
 
 
@@ -121,6 +143,7 @@ app.register_blueprint(api_bp, url_prefix="/api")
 if __name__ == "__main__":
     prod = os.environ.get("DEV") or 'production'
     if prod == 'development':
+        print('here')
         app.run(debug=True, use_reloader=False)
     else:
         app.run(debug=True, host="0.0.0.0", port=int(
