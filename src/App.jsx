@@ -18,6 +18,8 @@ function App() {
   const uuid = uuidv4();
   const [seed, setSeed] = useState("");
   const [evaluation, setEvaluation] = useState("");
+  const [stepwise_similarity_df, setStepwiseAverageSimilarity] = useState("");
+  const [mean_similarity_df, setMeanSimilarityDf] = useState("");
   const [metrics, setMetrics] = useState([]);
   const [chatBoxes, setChatBoxes] = useState([{ title: "", content: "" }]);
   const [jsonData, setJsonData] = useState({
@@ -155,7 +157,21 @@ function App() {
         // Parse and return response data
         const a = await response2.json();
         console.log(a);
-        setEvaluation(JSON.parse(a.evaluation));
+
+        console.log(a.evaluation);
+
+        // setEvaluation(JSON.parse(a.evaluation));
+        
+        console.log(a.evaluation.stepwise_similarity_df);
+        console.log(a.evaluation.mean_similarity_df);
+
+        setStepwiseAverageSimilarity(
+          JSON.parse(a.evaluation.stepwise_similarity_df)
+        );
+        setMeanSimilarityDf(
+          JSON.parse(a.evaluation.mean_similarity_df)
+        );
+
         return a;
       } catch (error) {
         // Handle fetch or parsing errors
@@ -270,18 +286,50 @@ function App() {
 
       <div>
         <h3>Cosine Similarity Matrix:</h3>
-        {evaluation && (
+     
+        {mean_similarity_df && (
           <table className="similarity-matrix">
             <thead>
               <tr>
                 <th></th> {/* Empty top-left cell */}
-                {Object.keys(evaluation).map((key) => (
+                {Object.keys(mean_similarity_df).map((key) => (
                   <th key={`col-${key}`}>Step {key}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {Object.entries(evaluation).map(([rowKey, rowValues]) => (
+              {Object.entries(mean_similarity_df).map(([rowKey, rowValues]) => (
+                <tr key={`row-${rowKey}`}>
+                  <td>
+                    <strong>Step {rowKey}</strong>
+                  </td>{" "}
+                  {/* Row header */}
+                  {Object.values(rowValues).map((value, colIndex) => (
+                    <td key={`cell-${rowKey}-${colIndex}`}>
+                      {value.toFixed(3)} {/* Format to 3 decimal places */}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <div>
+        <h3>Stepwise Average Similarity Matrix:</h3>
+        {stepwise_similarity_df && (
+          <table className="stepwise-similarity-matrix">
+            <thead>
+              <tr>
+                <th></th> {/* Empty top-left cell */}
+                {Object.keys(stepwise_similarity_df).map((key) => (
+                  <th key={`col-${key}`}>Step {key}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(stepwise_similarity_df).map(([rowKey, rowValues]) => (
                 <tr key={`row-${rowKey}`}>
                   <td>
                     <strong>Step {rowKey}</strong>

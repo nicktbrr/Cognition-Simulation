@@ -102,30 +102,65 @@ def create_sim_matrix(df):
 
     print("Step 2: Calculating cosine similarities...")
     similarity_tensor = np.ones((num_steps, num_steps, num_rows))
+    stepwise_similarity = [0] * num_steps
+
+    # Combined loop for calculating both stepwise and trial-wise similarities
+    stepwise_similarity_sums = [0] * num_steps
+    stepwise_similarity_counts = [0] * num_steps
 
     for i in range(num_rows):
         embeddings = all_embeddings[i]  # Embeddings for the current trial
+
         for j in range(num_steps):
             for k in range(j, num_steps):
+                # Trial-wise similarity (within the same row, across steps)
                 similarity = calculate_cosine_similarity(
                     embeddings[j], embeddings[k])
                 similarity_tensor[j, k, i] = similarity
-                # Reflect in lower triangle
-                similarity_tensor[k, j, i] = similarity
+                similarity_tensor[k, j, i] = similarity  # Reflect in lower triangle
+
+            # Stepwise similarity (across rows, for the current step)
+            step_embeddings = all_embeddings[:, j, :]  # All rows for the current step
+            for m in range(i + 1, num_rows):  # Compare only with subsequent rows to avoid double-counting
+                step_similarity = calculate_cosine_similarity(
+                    step_embeddings[i], step_embeddings[m])
+                stepwise_similarity_sums[j] += step_similarity
+                stepwise_similarity_counts[j] += 1
+
+    # Calculate final stepwise similarity averages
+    for step in range(num_steps):
+        stepwise_similarity[step] = (
+            stepwise_similarity_sums[step] / stepwise_similarity_counts[step]
+            if stepwise_similarity_counts[step] > 0
+            else 0
+        )
+
+    print("Stepwise Average Similarity:")
+    print(stepwise_similarity)
 
     # Step 3: Compute the average similarity matrix across trials
-    print('sim ten', similarity_tensor.shape)
-    print("Step 3: Averaging similarity matrices...")
+    print("Step 3: Calculating average similarity matrix...")
     mean_similarity_matrix = np.mean(similarity_tensor, axis=2)
 
     print("Mean Similarity Matrix:")
     print(mean_similarity_matrix)
 
-    # Step 4: Convert the result into a DataFrame and return as JSON
+    # Step 4: Convert results into DataFrames and return as JSON
     mean_similarity_df = pd.DataFrame(mean_similarity_matrix,
                                       columns=range(1, num_steps + 1),
                                       index=range(1, num_steps + 1))
-    return mean_similarity_df.to_json()
+    stepwise_similarity_df = pd.DataFrame(stepwise_similarity)
+
+    print('mean sim', mean_similarity_df)
+    print('stepwise sim', stepwise_similarity_df)
+
+    result = {
+        "mean_similarity_df": mean_similarity_df.to_json(),
+        "stepwise_similarity_df": stepwise_similarity_df.to_json()
+    }
+
+    return result
+
 
     # for every row in the df, preprocess the value of each column after the first one
     # all_similarities = []
