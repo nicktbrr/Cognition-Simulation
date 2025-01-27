@@ -14,6 +14,7 @@ from pathlib import Path
 import google.generativeai as genai
 import pandas as pd
 from utils.cosine_sim import *
+from utils.prompts import *
 import io
 from datetime import datetime
 
@@ -70,8 +71,6 @@ def parse_col(col):
     return col_before, col_after
 
 
-
-
 def prompt_llm(responses):
     seed = responses[0]['user']['seed']
     cols = list(responses[0]['user']['steps'].keys())
@@ -126,7 +125,6 @@ def prompt_llm(responses):
                      f"Step {df.columns[col]}: {label}.\n" \
                      f"Respond according to the system prompt."
 
-
             model = genai.GenerativeModel("gemini-1.5-flash",
                                           system_instruction=system_prompt)
             response = model.generate_content(prompt,
@@ -156,40 +154,15 @@ class Evaluation(Resource):  # Inherit from Resource
             supabase: Client = create_client(url, key)
             response = supabase.table("users").select(
                 "*").eq("id", uuid).execute().data
+            # df = prompt_llm(response)
             print(response)
-            df = prompt_llm(response)
+            df = baseline_prompt(response, key_g)
+
             df = df.replace('\n', '', regex=True)
             print('before cos', df.shape)
             sim_matrix = create_sim_matrix(df)
             # Generate a unique filename for the CSV
             timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-            # Process columns by splitting on '###'
-            prev_cols = list(df.columns)[1:]  # Skip the seed column
-            for col in prev_cols:
-                col_before, col_after = parse_col(df[col])
-                df[col] = col_before  # Update column to the non-metric value
-                df[f"{col}_after"] = col_after  # Add a temporary column for metrics
-
-            # Process '_after' columns to split metrics
-            after_cols = [col for col in df.columns if col.endswith("_after")]
-
-            for col in after_cols:
-                # Split the '_after' column on commas
-                split_cols = df[col].str.split(',', expand=True)
-                
-                # Process each metric, naming columns appropriately and extracting numeric values
-                for part in split_cols.columns:
-                    # Extract the metric name (e.g., 'clarity:7' -> 'clarity')
-                    metric_col = split_cols[part].str.split(':', expand=True)
-                    metric_name = metric_col[0].iloc[0]  # Metric name (assume consistent across rows)
-                    metric_values = pd.to_numeric(metric_col[1], errors='coerce')  # Extract numeric values
-                    
-                    # Create the new column with the format <original_column_name>_<metric>
-                    new_col_name = f"{col.replace('_after', '')}_{metric_name}"
-                    df[new_col_name] = metric_values
-
-                # Drop the original '_after' column
-                df.drop(columns=col, inplace=True)
             fn = f'csv_{timestamp}.csv'
             df.to_csv(fn, index=False)
 
