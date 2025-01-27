@@ -18,6 +18,7 @@ from utils.prompts import *
 import io
 from datetime import datetime
 from utils.evaluate import *
+import time
 
 
 load_dotenv()
@@ -99,7 +100,12 @@ class Evaluation(Resource):  # Inherit from Resource
                     file=f,
                 )
             os.remove(fn)
+            time.sleep(5)
+            public_url = supabase.storage.from_(bucket_name).get_public_url(
+                f'llm/{fn}')
+            print(public_url)
             print(sim_matrix)
+            sim_matrix['public_url'] = public_url
 
             return jsonify({"status": "success", "evaluation": sim_matrix})
         except Exception as e:

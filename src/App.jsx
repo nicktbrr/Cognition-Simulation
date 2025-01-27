@@ -31,6 +31,7 @@ function App() {
   });
   const [temperature, setTemperature] = useState(0.5);
   const [validationErrors, setValidationErrors] = useState([]); // Track errors
+  const [public_url, setPublicUrl] = useState("");
   const [metricsError, setMetricsError] = useState(false);
   const availableMetrics = [
     {
@@ -161,16 +162,16 @@ function App() {
         console.log(a.evaluation);
 
         // setEvaluation(JSON.parse(a.evaluation));
-        
+
         console.log(a.evaluation.stepwise_similarity_df);
         console.log(a.evaluation.mean_similarity_df);
+        console.log(a.evaluation.signed_url);
 
         setStepwiseAverageSimilarity(
           JSON.parse(a.evaluation.stepwise_similarity_df)
         );
-        setMeanSimilarityDf(
-          JSON.parse(a.evaluation.mean_similarity_df)
-        );
+        setMeanSimilarityDf(JSON.parse(a.evaluation.mean_similarity_df));
+        setPublicUrl(a.evaluation.public_url);
 
         return a;
       } catch (error) {
@@ -286,7 +287,7 @@ function App() {
 
       <div>
         <h3>Cosine Similarity Matrix:</h3>
-     
+
         {mean_similarity_df && (
           <table className="similarity-matrix">
             <thead>
@@ -329,21 +330,31 @@ function App() {
               </tr>
             </thead>
             <tbody>
-              {Object.entries(stepwise_similarity_df).map(([rowKey, rowValues]) => (
-                <tr key={`row-${rowKey}`}>
-                  <td>
-                    <strong>Step {rowKey}</strong>
-                  </td>{" "}
-                  {/* Row header */}
-                  {Object.values(rowValues).map((value, colIndex) => (
-                    <td key={`cell-${rowKey}-${colIndex}`}>
-                      {value.toFixed(3)} {/* Format to 3 decimal places */}
-                    </td>
-                  ))}
-                </tr>
-              ))}
+              {Object.entries(stepwise_similarity_df).map(
+                ([rowKey, rowValues]) => (
+                  <tr key={`row-${rowKey}`}>
+                    <td>
+                      <strong>Step {rowKey}</strong>
+                    </td>{" "}
+                    {/* Row header */}
+                    {Object.values(rowValues).map((value, colIndex) => (
+                      <td key={`cell-${rowKey}-${colIndex}`}>
+                        {value.toFixed(3)} {/* Format to 3 decimal places */}
+                      </td>
+                    ))}
+                  </tr>
+                )
+              )}
             </tbody>
           </table>
+        )}
+      </div>
+
+      <div>
+        {public_url && (
+          <a href={public_url} target="_blank" download>
+            Download link
+          </a>
         )}
       </div>
 
