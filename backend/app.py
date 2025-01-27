@@ -17,6 +17,7 @@ from utils.cosine_sim import *
 from utils.prompts import *
 import io
 from datetime import datetime
+from utils.evaluate import *
 
 
 load_dotenv()
@@ -59,83 +60,6 @@ key_g = os.environ.get('GEMINI_KEY')
 genai.configure(api_key=key_g)
 
 
-def parse_col(col):
-    """
-    Splits a column by '###' and returns two parts:
-    - The part before '###'
-    - The part after '###'
-    """
-    col_split = col.str.split('###', expand=True)
-    col_before = col_split[0]  # Before ###
-    col_after = col_split[1]   # After ###
-    return col_before, col_after
-
-
-def prompt_llm(responses):
-    seed = responses[0]['user']['seed']
-    cols = list(responses[0]['user']['steps'].keys())
-    cols.insert(0, "seed")
-    df = pd.DataFrame(columns=cols)
-    for i in range(responses[0]['user']['iters']):
-        if 'problem or task representation' not in cols:
-            new_row = pd.DataFrame([{'seed': seed}])
-        else:
-            new_row = pd.DataFrame(
-                [{'seed': seed, 'problem or task representation': seed}])
-        df = pd.concat([df, new_row], ignore_index=True)
-    start = 2
-    if 'problem or task representation' not in df.columns:
-        start = 1
-    metric = responses[0]['user']['metric']
-    for row in range(df.shape[0]):
-        for col in range(start, df.shape[1]):
-            label = responses[0]['user']['steps'][df.columns[col]]
-            genai.configure(api_key=key_g)
-
-            # in original prompt also include metric, need to figure out good prompt, give json template.
-            # need to figure out how to get the metric from the prompt.
-
-            system_prompt = f"""
-            You are an AI assistant tasked with solving problems and evaluating solutions based on the following metrics:
-            - **Clarity**: Degree to which something has fewer possible interpretations.
-            - **Feasibility**: Degree to which something is solvable, attainable, viable, or achievable.
-            - **Importance**: Degree to which something is valuable, useful, or meaningful.
-            - **Uniqueness**: Degree to which something is novel, original, or distinct.
-            - **Fairness**: Degree to which something is free from bias, favoritism, or injustice.
-            - **Quality**: Degree to which the content is communicated effectively.
-
-            Your task is to generate a response for the specified step and evaluate it based on the metric: **{metric}**.
-            Provide:
-            1. A response to the step.
-            2. A numerical evaluation of the response based on the metric using a scale from 1 (very low) to 7 (very high).
-
-            ### Instructions:
-            - Use only the given information for the step: **{label}**.
-            - Respond with the current step output, a special separator `###`, the metrics name, and the numerical ratings.
-            - Make sure the metrics are in the format like this: metric_name:metric_value, etc.
-            - Avoid including any additional text or explanations.
-            - Do not use newline characters (`\n`). Always end with a period.
-
-
-            ### Final Note:
-            Ensure the response strictly adheres to the format.
-            """
-
-            prompt = f"Given the previous step: {df.iloc[row, col-1]}\n" \
-                     f"Step {df.columns[col]}: {label}.\n" \
-                     f"Respond according to the system prompt."
-
-            model = genai.GenerativeModel("gemini-1.5-flash",
-                                          system_instruction=system_prompt)
-            response = model.generate_content(prompt,
-                                              generation_config=genai.types.GenerationConfig(
-                                                  temperature=1.0))
-            df.iloc[row, col] = response.text
-
-    print(df)
-    return df
-
-
 class Evaluation(Resource):  # Inherit from Resource
     def post(self):
         try:
@@ -157,14 +81,15 @@ class Evaluation(Resource):  # Inherit from Resource
             # df = prompt_llm(response)
             print(response)
             df = baseline_prompt(response, key_g)
-
+            evals = evaluate(df, key_g)
+            print(evals)
             df = df.replace('\n', '', regex=True)
             print('before cos', df.shape)
             sim_matrix = create_sim_matrix(df)
             # Generate a unique filename for the CSV
             timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
             fn = f'csv_{timestamp}.csv'
-            df.to_csv(fn, index=False)
+            evals.to_csv(fn, index=False)
 
             # Upload the CSV to the Supabase bucket
             bucket_name = "llm-responses"  # Replace with your bucket name
