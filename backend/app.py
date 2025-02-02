@@ -14,8 +14,11 @@ from pathlib import Path
 import google.generativeai as genai
 import pandas as pd
 from utils.cosine_sim import *
+from utils.prompts import *
 import io
 from datetime import datetime
+from utils.evaluate import *
+import time
 
 
 load_dotenv()
@@ -58,38 +61,6 @@ key_g = os.environ.get('GEMINI_KEY')
 genai.configure(api_key=key_g)
 
 
-def prompt_llm(responses):
-    seed = responses[0]['user']['seed']
-    cols = list(responses[0]['user']['steps'].keys())
-    cols.insert(0, "seed")
-    df = pd.DataFrame(columns=cols)
-    for i in range(responses[0]['user']['iters']):
-        if 'problem or task representation' not in cols:
-            new_row = pd.DataFrame([{'seed': seed}])
-        else:
-            new_row = pd.DataFrame(
-                [{'seed': seed, 'problem or task representation': seed}])
-        df = pd.concat([df, new_row], ignore_index=True)
-    start = 2
-    if 'problem or task representation' not in df.columns:
-        start = 1
-    for row in range(df.shape[0]):
-        for col in range(start, df.shape[1]):
-            label = responses[0]['user']['steps'][df.columns[col]]
-            prompt = (
-                f"Given information about the following {str.upper(df.iloc[row, col-1])}"
-                f"Step {str.upper(df.columns[col])}: {label} Please respond with ONLY the {df.columns[col]} step and absolutely no additional text or explanation."
-            )
-            genai.configure(api_key=key_g)
-            model = genai.GenerativeModel("gemini-1.5-flash",
-                                          system_instruction='Return responses with no newline characters, \\n. Always end on just a period.')
-            response = model.generate_content(prompt,
-                                              generation_config=genai.types.GenerationConfig(
-                                                  temperature=1.0))
-            df.iloc[row, col] = response.text
-    return df
-
-
 class Evaluation(Resource):  # Inherit from Resource
     def post(self):
         try:
@@ -108,13 +79,18 @@ class Evaluation(Resource):  # Inherit from Resource
             supabase: Client = create_client(url, key)
             response = supabase.table("users").select(
                 "*").eq("id", uuid).execute().data
+            # df = prompt_llm(response)
             print(response)
-            df = prompt_llm(response)
+            df = baseline_prompt(response, key_g)
+            evals = evaluate(df, key_g)
+            print(evals)
             df = df.replace('\n', '', regex=True)
+            print('before cos', df.shape)
+            sim_matrix = create_sim_matrix(df)
             # Generate a unique filename for the CSV
             timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
             fn = f'csv_{timestamp}.csv'
-            df.to_csv(fn, index=False)
+            evals.to_csv(fn, index=False)
 
             # Upload the CSV to the Supabase bucket
             bucket_name = "llm-responses"  # Replace with your bucket name
@@ -124,9 +100,12 @@ class Evaluation(Resource):  # Inherit from Resource
                     file=f,
                 )
             os.remove(fn)
-            print('before cos', df.shape)
-            sim_matrix = create_sim_matrix(df)
+            time.sleep(5)
+            public_url = supabase.storage.from_(bucket_name).get_public_url(
+                f'llm/{fn}')
+            print(public_url)
             print(sim_matrix)
+            sim_matrix['public_url'] = public_url
 
             return jsonify({"status": "success", "evaluation": sim_matrix})
         except Exception as e:
