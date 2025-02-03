@@ -9,7 +9,7 @@ class BaseClass(typing.TypedDict):
     response: str
 
 
-def baseline_prompt(prompt, key_g):
+def baseline_prompt(prompt, key_g, temperature=1.0):
     system_prompt = f"""
         You are an AI assistant that is able to generate a response to a given prompt.
 """
@@ -44,7 +44,7 @@ def baseline_prompt(prompt, key_g):
                                           system_instruction=system_prompt)
             response = model.generate_content(llm_prompt,
                                               generation_config=genai.types.GenerationConfig(
-                                                  temperature=1.0, response_mime_type="application/json", response_schema=BaseClass))
+                                                  temperature=temperature, response_mime_type="application/json", response_schema=BaseClass))
             print('response', response)
             try:
                 json_response = json.loads(
