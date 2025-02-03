@@ -81,7 +81,7 @@ class Evaluation(Resource):  # Inherit from Resource
                 "*").eq("id", uuid).execute().data
             # df = prompt_llm(response)
             print(response)
-            df = baseline_prompt(response, key_g, temperature=response['temperature'])
+            df = baseline_prompt(response, key_g, temperature=float(response['temperature']))
             evals = evaluate(df, key_g)
             print(evals)
             df = df.replace('\n', '', regex=True)
