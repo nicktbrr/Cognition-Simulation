@@ -28,14 +28,14 @@ def baseline_prompt(prompt, key_g):
     start = 2
     if 'problem or task representation' not in df.columns:
         start = 1
-    print(df)
+    # print(df)
     for row in range(df.shape[0]):
         for col in range(start, df.shape[1]):
-            print(df)
-            print(col)
-            print(df.columns[col])
+            # print(df)
+            # print(col)
+            # print(df.columns[col])
             label = prompt[0]['user']['steps'][df.columns[col]]
-            print(label)
+            # print(label)
             llm_prompt = (
                 f"Step {str.upper(df.columns[col])}: {label} Please respond with ONLY the {df.columns[col]} step and absolutely no additional text or explanation."
             )

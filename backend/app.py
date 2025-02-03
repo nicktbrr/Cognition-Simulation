@@ -100,7 +100,6 @@ class Evaluation(Resource):  # Inherit from Resource
                     file=f,
                 )
             os.remove(fn)
-            time.sleep(5)
             public_url = supabase.storage.from_(bucket_name).get_public_url(
                 f'llm/{fn}')
             print(public_url)
