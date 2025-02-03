@@ -37,7 +37,7 @@ def baseline_prompt(prompt, key_g, temperature=1.0):
             label = prompt[0]['user']['steps'][df.columns[col]]
             # print(label)
             llm_prompt = (
-                f"Step {str.upper(df.columns[col])}: {label} Please respond with ONLY the {df.columns[col]} step and absolutely no additional text or explanation."
+                f"Starting with the following object: {seed}. Step {str.upper(df.columns[col])}: {label} Please respond with ONLY the {df.columns[col]} step and absolutely no additional text or explanation."
             )
             genai.configure(api_key=key_g)
             model = genai.GenerativeModel("gemini-1.5-flash",
