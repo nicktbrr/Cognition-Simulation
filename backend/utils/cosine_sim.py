@@ -5,45 +5,45 @@ import random
 import pandas as pd
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
+from functools import lru_cache
 
 # Load pre-trained model tokenizer (vocabulary)
-tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
 
 # load embeddings
-model = BertModel.from_pretrained('bert-base-uncased')
+model = BertModel.from_pretrained("bert-base-uncased")
 
 # Set the model in evaluation mode to deactivate the DropOut modules to have reproducible results during evaluation
 model.eval()
 
 
+@lru_cache(maxsize=128)
 def preprocess_text(text, random_mask_option=False, indexed_tokens=True):
     # Basic text normalization (optional)
     text = text.lower()
-    # Remove punctuation and special characters
-    text = re.sub(r'[^a-zA-Z0-9\s]', '', text)
-    text = re.sub(' +', ' ', text)  # Remove extra spaces
-    text = text.strip()
+    # Combine regex steps to remove punctuation, special characters and extra spaces efficiently
+    text = re.sub(r"[^a-zA-Z0-9\s]+|\s+", " ", text).strip()
 
     # Tokenize input
     tokenized_text = tokenizer.tokenize(text)
 
-    '''Masking Option: To mask a token that we will try to predict back
+    """Masking Option: To mask a token that we will try to predict back
     Masking a token can help improve the model's robustness and ability to generalize. 
     If the goal is to train or fine-tune a BERT model on a specific dataset using the MLM objective, we need to mask tokens during preprocessing. 
     This trains the model to better understand the context and improve its ability to predict or understand missing words.
     This helps the model to learn bidirectional context representations. 
     By predicting the masked tokens, BERT learns to understand the context of a word from both its left and right surroundings. 
     In here this is left optional because For tasks where we just want to extract embeddings for text 
-    (e.g., for text similarity, clustering), masking is not necessary.'''
-    if random_mask_option:
-        mask_index = random.randint(
-            1, len(tokenized_text) - 2) if len(tokenized_text) > 2 else 0
-        if len(tokenized_text) > 0:
-            tokenized_text[mask_index] = '[MASK]'
+    (e.g., for text similarity, clustering), masking is not necessary."""
+    if random_mask_option and tokenized_text:
+        mask_index = (
+            random.randint(1, len(tokenized_text) - 2) if len(tokenized_text) > 2 else 0
+        )
+        tokenized_text[mask_index] = "[MASK]"
 
-    '''Convert tokens to vocabulary indices
+    """Convert tokens to vocabulary indices
     BERT models and other transformer-based models require numerical input. 
-    Specifically, they need token IDs that map to the model's vocabulary.'''
+    Specifically, they need token IDs that map to the model's vocabulary."""
     if indexed_tokens:
         indexed_tokens = tokenizer.convert_tokens_to_ids(tokenized_text)
         return indexed_tokens
@@ -72,6 +72,7 @@ def get_bert_embeddings(indexed_tokens):
 #     similarity = cosine_similarity(embedding1, embedding2)
 #     return similarity[0][0]
 
+
 def calculate_cosine_similarity(embedding1, embedding2):
     """
     Calculate cosine similarity between two embeddings.
@@ -87,8 +88,9 @@ def create_sim_matrix(df):
     print("Step 1: Precomputing embeddings...")
     num_rows = len(df)
     num_steps = len(df.columns) - 1  # Exclude the first column
-    embedding_dim = get_bert_embeddings(preprocess_text(
-        "sample")).shape[0]  # Assuming fixed embedding size
+    embedding_dim = get_bert_embeddings(preprocess_text("sample")).shape[
+        0
+    ]  # Assuming fixed embedding size
 
     # Initialize a NumPy array to store all embeddings
     all_embeddings = np.zeros((num_rows, num_steps, embedding_dim))
@@ -97,8 +99,8 @@ def create_sim_matrix(df):
         for j in range(num_steps):
             text = preprocess_text(df.iloc[i, j + 1])  # Skip the first column
             all_embeddings[i, j] = get_bert_embeddings(text)
-    print('df', df.shape)
-    print('embeds', all_embeddings.shape)
+    print("df", df.shape)
+    print("embeds", all_embeddings.shape)
 
     print("Step 2: Calculating cosine similarities...")
     similarity_tensor = np.ones((num_steps, num_steps, num_rows))
@@ -114,16 +116,18 @@ def create_sim_matrix(df):
         for j in range(num_steps):
             for k in range(j, num_steps):
                 # Trial-wise similarity (within the same row, across steps)
-                similarity = calculate_cosine_similarity(
-                    embeddings[j], embeddings[k])
+                similarity = calculate_cosine_similarity(embeddings[j], embeddings[k])
                 similarity_tensor[j, k, i] = similarity
                 similarity_tensor[k, j, i] = similarity  # Reflect in lower triangle
 
             # Stepwise similarity (across rows, for the current step)
             step_embeddings = all_embeddings[:, j, :]  # All rows for the current step
-            for m in range(i + 1, num_rows):  # Compare only with subsequent rows to avoid double-counting
+            for m in range(
+                i + 1, num_rows
+            ):  # Compare only with subsequent rows to avoid double-counting
                 step_similarity = calculate_cosine_similarity(
-                    step_embeddings[i], step_embeddings[m])
+                    step_embeddings[i], step_embeddings[m]
+                )
                 stepwise_similarity_sums[j] += step_similarity
                 stepwise_similarity_counts[j] += 1
 
@@ -146,21 +150,22 @@ def create_sim_matrix(df):
     print(mean_similarity_matrix)
 
     # Step 4: Convert results into DataFrames and return as JSON
-    mean_similarity_df = pd.DataFrame(mean_similarity_matrix,
-                                      columns=range(1, num_steps + 1),
-                                      index=range(1, num_steps + 1))
+    mean_similarity_df = pd.DataFrame(
+        mean_similarity_matrix,
+        columns=range(1, num_steps + 1),
+        index=range(1, num_steps + 1),
+    )
     stepwise_similarity_df = pd.DataFrame(stepwise_similarity)
 
-    print('mean sim', mean_similarity_df)
-    print('stepwise sim', stepwise_similarity_df)
+    print("mean sim", mean_similarity_df)
+    print("stepwise sim", stepwise_similarity_df)
 
     result = {
         "mean_similarity_df": mean_similarity_df.to_json(),
-        "stepwise_similarity_df": stepwise_similarity_df.to_json()
+        "stepwise_similarity_df": stepwise_similarity_df.to_json(),
     }
 
     return result
-
 
     # for every row in the df, preprocess the value of each column after the first one
     # all_similarities = []
