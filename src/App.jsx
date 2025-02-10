@@ -1,6 +1,6 @@
 // TODO fix bug where putting seed last before pushing json doesnt actually update the seed
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
 import ChatBox from "./components/ChatBox";
 import "./App.css";
@@ -96,6 +96,23 @@ function App() {
         "By quality we are referring to the degree to which the content is communicated more effectively.",
     },
   ];
+  
+  const handleSeedChange = (e) => {
+    const newSeed = e.target.value;
+    setSeed(newSeed);
+  
+    setJsonData((prev) => ({
+      ...prev,
+      seed: newSeed,
+    }));
+  };
+
+  useEffect(() => {
+    setJsonData((prev) => ({
+      ...prev,
+      seed,
+    }));
+  }, [seed]);
 
   const updateJson = () => {
     const steps = {};
@@ -271,7 +288,7 @@ function App() {
           <textarea
             placeholder="seed"
             value={seed}
-            onChange={(e) => setSeed(e.target.value)}
+            onChange={handleSeedChange}
           />
         </div>
         <div>
