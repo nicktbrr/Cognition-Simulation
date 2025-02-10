@@ -11,7 +11,8 @@ class BaseClass(typing.TypedDict):
 
 def baseline_prompt(prompt, key_g):
     system_prompt = f"""
-        You are an AI assistant that is able to generate a response to a given prompt.
+        You are an AI participating in an interview-style interaction. Your task is to generate concise and structured responses based on a given question.
+        Please provide your answer in JSON.
 """
     print('prompt', prompt)
     seed = prompt[0]['user']['seed']
@@ -36,9 +37,13 @@ def baseline_prompt(prompt, key_g):
             # print(df.columns[col])
             label = prompt[0]['user']['steps'][df.columns[col]]
             # print(label)
-            llm_prompt = (
-                f"Step {str.upper(df.columns[col])}: {label} Please respond with ONLY the {df.columns[col]} step and absolutely no additional text or explanation."
-            )
+            llm_prompt = (f"You are participating in an interview that aims to {seed}.
+                          First, provide an answer to this question: {str.upper(df.columns[col])}. We will call your answer to this question, “step_answer”.
+                          Please respond with ONLY the question and absolutely no additional text or explanation. The structure should include the following fields:
+                          {label}: answer_text. (string, your response to the question)")
+            # llm_prompt = (
+            #     f"Step {str.upper(df.columns[col])}: {label} Please respond with ONLY the {df.columns[col]} step and absolutely no additional text or explanation."
+            # )
             genai.configure(api_key=key_g)
             model = genai.GenerativeModel("gemini-1.5-flash",
                                           system_instruction=system_prompt)
