@@ -14,7 +14,7 @@ def baseline_prompt(prompt, key_g):
         You are an AI participating in an interview-style interaction. Your task is to generate concise and structured responses based on a given question.
         Please provide your answer in JSON.
 """
-    print('prompt', prompt)
+    # print('prompt', prompt)
     seed = prompt[0]['user']['seed']
     cols = list(prompt[0]['user']['steps'].keys())
     cols.insert(0, "seed")
@@ -50,7 +50,7 @@ def baseline_prompt(prompt, key_g):
             response = model.generate_content(llm_prompt,
                                               generation_config=genai.types.GenerationConfig(
                                                   temperature=1.0, response_mime_type="application/json", response_schema=BaseClass))
-            print('response', response)
+            # print('response', response)
             try:
                 json_response = json.loads(
                     response._result.candidates[0].content.parts[0].text)

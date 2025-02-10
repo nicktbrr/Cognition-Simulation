@@ -80,12 +80,12 @@ class Evaluation(Resource):  # Inherit from Resource
             response = supabase.table("users").select(
                 "*").eq("id", uuid).execute().data
             # df = prompt_llm(response)
-            print(response)
+            # print(response)
             df = baseline_prompt(response, key_g)
             evals = evaluate(df, key_g)
             print(evals)
             df = df.replace('\n', '', regex=True)
-            print('before cos', df.shape)
+            # print('before cos', df.shape)
             sim_matrix = create_sim_matrix(df)
             # Generate a unique filename for the CSV
             timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
@@ -102,8 +102,8 @@ class Evaluation(Resource):  # Inherit from Resource
             os.remove(fn)
             public_url = supabase.storage.from_(bucket_name).get_public_url(
                 f'llm/{fn}')
-            print(public_url)
-            print(sim_matrix)
+            # print(public_url)
+            # print(sim_matrix)
             sim_matrix['public_url'] = public_url
 
             return jsonify({"status": "success", "evaluation": sim_matrix})
