@@ -13,7 +13,7 @@ def baseline_prompt(prompt, key_g):
     system_prompt = f"""
         You are an AI assistant that is able to generate a response to a given prompt.
 """
-    print('prompt', prompt)
+    # print('prompt', prompt)
     seed = prompt[0]['user']['seed']
     cols = list(prompt[0]['user']['steps'].keys())
     cols.insert(0, "seed")
@@ -39,13 +39,15 @@ def baseline_prompt(prompt, key_g):
             llm_prompt = (
                 f"Step {str.upper(df.columns[col])}: {label} Please respond with ONLY the {df.columns[col]} step and absolutely no additional text or explanation."
             )
+            print('prompt', llm_prompt)
+            print('label', label)
             genai.configure(api_key=key_g)
             model = genai.GenerativeModel("gemini-1.5-flash",
                                           system_instruction=system_prompt)
             response = model.generate_content(llm_prompt,
                                               generation_config=genai.types.GenerationConfig(
                                                   temperature=1.0, response_mime_type="application/json", response_schema=BaseClass))
-            print('response', response)
+            # print('response', response)
             try:
                 json_response = json.loads(
                     response._result.candidates[0].content.parts[0].text)
