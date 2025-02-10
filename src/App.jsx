@@ -1,6 +1,6 @@
 // TODO fix bug where putting seed last before pushing json doesnt actually update the seed
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
 import ChatBox from "./components/ChatBox";
 import "./App.css";
@@ -16,12 +16,43 @@ const token = import.meta.env.VITE_GCP_TOKEN;
 
 function App() {
   const uuid = uuidv4();
-  const [seed, setSeed] = useState("");
+  const [seed, setSeed] = useState("chopsticks.");
   const [evaluation, setEvaluation] = useState("");
   const [stepwise_similarity_df, setStepwiseAverageSimilarity] = useState("");
   const [mean_similarity_df, setMeanSimilarityDf] = useState("");
   const [metrics, setMetrics] = useState([]);
-  const [chatBoxes, setChatBoxes] = useState([{ title: "", content: "" }]);
+  const [chatBoxes, setChatBoxes] = useState([
+    {
+      title: "ideas",
+      content:
+        " generate 5 different ideas based on this object that can be potentially useful. Try pushing yourself in more novel, useful, and feasible directions.",
+    },
+    {
+      title: "idea & description",
+      content:
+        "choose the most promising idea that you think has the greatest potential to be both highly novel and highly useful.",
+    },
+    {
+      title: "problem elements",
+      content:
+        "identify main elements of a prolem including a clear target user, a relevant context, and a strong reason why this is important.",
+    },
+    {
+      title: "problem statement",
+      content:
+        " generate a clear and coherent problem statement, beginning with an accurate description of the current state and ending with a future goal to achieve.",
+    },
+    {
+      title: "second ideas",
+      content:
+        " generate 5 different ideas to solve this problem. Try pushing yourself in more novel, useful, and feasible directions.",
+    },
+    {
+      title: "second idea and description",
+      content:
+        "choose the most promising idea that has the greatest potential to be both highly novel and highly useful.",
+    },
+  ]);
   const [jsonData, setJsonData] = useState({
     seed: "",
     steps: {},
@@ -65,6 +96,23 @@ function App() {
         "By quality we are referring to the degree to which the content is communicated more effectively.",
     },
   ];
+  
+  const handleSeedChange = (e) => {
+    const newSeed = e.target.value;
+    setSeed(newSeed);
+  
+    setJsonData((prev) => ({
+      ...prev,
+      seed: newSeed,
+    }));
+  };
+
+  useEffect(() => {
+    setJsonData((prev) => ({
+      ...prev,
+      seed,
+    }));
+  }, [seed]);
 
   const updateJson = () => {
     const steps = {};
@@ -240,7 +288,7 @@ function App() {
           <textarea
             placeholder="seed"
             value={seed}
-            onChange={(e) => setSeed(e.target.value)}
+            onChange={handleSeedChange}
           />
         </div>
         <div>
