@@ -267,6 +267,57 @@ pre {
   color: #444;
 }
 
+.tooltip-container {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.tooltip-text {
+  visibility: hidden;
+  position: absolute;
+  bottom: calc(100% + 10px); /* Add some spacing from the icon */
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #333;
+  color: white;
+  padding: 12px;
+  border-radius: 4px;
+  font-size: 14px;
+  line-height: 1.4;
+  z-index: 1;
+  
+  /* Flexbox layout */
+  display: flex;
+  flex-direction: column;
+  
+  /* Width handling */
+  width: max-content;
+  max-width: 300px;
+  min-width: 200px;
+  
+  /* Text wrapping */
+  white-space: normal;
+  word-wrap: break-word;
+}
+
+/* Add arrow */
+.tooltip-text::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 6px;
+  border-style: solid;
+  border-color: #333 transparent transparent transparent;
+}
+
+.tooltip-container:hover .tooltip-text {
+  visibility: visible;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .input-group {

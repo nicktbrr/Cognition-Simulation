@@ -6,6 +6,9 @@ import ChatBox from "./components/ChatBox";
 import "./App.css";
 import { v4 as uuidv4 } from "uuid";
 
+import { Info } from "@phosphor-icons/react";
+
+
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_KEY
@@ -281,62 +284,38 @@ function App() {
   return (
     <div className="App">
       <h1>Cognitive Processes for LLM</h1>
+      <p style={{ textAlign: "left" }}><strong>Instructions</strong> Enter each step of the process as a separate box. </p>
+      <ol style={{ textAlign: "left" }}>
+        <li>The first box should be the seed.</li>
+        <li>Select the metrics you want to evaluate.</li>
+        <li>The variation slider controls the randomness of the process.</li>
+        <li>Add new steps to the process by clicking the "Add New Step" button.</li>
+        <li>Save the JSON data by clicking the "Submit Process" button.</li>
+      </ol>
       {/* Inputs for Seed and Metric */}
       <div className="input-group">
         <div>
-          <label>Seed:</label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            Seed <span className="tooltip-container">
+              <Info size={18} />
+              <span className="tooltip-text">The text that a user needs to enter to initiate the process</span>
+            </span>:
+          </label>
           <textarea
             placeholder="seed"
             value={seed}
             onChange={handleSeedChange}
           />
         </div>
-        <div>
-          {/* Metric */}
-          <h3>Select Metrics:</h3>
-          <div className={`checkbox-container ${metricsError ? "error" : ""}`}>
-            {availableMetrics.map((metric) => (
-              <label className="checkbox-label" key={metric.name}>
-                <input
-                  type="checkbox"
-                  value={metric.name}
-                  checked={metrics.includes(metric.name)}
-                  onChange={() => handleMetricChange(metric.name)}
-                />
-
-                <span className="tooltip" data-tooltip={metric.description}>
-                  {metric.name}
-                </span>
-              </label>
-            ))}
-          </div>
-        </div>
       </div>
-
-      {/* Variation Slider */}
-      <div className="slider-group">
-        <h3 htmlFor="variation-slider">Variation: {temperature * 100}</h3>
-        <input
-          id="variation-slider"
-          type="range"
-          min="0.0"
-          max="1.0"
-          step="0.01" // Allow finer granularity
-          value={temperature}
-          onChange={(e) => handleSliderChange(Number(e.target.value))}
-        />
-      </div>
-
+  
       {/* Add New Step and Save JSON */}
-      <div className="buttons">
-        <button onClick={addNewStep}>Add New Step</button>
-        <button onClick={saveJson}>Save JSON</button>
-      </div>
+
 
       <div>
-        <h3>Cosine Similarity Matrix:</h3>
-
         {mean_similarity_df && (
+          <div>
+            <h3>Cosine Similarity Matrix:</h3>
           <table className="similarity-matrix">
             <thead>
               <tr>
@@ -362,39 +341,43 @@ function App() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 
       <div>
-        <h3>Stepwise Average Similarity Matrix:</h3>
+       
         {stepwise_similarity_df && (
-          <table className="stepwise-similarity-matrix">
-            <thead>
-              <tr>
-                <th></th> {/* Empty top-left cell */}
-                {Object.keys(stepwise_similarity_df).map((key) => (
-                  <th key={`col-${key}`}>Step {key}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {Object.entries(stepwise_similarity_df).map(
-                ([rowKey, rowValues]) => (
-                  <tr key={`row-${rowKey}`}>
-                    <td>
-                      <strong>Step {rowKey}</strong>
-                    </td>{" "}
-                    {/* Row header */}
-                    {Object.values(rowValues).map((value, colIndex) => (
-                      <td key={`cell-${rowKey}-${colIndex}`}>
-                        {value.toFixed(3)} {/* Format to 3 decimal places */}
-                      </td>
-                    ))}
-                  </tr>
-                )
-              )}
-            </tbody>
-          </table>
+          <div>
+            <h3>Stepwise Average Similarity Matrix:</h3>
+            <table className="stepwise-similarity-matrix">
+              <thead>
+                <tr>
+                  <th></th> {/* Empty top-left cell */}
+                  {Object.keys(stepwise_similarity_df).map((key) => (
+                    <th key={`col-${key}`}>Step {key}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(stepwise_similarity_df).map(
+                  ([rowKey, rowValues]) => (
+                    <tr key={`row-${rowKey}`}>
+                      <td>
+                        <strong>Step {rowKey}</strong>
+                      </td>{" "}
+                      {/* Row header */}
+                      {Object.values(rowValues).map((value, colIndex) => (
+                        <td key={`cell-${rowKey}-${colIndex}`}>
+                          {value.toFixed(3)} {/* Format to 3 decimal places */}
+                        </td>
+                      ))}
+                    </tr>
+                  )
+                )}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
@@ -417,6 +400,47 @@ function App() {
           hasError={validationErrors[index]} // Highlight if there's an error
         />
       ))}
+       <div>
+          {/* Metric */}
+          <h3>Select Metrics:</h3>
+          <div className={`checkbox-container ${metricsError ? "error" : ""}`}>
+            {availableMetrics.map((metric) => (
+              <label className="checkbox-label" key={metric.name}>
+                <input
+                  type="checkbox"
+                  value={metric.name}
+                  checked={metrics.includes(metric.name)}
+                  onChange={() => handleMetricChange(metric.name)}
+                />
+
+                <span className="tooltip" data-tooltip={metric.description}>
+                  {metric.name}
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
+      {/* Variation Slider */}
+      <div className="slider-group">
+        <h3 htmlFor="variation-slider">Temperature <span className="tooltip-container">
+              <Info size={18} />
+              <span className="tooltip-text">"Temperature" is a parameter that controls the randomness and creativity of the model's output. 
+                It essentially determines how much the model will deviate from the most likely or predictable response.</span>
+            </span>: {temperature * 100}</h3>
+        <input
+          id="variation-slider"
+          type="range"
+          min="0.0"
+          max="1.0"
+          step="0.01" // Allow finer granularity
+          value={temperature}
+          onChange={(e) => handleSliderChange(Number(e.target.value))}
+        />
+      </div>
+      <div className="buttons">
+        <button onClick={addNewStep}>Add New Step</button>
+        <button onClick={saveJson}>Submit Process</button>
+      </div>
 
       {/* Display JSON */}
       <div className="json-display">
