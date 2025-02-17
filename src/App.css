@@ -217,11 +217,11 @@ button:active {
   margin-right: 10px;
 }
 
-.tooltip {
+.tooltip-1 {
   position: relative;
 }
 
-.tooltip::after {
+.tooltip-1::after {
   content: attr(data-tooltip);
   position: absolute;
   top: 110%;
@@ -239,7 +239,7 @@ button:active {
   pointer-events: none;
 }
 
-.tooltip:hover::after {
+.tooltip-1:hover::after {
   opacity: 1;
   visibility: visible;
 }
@@ -267,14 +267,14 @@ pre {
   color: #444;
 }
 
-.tooltip-container {
+.tooltip-1-container {
   position: relative;
   display: inline-flex;
   align-items: center;
   cursor: pointer;
 }
 
-.tooltip-text {
+.tooltip-1-text {
   visibility: hidden;
   position: absolute;
   bottom: calc(100% + 10px); /* Add some spacing from the icon */
@@ -303,7 +303,7 @@ pre {
 }
 
 /* Add arrow */
-.tooltip-text::after {
+.tooltip-1-text::after {
   content: '';
   position: absolute;
   top: 100%;
@@ -314,7 +314,7 @@ pre {
   border-color: #333 transparent transparent transparent;
 }
 
-.tooltip-container:hover .tooltip-text {
+.tooltip-1-container:hover .tooltip-1-text {
   visibility: visible;
 }
 
