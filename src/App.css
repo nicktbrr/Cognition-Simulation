@@ -23,6 +23,7 @@ body {
   background: #fff;
   border-radius: 8px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  min-width: 1000px;
 }
 
 /* Header */
@@ -217,11 +218,11 @@ button:active {
   margin-right: 10px;
 }
 
-.tooltip {
+.tooltip-1 {
   position: relative;
 }
 
-.tooltip::after {
+.tooltip-1::after {
   content: attr(data-tooltip);
   position: absolute;
   top: 110%;
@@ -239,7 +240,7 @@ button:active {
   pointer-events: none;
 }
 
-.tooltip:hover::after {
+.tooltip-1:hover::after {
   opacity: 1;
   visibility: visible;
 }
@@ -265,6 +266,57 @@ pre {
   margin: 0;
   font-size: 0.9rem;
   color: #444;
+}
+
+.tooltip-1-container {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.tooltip-1-text {
+  visibility: hidden;
+  position: absolute;
+  bottom: calc(100% + 10px); /* Add some spacing from the icon */
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #333;
+  color: white;
+  padding: 12px;
+  border-radius: 4px;
+  font-size: 14px;
+  line-height: 1.4;
+  z-index: 1;
+  
+  /* Flexbox layout */
+  display: flex;
+  flex-direction: column;
+  
+  /* Width handling */
+  width: max-content;
+  max-width: 300px;
+  min-width: 200px;
+  
+  /* Text wrapping */
+  white-space: normal;
+  word-wrap: break-word;
+}
+
+/* Add arrow */
+.tooltip-1-text::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 6px;
+  border-style: solid;
+  border-color: #333 transparent transparent transparent;
+}
+
+.tooltip-1-container:hover .tooltip-1-text {
+  visibility: visible;
 }
 
 /* Responsive Design */
