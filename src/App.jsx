@@ -492,7 +492,14 @@ function App() {
                 hasError={validationErrors[index]}
               />
             ))}
-
+          <div className="buttons">
+            <button onClick={addNewStep} disabled={loading}>
+              Add New Step
+            </button>
+            <button onClick={saveJson} disabled={loading}>
+              Submit Process
+            </button>
+          </div>
             <div>
               <h3>Select Metrics:</h3>
               {/* New buttons for "Select All" and "Clear All" */}
@@ -566,14 +573,7 @@ function App() {
         </CCard>
       </CCollapse>
 
-      <div className="buttons">
-        <button onClick={addNewStep} disabled={loading}>
-          Add New Step
-        </button>
-        <button onClick={saveJson} disabled={loading}>
-          Submit Process
-        </button>
-      </div>
+
       { prod == "production" ? null :
       <div className="json-display">
         <h3>JSON Data:</h3>
