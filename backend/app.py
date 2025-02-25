@@ -28,9 +28,11 @@ app = Flask(__name__)
 
 prod = os.environ.get("DEV") or 'production'
 
+print(prod)
+
 if prod == 'development':
     CORS(app, resources={
-        r"/api/*": {"origins": ["http://localhost:5173"],
+        r"/api/*": {"origins": ["http://localhost:3000"],
                     "methods": ["GET", "POST", "OPTIONS"],
                     "allow_headers": ["Content-Type"]}})
 else:
