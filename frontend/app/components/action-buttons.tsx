@@ -234,7 +234,7 @@ export default function ActionButtons({
             : "https://cognition-backend-81313456654.us-west1.run.app/api/evaluate";
 
         // Send request to backend
-        await fetch(url, {
+        const response = await fetch(url, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -244,6 +244,8 @@ export default function ActionButtons({
           },
           body: JSON.stringify({ uuid }),
         });
+        const a = await response.json();
+        console.log(a);
       }
     } catch (error) {
       console.error("Error in POST request:", error);
