@@ -1,6 +1,13 @@
 // "use client";
 
-// import { useCallback, useEffect, useRef, useMemo, useState } from "react";
+// import {
+//   useCallback,
+//   useEffect,
+//   useRef,
+//   useMemo,
+//   useState,
+//   useLayoutEffect,
+// } from "react";
 // import { Trash2, GripVertical } from "lucide-react";
 // import { Button } from "@/components/ui/button";
 // import {
@@ -98,17 +105,48 @@
 //           Delete
 //         </Button>
 //       </div>
+//       {/* Multiple handles for different connection points */}
+//       <Handle
+//         type="target"
+//         position={Position.Top}
+//         style={{ background: "#555" }}
+//         isConnectable={true}
+//         id="target-top"
+//       />
 //       <Handle
 //         type="target"
 //         position={Position.Left}
 //         style={{ background: "#555" }}
 //         isConnectable={true}
+//         id="target-left"
+//       />
+//       <Handle
+//         type="target"
+//         position={Position.Bottom}
+//         style={{ background: "#555" }}
+//         isConnectable={true}
+//         id="target-bottom"
+//       />
+//       <Handle
+//         type="source"
+//         position={Position.Top}
+//         style={{ background: "#555" }}
+//         isConnectable={true}
+//         id="source-top"
 //       />
 //       <Handle
 //         type="source"
 //         position={Position.Right}
 //         style={{ background: "#555" }}
 //         isConnectable={true}
+//         id="source-right"
+//       />
+//       <Handle
+//         type="source"
+//         position={Position.Bottom}
+//         style={{ background: "#555" }}
+//         isConnectable={true}
+//         id="source-bottom"
 //       />
 //     </div>
 //   );
@@ -123,7 +161,7 @@
 //   onStepsChange: (steps: Step[]) => void;
 // }) {
 //   const reactFlowWrapper = useRef<HTMLDivElement>(null);
-//   const reactFlowInstance = useReactFlow();
+//   const { fitView, project } = useReactFlow();
 
 //   // New state to toggle panel visibility
 //   const [showPanel, setShowPanel] = useState(true);
@@ -176,60 +214,69 @@
 //         updateStep,
 //         deleteStep,
 //       },
+//       connectable: true,
 //     }));
 
-//     // Create edges between consecutive nodes
-//     const newEdges: Edge[] = [];
-//     for (let i = 0; i < steps.length - 1; i++) {
-//       newEdges.push({
-//         id: `e${steps[i].id}-${steps[i + 1].id}`,
-//         source: steps[i].id.toString(),
-//         target: steps[i + 1].id.toString(),
-//         animated: true,
-//         style: { stroke: "var(--primary)", strokeWidth: 2 },
-//       });
-//     }
-//     console.log(newNodes);
-//     console.log(newEdges);
+//     // Don't create any automatic connections between nodes as requested
+//     console.log("Setting nodes:", newNodes);
+
 //     setNodes(newNodes);
-//     setEdges(newEdges);
+
+//     // Only set edges on initial load, not when steps change
+//     if (nodes.length === 0) {
+//       setEdges([]);
+//     }
 
 //     // Fit view after a short delay
 //     setTimeout(() => {
-//       if (reactFlowInstance) {
-//         reactFlowInstance.fitView({ padding: 0.2 });
-//       }
-//     }, 50);
-//   }, [steps, updateStep, deleteStep, setNodes, setEdges, reactFlowInstance]);
+//       fitView({ padding: 0.2 });
+//     }, 100);
+//   }, [
+//     steps,
+//     updateStep,
+//     deleteStep,
+//     setNodes,
+//     setEdges,
+//     fitView,
+//     nodes.length,
+//   ]);
 
 //   // Handle connections between nodes
 //   const onConnect = useCallback(
 //     (params: Connection) => {
-//       // Check if this connection would create a duplicate
-//       const edgeExists = edges.some(
-//         (edge) => edge.source === params.source && edge.target === params.target
-//       );
+//       console.log("Connection attempt:", params);
 
-//       if (!edgeExists) {
-//         setEdges((eds) =>
-//           addEdge(
-//             {
-//               ...params,
-//               animated: true,
-//               style: { stroke: "var(--primary)", strokeWidth: 2 },
-//             },
-//             eds
-//           )
-//         );
-//       }
+//       // Create a unique ID for the edge to avoid duplicate key warnings
+//       const uniqueId = `e${params.source}-${params.target}-${Date.now()}`;
+
+//       // Create a properly formatted edge object with unique ID
+//       const newEdge = {
+//         id: uniqueId,
+//         source: params.source,
+//         sourceHandle: params.sourceHandle,
+//         target: params.target,
+//         targetHandle: params.targetHandle,
+//         animated: true,
+//         style: { stroke: "#000", strokeWidth: 3 },
+//       };
+
+//       console.log("Adding new edge:", newEdge);
+
+//       // Add the new edge without checking for duplicates to allow multiple connections
+//       setEdges((eds) => [...eds, newEdge]);
 //     },
-//     [edges, setEdges]
+//     [setEdges]
 //   );
 
-//   // Update flow when steps change
-//   useEffect(() => {
+//   // Update flow when steps change - using useLayoutEffect for synchronous rendering
+//   useLayoutEffect(() => {
 //     updateNodesAndEdges();
 //   }, [steps, updateNodesAndEdges]);
+
+//   // Debug current edges state
+//   useEffect(() => {
+//     console.log("Current edges state:", edges);
+//   }, [edges]);
 
 //   return (
 //     <div ref={reactFlowWrapper} style={{ width: "100%", height: "100%" }}>
@@ -253,6 +300,12 @@
 //         minZoom={0.5}
 //         maxZoom={1.5}
 //         proOptions={{ hideAttribution: true }}
+//         deleteKeyCode={["Backspace", "Delete"]}
+//         connectionMode="loose"
+//         defaultEdgeOptions={{
+//           animated: true,
+//           style: { stroke: "var(--primary)", strokeWidth: 2 },
+//         }}
 //       >
 //         <Background color="#aaa" gap={16} />
 //         <Controls />
@@ -260,10 +313,9 @@
 //           <Panel
 //             position="bottom-center"
 //             className="bg-white p-2 rounded shadow-md"
-//             // Prevent panel from intercepting pointer events
-//             style={{ pointerEvents: "none" }}
+//             style={{ pointerEvents: "auto" }}
 //           >
-//             <div style={{ pointerEvents: "auto" }}>
+//             <div>
 //               Drag nodes to reposition • Connect nodes by dragging between
 //               handles
 //             </div>
@@ -290,21 +342,13 @@
 // }
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useMemo,
-  useState,
-  useLayoutEffect,
-} from "react";
+import { useCallback, useEffect, useRef, useMemo, useState } from "react";
 import { Trash2, GripVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   ReactFlow,
   type Node,
   type Edge,
-  addEdge,
   Background,
   Controls,
   type Connection,
@@ -395,19 +439,48 @@ function StepNode({ data }: StepNodeProps) {
           Delete
         </Button>
       </div>
+      {/* Multiple handles for different connection points */}
+      <Handle
+        type="target"
+        position={Position.Top}
+        style={{ background: "#555" }}
+        isConnectable={true}
+        id="target-top"
+      />
       <Handle
         type="target"
         position={Position.Left}
         style={{ background: "#555" }}
         isConnectable={true}
-        id="target"
+        id="target-left"
+      />
+      <Handle
+        type="target"
+        position={Position.Bottom}
+        style={{ background: "#555" }}
+        isConnectable={true}
+        id="target-bottom"
+      />
+      <Handle
+        type="source"
+        position={Position.Top}
+        style={{ background: "#555" }}
+        isConnectable={true}
+        id="source-top"
       />
       <Handle
         type="source"
         position={Position.Right}
         style={{ background: "#555" }}
         isConnectable={true}
-        id="source"
+        id="source-right"
+      />
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        style={{ background: "#555" }}
+        isConnectable={true}
+        id="source-bottom"
       />
     </div>
   );
@@ -422,7 +495,13 @@ function Flow({
   onStepsChange: (steps: Step[]) => void;
 }) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
-  const { fitView, project } = useReactFlow();
+  const { fitView } = useReactFlow();
+
+  // Flag for initial setup
+  const initializedRef = useRef(false);
+
+  // Track node positions separately from flow state
+  const nodePositionsRef = useRef<Record<string, { x: number; y: number }>>({});
 
   // New state to toggle panel visibility
   const [showPanel, setShowPanel] = useState(true);
@@ -437,6 +516,22 @@ function Flow({
 
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+
+  // Custom nodes change handler to track positions
+  const handleNodesChange = useCallback(
+    (changes) => {
+      // Update positions in ref based on position changes
+      changes.forEach((change) => {
+        if (change.type === "position" && change.id && change.position) {
+          nodePositionsRef.current[change.id] = { ...change.position };
+        }
+      });
+
+      // Apply the changes to nodes state
+      onNodesChange(changes);
+    },
+    [onNodesChange]
+  );
 
   // Update a step's properties
   const updateStep = useCallback(
@@ -458,51 +553,97 @@ function Flow({
     [steps, onStepsChange]
   );
 
-  // Create nodes and edges from steps
-  const updateNodesAndEdges = useCallback(() => {
-    if (!steps.length) return;
+  // Initialize only on first render
+  useEffect(() => {
+    if (steps.length > 0 && !initializedRef.current) {
+      const initialNodes = steps.map((step, index) => ({
+        id: step.id.toString(),
+        type: "stepNode",
+        position: { x: index * 300, y: 100 },
+        data: {
+          stepId: step.id,
+          label: step.label,
+          instructions: step.instructions,
+          temperature: step.temperature,
+          updateStep,
+          deleteStep,
+        },
+        connectable: true,
+      }));
 
-    // Create nodes from steps
-    const newNodes: Node[] = steps.map((step, index) => ({
-      id: step.id.toString(),
-      type: "stepNode",
-      position: { x: index * 300, y: 100 },
-      data: {
-        stepId: step.id,
-        label: step.label,
-        instructions: step.instructions,
-        temperature: step.temperature,
-        updateStep,
-        deleteStep,
-      },
-      connectable: true,
-    }));
+      setNodes(initialNodes);
+      setEdges([]);
+      initializedRef.current = true;
 
-    // Create edges between consecutive nodes
-    const newEdges: Edge[] = [];
-    for (let i = 0; i < steps.length - 1; i++) {
-      newEdges.push({
-        id: `e${steps[i].id}-${steps[i + 1].id}-auto-${i}`, // Added suffix to ensure uniqueness
-        source: steps[i].id.toString(),
-        target: steps[i + 1].id.toString(),
-        sourceHandle: "source",
-        targetHandle: "target",
-        animated: true,
-        style: { stroke: "#000", strokeWidth: 2 },
-      });
+      setTimeout(() => {
+        fitView({ padding: 0.2 });
+      }, 100);
     }
+  }, [steps, setNodes, setEdges, updateStep, deleteStep, fitView]);
 
-    console.log("Setting nodes:", newNodes);
-    console.log("Setting initial edges:", newEdges);
+  // Update node data without changing positions
+  useEffect(() => {
+    if (!initializedRef.current || steps.length === 0) return;
 
-    setNodes(newNodes);
-    setEdges(newEdges);
+    // Create a map of step data by ID for quick lookup
+    const stepMap = steps.reduce((map, step) => {
+      map[step.id.toString()] = step;
+      return map;
+    }, {} as Record<string, Step>);
 
-    // Fit view after a short delay
-    setTimeout(() => {
-      fitView({ padding: 0.2 });
-    }, 100);
-  }, [steps, updateStep, deleteStep, setNodes, setEdges, fitView]);
+    // Get existing node IDs for comparison
+    const existingNodeIds = new Set(nodes.map((node) => node.id));
+    const stepIds = new Set(steps.map((step) => step.id.toString()));
+
+    // Update nodes: maintain positions for existing nodes, add new ones
+    const updatedNodes = nodes
+      // Keep existing nodes that are still in steps
+      .filter((node) => stepIds.has(node.id))
+      // Update their data
+      .map((node) => {
+        const step = stepMap[node.id];
+        return {
+          ...node,
+          data: {
+            stepId: step.id,
+            label: step.label,
+            instructions: step.instructions,
+            temperature: step.temperature,
+            updateStep,
+            deleteStep,
+          },
+        };
+      });
+
+    // Add new nodes
+    const newNodes = steps
+      .filter((step) => !existingNodeIds.has(step.id.toString()))
+      .map((step) => {
+        // Find rightmost position
+        const maxX = nodes.length
+          ? Math.max(...nodes.map((node) => node.position.x))
+          : 0;
+
+        return {
+          id: step.id.toString(),
+          type: "stepNode",
+          position: { x: maxX + 300, y: 100 },
+          data: {
+            stepId: step.id,
+            label: step.label,
+            instructions: step.instructions,
+            temperature: step.temperature,
+            updateStep,
+            deleteStep,
+          },
+          connectable: true,
+        };
+      });
+
+    if (newNodes.length > 0 || updatedNodes.length !== nodes.length) {
+      setNodes([...updatedNodes, ...newNodes]);
+    }
+  }, [steps, nodes, setNodes, updateStep, deleteStep]);
 
   // Handle connections between nodes
   const onConnect = useCallback(
@@ -516,38 +657,20 @@ function Flow({
       const newEdge = {
         id: uniqueId,
         source: params.source,
-        sourceHandle: params.sourceHandle || null,
+        sourceHandle: params.sourceHandle,
         target: params.target,
-        targetHandle: params.targetHandle || null,
+        targetHandle: params.targetHandle,
         animated: true,
         style: { stroke: "#000", strokeWidth: 3 },
       };
 
       console.log("Adding new edge:", newEdge);
 
-      // Check if a similar edge already exists to prevent duplicates
-      setEdges((eds) => {
-        // Check if an edge with the same source and target already exists
-        const edgeExists = eds.some(
-          (edge) =>
-            edge.source === params.source && edge.target === params.target
-        );
-
-        if (edgeExists) {
-          console.log("Edge already exists, not adding duplicate");
-          return eds;
-        }
-
-        return [...eds, newEdge];
-      });
+      // Add the new edge without checking for duplicates to allow multiple connections
+      setEdges((eds) => [...eds, newEdge]);
     },
     [setEdges]
   );
-
-  // Update flow when steps change - using useLayoutEffect for synchronous rendering
-  useLayoutEffect(() => {
-    updateNodesAndEdges();
-  }, [steps, updateNodesAndEdges]);
 
   // Debug current edges state
   useEffect(() => {
@@ -566,12 +689,10 @@ function Flow({
       <ReactFlow
         nodes={nodes}
         edges={edges}
-        onNodesChange={onNodesChange}
+        onNodesChange={handleNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         nodeTypes={nodeTypes}
-        fitView
-        fitViewOptions={{ padding: 0.2 }}
         defaultViewport={{ x: 0, y: 0, zoom: 1 }}
         minZoom={0.5}
         maxZoom={1.5}
