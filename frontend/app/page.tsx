@@ -69,6 +69,8 @@ import CollapsibleNav from "./components/collapsible-nav";
 import CognitiveProcess from "./components/cognitive-process";
 import EvaluationCriteria from "./components/evaluation-criteria";
 import ActionButtons from "./components/action-buttons";
+import CognitiveProcess2 from "./components/cognitive-process2";
+
 
 interface Step {
   id: number;
@@ -110,6 +112,9 @@ export default function Home() {
       <Header />
       <CollapsibleNav />
       <main className="space-y-8">
+        
+        
+        <CognitiveProcess2 onStepsChange={handleStepsUpdate} onTemperatureChange={handleTemperatureChange} />
         <CognitiveProcess
           onStepsChange={handleStepsUpdate}
           onTemperatureChange={handleTemperatureChange}
