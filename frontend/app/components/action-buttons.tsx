@@ -32,6 +32,30 @@ export default function ActionButtons({
 }: ActionButtonsProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isDisabled, setIsDisabled] = useState(true);
+  const [download, setDownload] = useState("")
+
+
+
+
+  const handleDownload = async (public_url: string, filename: string) => {
+    try {
+      const response = await fetch(public_url);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", filename); // Adjust the filename as needed
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Error downloading CSV:", error);
+    }
+  };
 
   const validateInputs = () => {
     return steps.every(
@@ -94,6 +118,8 @@ export default function ActionButtons({
         });
         const a = await response.json();
         console.log(a);
+        setDownload(a.evaluation.public_url);
+        setIsDisabled(false);
       }
     } catch (error) {
       console.error("Error in POST request:", error);
@@ -132,8 +158,15 @@ export default function ActionButtons({
           >
             {isProcessing ? "Processing..." : "Submit for Simulation"}
           </Button>
-          <Button variant="secondary">Download Simulated Data</Button>
-          <Button variant="secondary">Download Evaluations</Button>
+          <Button variant="secondary" disabled={isDisabled ? true : false} onClick={() => { 
+            console.log(download)
+            handleDownload(download, "simulated_data.csv")}
+            }>Download Simulated Data</Button>
+          <Button variant="secondary" 
+          disabled={isDisabled ? true : false} 
+          
+          
+          >Download Evaluations</Button>
         </div>
         <div className="flex gap-4">
           <Button variant="destructive" onClick={handleReset}>
