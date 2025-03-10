@@ -60,9 +60,8 @@ function SortableStep({
   return (
     <div className="flex items-center" ref={setNodeRef} style={style}>
       <Card
-        className={`w-[200px] p-4 border-primary ${
-          isDragging ? "opacity-50" : ""
-        }`}
+        className={`w-[200px] p-4 border-primary ${isDragging ? "opacity-50" : ""
+          }`}
       >
         <div className="space-y-2">
           <div className="flex items-center justify-between">
@@ -136,10 +135,21 @@ export default function CognitiveProcess({
   onStepsChange: (steps: Step[]) => void;
   onTemperatureChange: (temperature: number) => void;
 }) {
-  const [steps, setSteps] = useState<Step[]>([
+  const prod = process.env.NEXT_PUBLIC_DEV || "production";
+  
+  let stepsState = [
     { id: 1, label: "", instructions: "", temperature: 50 },
     { id: 2, label: "", instructions: "", temperature: 50 },
-  ]);
+  ]
+  
+  if (prod === "development") {
+    stepsState = [
+      { id: 1, label: "Cookies", instructions: "Make Instructions Bake cookies", temperature: 50 },
+      { id: 2, label: "Cake", instructions: "Make Instructions Bake cake", temperature: 50 },
+    ]
+  } 
+
+  const [steps, setSteps] = useState<Step[]>(stepsState);
 
   const [temperature, setTemperature] = useState<number>(50);
 

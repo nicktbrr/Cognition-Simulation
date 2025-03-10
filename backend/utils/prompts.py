@@ -5,7 +5,8 @@ import json
 import concurrent.futures
 
 
-class BaseClass(typing.TypedDict):
+
+class BaseClass(typing.TypedDict, total=False):
     type: list[str]
     response: str
 
@@ -33,7 +34,7 @@ def process_row(row_idx, df, prompt, key_g, system_prompt):
                         Please respond with ONLY the question and absolutely no additional text or explanation. The structure should include the following fields:
                         {label}: answer_text. (string, your response to the question, plain text only)""")
 
-
+        print(llm_prompt)
         # Configure the AI model
         genai.configure(api_key=key_g)
         model = genai.GenerativeModel(
@@ -53,7 +54,7 @@ def process_row(row_idx, df, prompt, key_g, system_prompt):
         except Exception as e:
             print(
                 f'Error processing row {row_idx}, column {df.columns[col]}: {e}')
-            row_data[df.columns[col]] = None  # Handle failures gracefully
+            row_data[df.columns[col]] = "Error processing row ignore in simulation"  # Handle failures gracefully
     print('finished row')
     return row_data
 
