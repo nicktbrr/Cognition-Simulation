@@ -218,10 +218,10 @@ export default function Home() {
           edges={edges}
           onEdgesChange={handleEdgesUpdate}
         />
-        <CognitiveProcess
+        {/* <CognitiveProcess
           onStepsChange={handleStepsUpdate}
           onTemperatureChange={handleTemperatureChange}
-        />
+        /> */}
         <EvaluationCriteria onMetricsChange={handleMetricsUpdate} />
         <ActionButtons
           onSubmit={handleSubmit}
