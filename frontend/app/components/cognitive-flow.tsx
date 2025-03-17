@@ -272,6 +272,10 @@
 //   const [showPanel, setShowPanel] = useState(true);
 //   const [showMinimap, setShowMinimap] = useState(true);
 
+//   // Add connection error message state
+//   const [connectionError, setConnectionError] = useState<string | null>(null);
+//   const connectionErrorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
 //   // Define node types - memoized
 //   const nodeTypes = useMemo<NodeTypes>(() => ({ stepNode: StepNode }), []);
 
@@ -281,6 +285,7 @@
 //   // Update local steps when parent steps change (only for new steps)
 //   useEffect(() => {
 //     if (!steps.length) return;
+//     console.log("edges 2", edges);
 
 //     setLocalSteps((prevLocalSteps) => {
 //       // Create a map of existing local steps
@@ -436,9 +441,41 @@
 //     }
 //   }, [localSteps, nodes, setNodes, updateStepData, deleteStep, fitView]);
 
-//   // Handle connections
+//   // Function to show connection errors temporarily
+//   const showConnectionError = useCallback((message: string) => {
+//     setConnectionError(message);
+
+//     // Clear any existing timeout
+//     if (connectionErrorTimeoutRef.current) {
+//       clearTimeout(connectionErrorTimeoutRef.current);
+//     }
+
+//     // Set new timeout to clear message after 3 seconds
+//     connectionErrorTimeoutRef.current = setTimeout(() => {
+//       setConnectionError(null);
+//     }, 3000);
+//   }, []);
+
+//   // Handle connections with validation
 //   const onConnect = useCallback(
 //     (params: Connection) => {
+//       // Prevent self-loops (connecting a node to itself)
+//       console.log("egdes", edges);
+//       if (params.source === params.target) {
+//         showConnectionError("Cannot connect a node to itself");
+//         return;
+//       }
+
+//       // Check if source node already has an outgoing connection
+//       const sourceHasOutgoing = edges.some(
+//         (edge) => edge.source === params.source
+//       );
+//       if (sourceHasOutgoing) {
+//         showConnectionError("A node can only connect to one other node");
+//         return;
+//       }
+
+//       // Create a unique ID for the edge
 //       const uniqueId = `e${params.source}-${params.target}-${Date.now()}`;
 
 //       const newEdge = {
@@ -457,10 +494,22 @@
 //         },
 //       };
 
+//       // Add the new edge
+//       console.log("new edge", newEdge);
 //       setEdges((eds) => [...eds, newEdge]);
+//       console.log("new after edge", edges);
 //     },
-//     [setEdges]
+//     [edges, setEdges, showConnectionError]
 //   );
+
+//   // Clean up timeout on unmount
+//   useEffect(() => {
+//     return () => {
+//       if (connectionErrorTimeoutRef.current) {
+//         clearTimeout(connectionErrorTimeoutRef.current);
+//       }
+//     };
+//   }, []);
 
 //   // Context value
 //   const stepsContextValue = useMemo(
@@ -492,6 +541,28 @@
 //             {showPanel ? "Hide Panel" : "Show Panel"}
 //           </Button>
 //         </div>
+
+//         {/* Connection Error Message */}
+//         {connectionError && (
+//           <div
+//             style={{
+//               position: "absolute",
+//               top: 60,
+//               left: "50%",
+//               transform: "translateX(-50%)",
+//               zIndex: 1000,
+//               backgroundColor: "rgba(255, 59, 48, 0.9)",
+//               color: "white",
+//               padding: "8px 16px",
+//               borderRadius: "4px",
+//               boxShadow: "0 2px 10px rgba(0, 0, 0, 0.2)",
+//               maxWidth: "80%",
+//               textAlign: "center",
+//             }}
+//           >
+//             {connectionError}
+//           </div>
+//         )}
 
 //         <ReactFlow
 //           nodes={nodes}
@@ -569,7 +640,6 @@
 //     </ReactFlowProvider>
 //   );
 // }
-
 "use client";
 import React from "react";
 import { useCallback, useEffect, useRef, useMemo, useState } from "react";
@@ -827,10 +897,14 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
 // Flow content component
 function Flow({
   steps,
+  edges: parentEdges = [],
   onStepsChange,
+  parentOnEdgesChange, // Renamed to avoid conflict
 }: {
   steps: Step[];
+  edges?: any[];
   onStepsChange: (steps: Step[]) => void;
+  parentOnEdgesChange?: (edges: any[]) => void;
 }) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const { fitView } = useReactFlow();
@@ -851,8 +925,23 @@ function Flow({
   // Define node types - memoized
   const nodeTypes = useMemo<NodeTypes>(() => ({ stepNode: StepNode }), []);
 
+  // Initialize with parent edges if provided
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [edges, setEdges, handleEdgesChange] = useEdgesState(parentEdges); // Renamed to avoid conflict
+
+  // Sync edges back to parent when they change
+  useEffect(() => {
+    if (parentOnEdgesChange && edges) {
+      parentOnEdgesChange(edges);
+    }
+  }, [edges, parentOnEdgesChange]);
+
+  // Update local edges when parent edges change
+  useEffect(() => {
+    if (parentEdges && parentEdges.length > 0) {
+      setEdges(parentEdges);
+    }
+  }, [parentEdges, setEdges]);
 
   // Update local steps when parent steps change (only for new steps)
   useEffect(() => {
@@ -916,13 +1005,20 @@ function Flow({
   // Delete a step with proper state updates
   const deleteStep = useCallback(
     (id: number) => {
+      // Remove the step from local steps
       setLocalSteps((prevSteps) => {
         const updatedSteps = prevSteps.filter((step) => step.id !== id);
         onStepsChange(updatedSteps);
         return updatedSteps;
       });
+
+      // Also remove any edges connected to this node
+      const nodeId = id.toString();
+      setEdges((eds) =>
+        eds.filter((edge) => edge.source !== nodeId && edge.target !== nodeId)
+      );
     },
-    [onStepsChange]
+    [onStepsChange, setEdges]
   );
 
   // Initialize and sync nodes with steps - combined effect
@@ -945,7 +1041,6 @@ function Flow({
       }));
 
       setNodes(initialNodes);
-      setEdges([]);
       initializedRef.current = true;
 
       // Store positions
@@ -1136,7 +1231,7 @@ function Flow({
           nodes={nodes}
           edges={edges}
           onNodesChange={handleNodesChange}
-          onEdgesChange={onEdgesChange}
+          onEdgesChange={handleEdgesChange}
           onConnect={onConnect}
           nodeTypes={nodeTypes}
           defaultViewport={{ x: 0, y: 0, zoom: 1 }}
@@ -1184,7 +1279,8 @@ function Flow({
                 handles
               </div>
               <div className="text-xs mt-1 text-gray-500">
-                {localSteps.length} steps • {nodes.length} nodes
+                {localSteps.length} steps • {nodes.length} nodes •{" "}
+                {edges.length} connections
               </div>
             </Panel>
           )}
@@ -1197,14 +1293,23 @@ function Flow({
 // Main component with ReactFlowProvider
 export default function CognitiveFlow({
   steps,
+  edges,
   onStepsChange,
+  onEdgesChange,
 }: {
   steps: Step[];
+  edges?: any[];
   onStepsChange: (steps: Step[]) => void;
+  onEdgesChange?: (edges: any[]) => void;
 }) {
   return (
     <ReactFlowProvider>
-      <Flow steps={steps} onStepsChange={onStepsChange} />
+      <Flow
+        steps={steps}
+        edges={edges}
+        onStepsChange={onStepsChange}
+        parentOnEdgesChange={onEdgesChange} // Pass with the new name
+      />
     </ReactFlowProvider>
   );
 }
