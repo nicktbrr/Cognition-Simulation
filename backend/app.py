@@ -32,7 +32,7 @@ print(prod)
 
 if prod == 'development':
     CORS(app, resources={
-        r"/api/*": {"origins": ["http://localhost:3000"],
+        r"/api/*": {"origins": "http://localhost:3000",
                     "methods": ["GET", "POST", "OPTIONS"],
                     "allow_headers": ["Content-Type"]}})
 else:
@@ -84,6 +84,7 @@ class Evaluation(Resource):  # Inherit from Resource
             # df = prompt_llm(response)
             # print(response)
             df = baseline_prompt(response, key_g)
+            print('data after baseline', df)
             evals = evaluate(df, key_g)
             print(evals)
             df = df.replace('\n', '', regex=True)
