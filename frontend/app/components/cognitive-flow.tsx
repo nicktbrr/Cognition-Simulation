@@ -3,6 +3,7 @@ import React from "react";
 import { useCallback, useEffect, useRef, useMemo, useState } from "react";
 import { Trash2, GripVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Slider } from "@/components/ui/slider";
 import {
   ReactFlow,
   Background,
@@ -11,7 +12,7 @@ import {
   useNodesState,
   useEdgesState,
   type NodeProps,
-  
+
   Handle,
   Position,
   type NodeTypes,
@@ -53,13 +54,16 @@ const StepsContext = React.createContext<{
   ) => void;
 }>({
   steps: [],
-  updateStepData: () => {},
+  updateStepData: () => { },
 });
 
 // StepNode component - optimized to reduce updates
 const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
   // Get steps data from context
   const { steps, updateStepData } = React.useContext(StepsContext);
+
+  const { updateNodeData } = useReactFlow();
+
 
   // Find current step data from context
   const currentStep = useMemo(
@@ -102,194 +106,153 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
   );
 
   return (
-    <div className="w-[220px] p-4 border border-primary rounded-md bg-white shadow-md">
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <div className="cursor-grab active:cursor-grabbing hover:text-primary">
-            <GripVertical className="w-4 h-4" />
+    <>
+      <div className="w-[220px] p-4 border border-primary rounded-md bg-white shadow-md">
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="cursor-grab active:cursor-grabbing hover:text-primary">
+              <GripVertical className="w-4 h-4" />
+            </div>
+            <span className="text-xs text-muted-foreground">
+              Step {data.stepId}
+            </span>
           </div>
-          <span className="text-xs text-muted-foreground">
-            Step {data.stepId}
-          </span>
-        </div>
-        <input
-          type="text"
-          placeholder="[Add Label]"
-          className="w-full text-sm border rounded p-2 text-primary"
-          value={localLabel}
-          onChange={(e) => {
-            const newValue = e.target.value;
-            setLocalLabel(newValue);
-            handleUpdate("label", newValue);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.currentTarget.blur();
-            }
-          }}
-        />
-        <textarea
-          className="w-full h-24 text-sm resize-none border rounded p-2"
-          placeholder="[Enter instructions, as if you were asking a human to complete this step.]"
-          value={localInstructions}
-          onChange={(e) => {
-            const newValue = e.target.value;
-            setLocalInstructions(newValue);
-            handleUpdate("instructions", newValue);
-          }}
-        />
-        {/* <div className="space-y-1">
-          <div className="text-sm">Temperature: {localTemperature}</div>
           <input
-            type="range"
-            min="0"
-            max="100"
-            value={localTemperature}
+            type="text"
+            placeholder="[Add Label]"
+            className="w-full text-sm border rounded p-2 text-primary"
+            value={localLabel}
             onChange={(e) => {
-              const newValue = Number.parseInt(e.target.value);
-              setLocalTemperature(newValue);
-              handleUpdate("temperature", newValue);
+              const newValue = e.target.value;
+              setLocalLabel(newValue);
+              handleUpdate("label", newValue);
             }}
-            className="w-full accent-primary"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.currentTarget.blur();
+              }
+            }}
           />
-        </div> */}
-        <Button
-          variant="destructive"
-          size="sm"
-          className="w-full"
-          onClick={() => data.deleteStep(data.stepId)}
-        >
-          <Trash2 className="w-4 h-4 mr-2" />
-          Delete
-        </Button>
-      </div>
-
-      {/* Connection Handles */}
-      <div className="absolute left-0 right-0 top-0 h-4 flex justify-center">
-        <Handle
-          type="target"
-          position={Position.Top}
-          style={{
-            top: 0,
-            background: "#555",
-            width: "20px",
-            height: "20px",
-            zIndex: 10,
-          }}
-          isConnectable={true}
-          id="target-top"
-        />
-        <Handle
-          type="source"
-          position={Position.Top}
-          style={{
-            top: 0,
-            background: "#555",
-            width: "20px",
-            height: "20px",
-            zIndex: 10,
-          }}
-          isConnectable={true}
-          id="source-top"
-        />
-      </div>
-      <div className="absolute left-0 top-0 bottom-0 w-4 flex items-center">
-        <Handle
-          type="target"
-          position={Position.Left}
-          style={{
-            left: 0,
-            background: "#555",
-            width: "20px",
-            height: "20px",
-            zIndex: 10,
-          }}
-          isConnectable={true}
-          id="target-left"
-        />
-      </div>
-      <div className="absolute right-0 top-0 bottom-0 w-4 flex items-center">
-        <Handle
-          type="source"
-          position={Position.Right}
-          style={{
-            right: 0,
-            background: "#555",
-            width: "20px",
-            height: "20px",
-            zIndex: 10,
-          }}
-          isConnectable={true}
-          id="source-right"
-        />
-      </div>
-      <div className="absolute left-0 right-0 bottom-0 h-4 flex justify-center">
-        <Handle
-          type="target"
-          position={Position.Bottom}
-          style={{
-            bottom: 0,
-            background: "#555",
-            width: "20px",
-            height: "20px",
-            zIndex: 10,
-          }}
-          isConnectable={true}
-          id="target-bottom"
-        />
-        <Handle
-          type="source"
-          position={Position.Bottom}
-          style={{
-            bottom: 0,
-            background: "#555",
-            width: "20px",
-            height: "20px",
-            zIndex: 10,
-          }}
-          isConnectable={true}
-          id="source-bottom"
-        />
-      </div>
-      <div>
-      <NodeToolbar
-        isVisible={true}
-        position={Position.Bottom}
-        
-       
-      >
-        <div
-         className="nopan"
-          style={{
-            pointerEvents: "all",
-            cursor: "pointer",
-            zIndex: "999",
-            background: "white",
-            padding: "20px",
-            width: "300px",
-            maxWidth: "300px",
-            transform: "scale(1) !important"
-          }}
-        >
+          <textarea
+            className="w-full h-24 text-sm resize-none border rounded p-2"
+            placeholder="[Enter instructions, as if you were asking a human to complete this step.]"
+            value={localInstructions}
+            onChange={(e) => {
+              const newValue = e.target.value;
+              setLocalInstructions(newValue);
+              handleUpdate("instructions", newValue);
+            }}
+          />
           <div className="space-y-1">
-          <div className="text-sm">Temperature: {localTemperature}</div>
-          <input
-            type="range"
-            min="0"
-            max="100"
-            value={localTemperature}
-            onChange={(e) => {
-              const newValue = Number.parseInt(e.target.value);
-              setLocalTemperature(newValue);
-              handleUpdate("temperature", newValue);
-            }}
-            className="w-full accent-primary"
-          />
-        </div> 
+            <div className="text-sm">Temperature: {localTemperature}</div>
+            <Slider defaultValue={[localTemperature]} max={100} step={1} onValueChange={([value]) => {
+              setLocalTemperature(value);
+              handleUpdate("temperature", value);
+              console.log(value);
+            }} />
+
+          </div>
+          <Button
+            variant="destructive"
+            size="sm"
+            className="w-full"
+            onClick={() => data.deleteStep(data.stepId)}
+          >
+            <Trash2 className="w-4 h-4 mr-2" />
+            Delete
+          </Button>
         </div>
-      </NodeToolbar>
+
+        {/* Connection Handles */}
+        <div className="absolute left-0 right-0 top-0 h-4 flex justify-center">
+          <Handle
+            type="target"
+            position={Position.Top}
+            style={{
+              top: 0,
+              background: "#555",
+              width: "20px",
+              height: "20px",
+              zIndex: 10,
+            }}
+            isConnectable={true}
+            id="target-top"
+          />
+          <Handle
+            type="source"
+            position={Position.Top}
+            style={{
+              top: 0,
+              background: "#555",
+              width: "20px",
+              height: "20px",
+              zIndex: 10,
+            }}
+            isConnectable={true}
+            id="source-top"
+          />
+        </div>
+        <div className="absolute left-0 top-0 bottom-0 w-4 flex items-center">
+          <Handle
+            type="target"
+            position={Position.Left}
+            style={{
+              left: 0,
+              background: "#555",
+              width: "20px",
+              height: "20px",
+              zIndex: 10,
+            }}
+            isConnectable={true}
+            id="target-left"
+          />
+        </div>
+        <div className="absolute right-0 top-0 bottom-0 w-4 flex items-center">
+          <Handle
+            type="source"
+            position={Position.Right}
+            style={{
+              right: 0,
+              background: "#555",
+              width: "20px",
+              height: "20px",
+              zIndex: 10,
+            }}
+            isConnectable={true}
+            id="source-right"
+          />
+        </div>
+        <div className="absolute left-0 right-0 bottom-0 h-4 flex justify-center">
+          <Handle
+            type="target"
+            position={Position.Bottom}
+            style={{
+              bottom: 0,
+              background: "#555",
+              width: "20px",
+              height: "20px",
+              zIndex: 10,
+            }}
+            isConnectable={true}
+            id="target-bottom"
+          />
+          <Handle
+            type="source"
+            position={Position.Bottom}
+            style={{
+              bottom: 0,
+              background: "#555",
+              width: "20px",
+              height: "20px",
+              zIndex: 10,
+            }}
+            isConnectable={true}
+            id="source-bottom"
+          />
+        </div>
       </div>
-    </div>
+    </>
+
   );
 });
 
