@@ -116,9 +116,10 @@ def process_row(row_idx, df_row, system_prompt):
         "Clarity": [],
         "Feasibility": [],
         "Importance": [],
-        "Uniqueness": [],
+        "Novelty": [],
         "Fairness": [],
-        "Quality": []
+        "Quality": [],
+        "Usefulness": []
     }
 
     # Determine start column based on whether 'seed' is in the columns
@@ -170,9 +171,10 @@ def evaluate(df, key_g):
         Clarity: the degree to which something has fewer possible interpretations.
         Feasibility: the degree to which something is solvable, attainable, viable, or achievable.
         Importance: the degree to which something is valuable, useful, or meaningful.
-        Uniqueness: the degree to which something is novel, original, or distinct.
+        Novelty: the degree to which something is novel, original, or distinct.
         Fairness: the degree to which something is free from bias, favoritism, or injustice.
         Quality: the degree to which the content is communicated more effectively.
+        Usefulness: the degree to which something is useful, helpful, or valuable.
     """
 
     # Limit max_workers for Cloud Run
