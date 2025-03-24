@@ -12,7 +12,6 @@ import {
   useNodesState,
   useEdgesState,
   type NodeProps,
-
   Handle,
   Position,
   type NodeTypes,
@@ -24,7 +23,6 @@ import {
   NodeToolbar,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-
 
 interface Step {
   id: number;
@@ -54,7 +52,7 @@ const StepsContext = React.createContext<{
   ) => void;
 }>({
   steps: [],
-  updateStepData: () => { },
+  updateStepData: () => {},
 });
 
 // StepNode component - optimized to reduce updates
@@ -63,7 +61,6 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
   const { steps, updateStepData } = React.useContext(StepsContext);
 
   const { updateNodeData } = useReactFlow();
-
 
   // Find current step data from context
   const currentStep = useMemo(
@@ -145,12 +142,16 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
           />
           <div className="space-y-1">
             <div className="text-sm">Temperature: {localTemperature}</div>
-            <Slider defaultValue={[localTemperature]} max={100} step={1} onValueChange={([value]) => {
-              setLocalTemperature(value);
-              handleUpdate("temperature", value);
-              console.log(value);
-            }} />
-
+            <Slider
+              defaultValue={[localTemperature]}
+              max={100}
+              step={1}
+              onValueChange={([value]) => {
+                setLocalTemperature(value);
+                handleUpdate("temperature", value);
+                console.log(value);
+              }}
+            />
           </div>
           <Button
             variant="destructive"
@@ -252,7 +253,6 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
         </div>
       </div>
     </>
-
   );
 });
 

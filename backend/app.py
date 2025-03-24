@@ -83,11 +83,7 @@ class Evaluation(Resource):  # Inherit from Resource
                 "*").eq("id", uuid).execute().data
             print(response)
             metrics = response[0]["user"]['metrics']
-            print("Metrics", metrics)
-            
-           
-            # df = prompt_llm(response)
-            # print(response)
+
             df = baseline_prompt(response, key_g)
             print('data after baseline prompt', df)
             evals = evaluate(df, key_g, metrics)
@@ -129,7 +125,6 @@ app.register_blueprint(api_bp, url_prefix="/api")
 if __name__ == "__main__":
     prod = os.environ.get("DEV") or 'production'
     if prod == 'development':
-        print('here')
         app.run(debug=True, use_reloader=False)
     else:
         app.run(debug=True, host="0.0.0.0", port=int(
