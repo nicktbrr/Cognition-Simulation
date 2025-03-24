@@ -107,7 +107,7 @@ class EvaluationMetrics(typing.TypedDict):
     score: list[float]
 
 
-def process_row(row_idx, df_row, system_prompt):
+def process_row(row_idx, df_row, system_prompt, metrics_to_evaluate):
     """
     Processes a single row by evaluating responses using the AI model.
     Returns a dictionary with scores for each metric.
@@ -121,7 +121,8 @@ def process_row(row_idx, df_row, system_prompt):
         "Quality": [],
         "Usefulness": []
     }
-
+    row_scores.update({m: [] for m in metrics_to_evaluate})
+    print("Row scores", row_scores)
     # Determine start column based on whether 'seed' is in the columns
     start_col = 1 if 'seed' in df_row.index else 0
 
@@ -157,13 +158,22 @@ def process_row(row_idx, df_row, system_prompt):
     return row_scores
 
 
-def evaluate(df, key_g):
+def evaluate(df, key_g, metrics):
     """
     Evaluates multiple rows in parallel using threading and combines the results into a DataFrame.
     """
     # Configure `genai` globally
     genai.configure(api_key=key_g)
+    metrics_set = {"Clarity", "Feasibility", "Importance", "Novelty", "Fairness", "Quality", "Usefulness"}
+    metric_name = set([m["name"] for m in metrics])
+    print("Metric name", metric_name)
+    metric_description = {m["name"]: m["description"] for m in metrics}
+    print("Metric Descrip", metric_description)
+    
+    metrics_to_evaluate =  metric_name - metrics_set
 
+    print("Evaluate metrics", metrics_to_evaluate)
+   
     system_prompt = """
         The metrics to include in the system prompt:
         Return responses with no newline characters, \\n. Always end on just a period.
@@ -174,8 +184,12 @@ def evaluate(df, key_g):
         Novelty: the degree to which something is novel, original, or distinct.
         Fairness: the degree to which something is free from bias, favoritism, or injustice.
         Quality: the degree to which the content is communicated more effectively.
-        Usefulness: the degree to which something is useful, helpful, or valuable.
-    """
+        Usefulness: the degree to which something is useful, helpful, or valuable.\n"""
+
+    for m in metrics_to_evaluate:
+        system_prompt += f"        {m}: {metric_description[m]}\n"
+
+    print("System prompt", system_prompt)
 
     # Limit max_workers for Cloud Run
     max_workers = 2
@@ -183,7 +197,7 @@ def evaluate(df, key_g):
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {executor.submit(
-            process_row, idx, df.iloc[idx], system_prompt): idx for idx in range(df.shape[0])}
+            process_row, idx, df.iloc[idx], system_prompt, metrics_to_evaluate): idx for idx in range(df.shape[0])}
 
         for future in concurrent.futures.as_completed(futures):
             try:
@@ -193,6 +207,9 @@ def evaluate(df, key_g):
 
     # Convert results into a DataFrame
     results_df = pd.DataFrame(results)
+
+    print(results_df)
+    assert False
 
     # Determine column names for results DataFrame
     # Check if 'seed' is in the original DataFrame columns

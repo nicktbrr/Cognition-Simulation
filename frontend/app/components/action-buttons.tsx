@@ -204,7 +204,7 @@ export default function ActionButtons({
       const jsonData = {
         seed: "no-seed",
         steps: orderedSteps,
-        metrics: metrics.keys(),
+        metrics: metrics,
         iters: 10,
         temperature: 0.5,
       };

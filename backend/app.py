@@ -81,11 +81,16 @@ class Evaluation(Resource):  # Inherit from Resource
             supabase: Client = create_client(url, key)
             response = supabase.table("users").select(
                 "*").eq("id", uuid).execute().data
+            print(response)
+            metrics = response[0]["user"]['metrics']
+            print("Metrics", metrics)
+            
+           
             # df = prompt_llm(response)
             # print(response)
             df = baseline_prompt(response, key_g)
             print('data after baseline', df)
-            evals = evaluate(df, key_g)
+            evals = evaluate(df, key_g, metrics)
             print(evals)
             df = df.replace('\n', '', regex=True)
             # print('before cos', df.shape)
