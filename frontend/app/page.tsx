@@ -139,6 +139,7 @@ import CognitiveProcess from "./components/cognitive-process";
 import EvaluationCriteria from "./components/evaluation-criteria";
 import ActionButtons from "./components/action-buttons";
 import CognitiveProcess2 from "./components/cognitive-process2";
+import SimulationStatusIndicator from "./components/indicator";
 
 interface Step {
   id: number;
@@ -165,6 +166,9 @@ export default function Home() {
   const [temperature, setTemperature] = useState<number>(50);
   // Add state for tracking edges
   const [edges, setEdges] = useState<Edge[]>([]);
+
+  const [simulationActive, setSimulationActive] = useState<boolean>(false);
+
 
   // Update steps when they change
   const handleStepsUpdate = (updatedSteps: Step[]) => {
@@ -208,6 +212,8 @@ export default function Home() {
   };
 
   return (
+    <>
+    <SimulationStatusIndicator isActive={simulationActive} />
     <div className="max-w-6xl mx-auto p-6 space-y-8">
       <Header />
       <CollapsibleNav />
@@ -217,20 +223,24 @@ export default function Home() {
           onTemperatureChange={handleTemperatureChange}
           edges={edges}
           onEdgesChange={handleEdgesUpdate}
+          simulationActive={simulationActive}
         />
         {/* <CognitiveProcess
           onStepsChange={handleStepsUpdate}
           onTemperatureChange={handleTemperatureChange}
         /> */}
-        <EvaluationCriteria onMetricsChange={handleMetricsUpdate} />
+        <EvaluationCriteria onMetricsChange={handleMetricsUpdate} 
+        simulationActive={simulationActive} />
         <ActionButtons
           onSubmit={handleSubmit}
           steps={steps}
           metrics={selectedMetrics}
           edges={edges}
           temperature={temperature}
+          setSimulationActive={setSimulationActive}
         />
       </main>
     </div>
+    </>
   );
 }

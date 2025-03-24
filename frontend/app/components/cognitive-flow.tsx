@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
 import { useCallback, useEffect, useRef, useMemo, useState } from "react";
-import { Trash2, GripVertical } from "lucide-react";
+import { Trash2, GripVertical, LockIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import {
@@ -24,6 +24,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
+
 interface Step {
   id: number;
   label: string;
@@ -39,6 +40,7 @@ interface StepNodeProps extends NodeProps {
     temperature: number;
     updateStep: (id: number, field: keyof Step, value: string | number) => void;
     deleteStep: (id: number) => void;
+    disabled?: boolean;
   };
 }
 
@@ -50,15 +52,16 @@ const StepsContext = React.createContext<{
     field: keyof Step,
     value: string | number
   ) => void;
+  disabled?: boolean;
 }>({
   steps: [],
   updateStepData: () => {},
+  disabled: false,
 });
-
 // StepNode component - optimized to reduce updates
 const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
   // Get steps data from context
-  const { steps, updateStepData } = React.useContext(StepsContext);
+  const { steps, updateStepData, disabled } = React.useContext(StepsContext);
 
   const { updateNodeData } = useReactFlow();
 
@@ -91,6 +94,8 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
   // Combined update function for any field
   const handleUpdate = useCallback(
     (field: keyof Step, value: string | number) => {
+      if (disabled) return; // Prevent updates when disabled
+
       // Update context (single source of truth)
       updateStepData(data.stepId, field, value);
 
@@ -99,17 +104,26 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
       if (!window.nodeValues[data.stepId]) window.nodeValues[data.stepId] = {};
       window.nodeValues[data.stepId][field] = value;
     },
-    [data.stepId, updateStepData]
+    [data.stepId, updateStepData, disabled]
   );
+
+  // Is simulation active / disabled?
+  const isDisabled = disabled || data.disabled;
 
   return (
     <>
-      <div className="w-[220px] p-4 border border-primary rounded-md bg-white shadow-md">
+      <div className={`w-[220px] p-4 border ${isDisabled ? 'border-gray-300' : 'border-primary'} rounded-md bg-white shadow-md ${isDisabled ? 'opacity-80' : ''}`}>
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <div className="cursor-grab active:cursor-grabbing hover:text-primary">
-              <GripVertical className="w-4 h-4" />
-            </div>
+            {isDisabled ? (
+              <div className="text-muted-foreground">
+                <LockIcon className="w-4 h-4" />
+              </div>
+            ) : (
+              <div className="cursor-grab active:cursor-grabbing hover:text-primary">
+                <GripVertical className="w-4 h-4" />
+              </div>
+            )}
             <span className="text-xs text-muted-foreground">
               Step {data.stepId}
             </span>
@@ -120,6 +134,7 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
             className="w-full text-sm border rounded p-2 text-primary"
             value={localLabel}
             onChange={(e) => {
+              if (isDisabled) return;
               const newValue = e.target.value;
               setLocalLabel(newValue);
               handleUpdate("label", newValue);
@@ -129,16 +144,19 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
                 e.currentTarget.blur();
               }
             }}
+            disabled={isDisabled}
           />
           <textarea
             className="w-full h-24 text-sm resize-none border rounded p-2"
             placeholder="[Enter instructions, as if you were asking a human to complete this step.]"
             value={localInstructions}
             onChange={(e) => {
+              if (isDisabled) return;
               const newValue = e.target.value;
               setLocalInstructions(newValue);
               handleUpdate("instructions", newValue);
             }}
+            disabled={isDisabled}
           />
           <div className="space-y-1">
             <div className="text-sm">Temperature: {localTemperature}</div>
@@ -147,10 +165,11 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
               max={100}
               step={1}
               onValueChange={([value]) => {
+                if (isDisabled) return;
                 setLocalTemperature(value);
                 handleUpdate("temperature", value);
-                console.log(value);
               }}
+              disabled={isDisabled}
             />
           </div>
           <Button
@@ -158,6 +177,7 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
             size="sm"
             className="w-full"
             onClick={() => data.deleteStep(data.stepId)}
+            disabled={isDisabled}
           >
             <Trash2 className="w-4 h-4 mr-2" />
             Delete
@@ -171,12 +191,12 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
             position={Position.Top}
             style={{
               top: 0,
-              background: "#555",
+              background: isDisabled ? "#999" : "#555",
               width: "20px",
               height: "20px",
               zIndex: 10,
             }}
-            isConnectable={true}
+            isConnectable={!isDisabled}
             id="target-top"
           />
           <Handle
@@ -184,12 +204,12 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
             position={Position.Top}
             style={{
               top: 0,
-              background: "#555",
+              background: isDisabled ? "#999" : "#555",
               width: "20px",
               height: "20px",
               zIndex: 10,
             }}
-            isConnectable={true}
+            isConnectable={!isDisabled}
             id="source-top"
           />
         </div>
@@ -199,12 +219,12 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
             position={Position.Left}
             style={{
               left: 0,
-              background: "#555",
+              background: isDisabled ? "#999" : "#555",
               width: "20px",
               height: "20px",
               zIndex: 10,
             }}
-            isConnectable={true}
+            isConnectable={!isDisabled}
             id="target-left"
           />
         </div>
@@ -214,12 +234,12 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
             position={Position.Right}
             style={{
               right: 0,
-              background: "#555",
+              background: isDisabled ? "#999" : "#555",
               width: "20px",
               height: "20px",
               zIndex: 10,
             }}
-            isConnectable={true}
+            isConnectable={!isDisabled}
             id="source-right"
           />
         </div>
@@ -229,12 +249,12 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
             position={Position.Bottom}
             style={{
               bottom: 0,
-              background: "#555",
+              background: isDisabled ? "#999" : "#555",
               width: "20px",
               height: "20px",
               zIndex: 10,
             }}
-            isConnectable={true}
+            isConnectable={!isDisabled}
             id="target-bottom"
           />
           <Handle
@@ -242,12 +262,12 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
             position={Position.Bottom}
             style={{
               bottom: 0,
-              background: "#555",
+              background: isDisabled ? "#999" : "#555",
               width: "20px",
               height: "20px",
               zIndex: 10,
             }}
-            isConnectable={true}
+            isConnectable={!isDisabled}
             id="source-bottom"
           />
         </div>
@@ -262,11 +282,13 @@ function Flow({
   edges: parentEdges = [],
   onStepsChange,
   parentOnEdgesChange, // Renamed to avoid conflict
+  disabled = false,
 }: {
   steps: Step[];
   edges?: any[];
   onStepsChange: (steps: Step[]) => void;
   parentOnEdgesChange?: (edges: any[]) => void;
+  disabled?: boolean;
 }) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const { fitView } = useReactFlow();
@@ -337,6 +359,9 @@ function Flow({
   // Update step data function
   const updateStepData = useCallback(
     (id: number, field: keyof Step, value: string | number) => {
+      // Don't update if disabled
+      if (disabled) return;
+      
       // Update local steps
       setLocalSteps((prevSteps) => {
         const newSteps = prevSteps.map((step) =>
@@ -348,12 +373,24 @@ function Flow({
         return newSteps;
       });
     },
-    [onStepsChange]
+    [onStepsChange, disabled]
   );
 
   // Track node positions
   const handleNodesChange = useCallback(
     (changes) => {
+      // Don't update positions if disabled
+      if (disabled) {
+        // Only allow selection changes when disabled
+        const allowedChanges = changes.filter(
+          (change) => change.type === 'select'
+        );
+        if (allowedChanges.length > 0) {
+          onNodesChange(allowedChanges);
+        }
+        return;
+      }
+      
       changes.forEach((change) => {
         if (change.type === "position" && change.id && change.position) {
           nodePositionsRef.current[change.id] = { ...change.position };
@@ -361,12 +398,15 @@ function Flow({
       });
       onNodesChange(changes);
     },
-    [onNodesChange]
+    [onNodesChange, disabled]
   );
 
   // Delete a step with proper state updates
   const deleteStep = useCallback(
     (id: number) => {
+      // Don't delete if disabled
+      if (disabled) return;
+      
       // Remove the step from local steps
       setLocalSteps((prevSteps) => {
         const updatedSteps = prevSteps.filter((step) => step.id !== id);
@@ -380,7 +420,7 @@ function Flow({
         eds.filter((edge) => edge.source !== nodeId && edge.target !== nodeId)
       );
     },
-    [onStepsChange, setEdges]
+    [onStepsChange, setEdges, disabled]
   );
 
   // Initialize and sync nodes with steps - combined effect
@@ -398,8 +438,10 @@ function Flow({
           temperature: step.temperature,
           updateStep: updateStepData,
           deleteStep,
+          disabled,
         },
-        connectable: true,
+        connectable: !disabled,
+        draggable: !disabled,
       }));
 
       setNodes(initialNodes);
@@ -428,12 +470,15 @@ function Flow({
         const step = localSteps.find((s) => s.id.toString() === node.id);
         return {
           ...node,
+          connectable: !disabled,
+          draggable: !disabled,
           data: {
             ...node.data,
             stepId: step.id,
             label: step.label,
             instructions: step.instructions,
             temperature: step.temperature,
+            disabled,
           },
         };
       });
@@ -458,8 +503,10 @@ function Flow({
             temperature: step.temperature,
             updateStep: updateStepData,
             deleteStep,
+            disabled,
           },
-          connectable: true,
+          connectable: !disabled,
+          draggable: !disabled,
         };
       });
 
@@ -467,7 +514,7 @@ function Flow({
     if (newNodes.length > 0 || updatedNodes.length !== nodes.length) {
       setNodes([...updatedNodes, ...newNodes]);
     }
-  }, [localSteps, nodes, setNodes, updateStepData, deleteStep, fitView]);
+  }, [localSteps, nodes, setNodes, updateStepData, deleteStep, fitView, disabled]);
 
   // Function to show connection errors temporarily
   const showConnectionError = useCallback((message: string) => {
@@ -487,6 +534,12 @@ function Flow({
   // Handle connections with validation
   const onConnect = useCallback(
     (params: Connection) => {
+      // Don't allow connections if disabled
+      if (disabled) {
+        showConnectionError("Connections are locked during simulation");
+        return;
+      }
+    
       // Prevent self-loops (connecting a node to itself)
       if (params.source === params.target) {
         showConnectionError("Cannot connect a node to itself");
@@ -524,7 +577,7 @@ function Flow({
       // Add the new edge
       setEdges((eds) => [...eds, newEdge]);
     },
-    [edges, setEdges, showConnectionError]
+    [edges, setEdges, showConnectionError, disabled]
   );
 
   // Clean up timeout on unmount
@@ -541,8 +594,9 @@ function Flow({
     () => ({
       steps: localSteps,
       updateStepData,
+      disabled,
     }),
-    [localSteps, updateStepData]
+    [localSteps, updateStepData, disabled]
   );
 
   return (
@@ -559,20 +613,52 @@ function Flow({
             gap: "20px",
           }}
         >
-          <Button onClick={() => setShowMinimap((prev) => !prev)}>
+          <Button 
+            onClick={() => setShowMinimap((prev) => !prev)}
+            disabled={disabled}
+          >
             {showMinimap ? "Hide Minimap" : "Show Minimap"}
           </Button>
-          <Button onClick={() => setShowPanel((prev) => !prev)}>
+          <Button 
+            onClick={() => setShowPanel((prev) => !prev)}
+            disabled={disabled}
+          >
             {showPanel ? "Hide Panel" : "Show Panel"}
           </Button>
         </div>
+
+        {/* Simulation Active Warning */}
+        {disabled && (
+          <div
+            style={{
+              position: "absolute",
+              top: 10,
+              left: "50%",
+              transform: "translateX(-50%)",
+              zIndex: 1000,
+              backgroundColor: "rgba(245, 158, 11, 0.9)",
+              color: "white",
+              padding: "8px 16px",
+              borderRadius: "4px",
+              boxShadow: "0 2px 10px rgba(0, 0, 0, 0.2)",
+              maxWidth: "80%",
+              textAlign: "center",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+            }}
+          >
+            <LockIcon className="w-4 h-4" />
+            Flow editing is locked during simulation
+          </div>
+        )}
 
         {/* Connection Error Message */}
         {connectionError && (
           <div
             style={{
               position: "absolute",
-              top: 60,
+              top: disabled ? 60 : 60,
               left: "50%",
               transform: "translateX(-50%)",
               zIndex: 1000,
@@ -593,19 +679,22 @@ function Flow({
           nodes={nodes}
           edges={edges}
           onNodesChange={handleNodesChange}
-          onEdgesChange={handleEdgesChange}
+          onEdgesChange={disabled ? () => {} : handleEdgesChange}
           onConnect={onConnect}
           nodeTypes={nodeTypes}
           defaultViewport={{ x: 0, y: 0, zoom: 1 }}
           minZoom={0.5}
           maxZoom={1.5}
           proOptions={{ hideAttribution: true }}
-          deleteKeyCode={["Backspace", "Delete"]}
+          deleteKeyCode={disabled ? [] : ["Backspace", "Delete"]}
           connectionMode="loose"
           defaultEdgeOptions={{
             animated: true,
             style: { stroke: "var(--primary)", strokeWidth: 2 },
           }}
+          nodesDraggable={!disabled}
+          nodesConnectable={!disabled}
+          elementsSelectable={true}
         >
           <Background color="#aaa" gap={16} />
           <Controls />
@@ -637,8 +726,9 @@ function Flow({
               style={{ pointerEvents: "auto" }}
             >
               <div>
-                Drag nodes to reposition • Connect nodes by dragging between
-                handles
+                {disabled 
+                  ? "Editing is locked during simulation" 
+                  : "Drag nodes to reposition • Connect nodes by dragging between handles"}
               </div>
               <div className="text-xs mt-1 text-gray-500">
                 {localSteps.length} steps • {nodes.length} nodes •{" "}
@@ -658,11 +748,13 @@ export default function CognitiveFlow({
   edges,
   onStepsChange,
   onEdgesChange,
+  disabled = false,
 }: {
   steps: Step[];
   edges?: any[];
   onStepsChange: (steps: Step[]) => void;
   onEdgesChange?: (edges: any[]) => void;
+  disabled?: boolean;
 }) {
   return (
     <ReactFlowProvider>
@@ -670,7 +762,8 @@ export default function CognitiveFlow({
         steps={steps}
         edges={edges}
         onStepsChange={onStepsChange}
-        parentOnEdgesChange={onEdgesChange} // Pass with the new name
+        parentOnEdgesChange={onEdgesChange}
+        disabled={disabled}
       />
     </ReactFlowProvider>
   );

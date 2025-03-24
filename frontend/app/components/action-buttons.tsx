@@ -24,6 +24,7 @@ interface ActionButtonsProps {
   steps: Step[];
   metrics: string[];
   edges: any;
+  setSimulationActive: (active: boolean) => void;
 }
 
 export default function ActionButtons({
@@ -31,6 +32,7 @@ export default function ActionButtons({
   steps,
   metrics,
   edges,
+  setSimulationActive
 }: ActionButtonsProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -141,6 +143,7 @@ export default function ActionButtons({
 
     setIsProcessing(true);
     setLoading(true);
+    setSimulationActive(true)
 
     try {
       // Prepare data for Supabase
@@ -247,8 +250,10 @@ export default function ActionButtons({
     } catch (error) {
       console.error("Error in POST request:", error);
     } finally {
+      setSimulationActive(false)
       setIsProcessing(false);
       setLoading(false);
+     
     }
   };
 

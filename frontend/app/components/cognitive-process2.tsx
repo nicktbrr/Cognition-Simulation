@@ -206,11 +206,13 @@ export default function CognitiveProcess2({
   onTemperatureChange,
   edges = [],
   onEdgesChange,
+  simulationActive = false,
 }: {
   onStepsChange: (steps: Step[]) => void;
   onTemperatureChange: (temperature: number) => void;
   edges?: Edge[];
   onEdgesChange?: (edges: Edge[]) => void;
+  simulationActive?: boolean;
 }) {
   const [steps, setSteps] = useState<Step[]>([
   ]);
@@ -266,12 +268,13 @@ export default function CognitiveProcess2({
     <section className="space-y-4">
       <h2 className="text-xl font-bold">1. Add Steps to Cognitive Process</h2>
       <div className="relative">
-        <div className="h-[400px] border rounded-md overflow-hidden">
+      <div className={`h-[400px] border rounded-md overflow-hidden ${simulationActive ? "opacity-80" : ""}`}>
           <CognitiveFlow
             steps={steps}
             onStepsChange={handleStepsChange}
             edges={edges}
             onEdgesChange={onEdgesChange}
+            disabled={simulationActive}
           />
         </div>
 
