@@ -26,7 +26,6 @@ def process_row(row_idx, df_row, system_prompt, metrics_to_evaluate):
         "Usefulness": []
     }
     row_scores.update({m: [] for m in metrics_to_evaluate})
-    print("Row scores", row_scores)
     # Determine start column based on whether 'seed' is in the columns
     start_col = 1 if 'seed' in df_row.index else 0
 
@@ -48,9 +47,11 @@ def process_row(row_idx, df_row, system_prompt, metrics_to_evaluate):
             json_response = json.loads(
                 response._result.candidates[0].content.parts[0].text)
 
-            # Store scores in the dictionary
             for idx, metric in enumerate(row_scores.keys()):
-                row_scores[metric].append(json_response["score"][idx])
+                if idx >= len(json_response['score']):
+                    row_scores[metric].append('Poorly Defined Critiria')
+                else:
+                    row_scores[metric].append(json_response["score"][idx])
 
         except Exception as e:
             print(
@@ -59,6 +60,7 @@ def process_row(row_idx, df_row, system_prompt, metrics_to_evaluate):
                 row_scores[metric].append(None)  # Handle failures gracefully
 
     print(f"Finished processing row {row_idx}")
+    print(row_scores)
     return row_scores
 
 
