@@ -133,6 +133,7 @@ export default function ActionButtons({
   const handleSubmit = async () => {
     console.log("edges", edges);
     console.log("nodes", steps);
+    console.log("metrics", metrics);
     if (!validateInputs()) {
       alert("Please fill out all fields before submitting.");
       return;
@@ -290,9 +291,9 @@ export default function ActionButtons({
           >
             Download Simulated Data
           </Button>
-          <Button variant="secondary" disabled={isDisabled ? true : false}>
+          {/* <Button variant="secondary" disabled={isDisabled ? true : false}>
             Download Evaluations
-          </Button>
+          </Button> */}
         </div>
         <div className="flex gap-4">
           <Button variant="destructive" onClick={handleReset}>

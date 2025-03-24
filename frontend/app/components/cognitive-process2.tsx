@@ -213,7 +213,6 @@ export default function CognitiveProcess2({
   onEdgesChange?: (edges: Edge[]) => void;
 }) {
   const [steps, setSteps] = useState<Step[]>([
-    { id: 1, label: "", instructions: "", temperature: 50 },
   ]);
 
   const handleStepsChange = (updatedSteps: Step[]) => {

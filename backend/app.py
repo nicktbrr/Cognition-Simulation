@@ -81,11 +81,12 @@ class Evaluation(Resource):  # Inherit from Resource
             supabase: Client = create_client(url, key)
             response = supabase.table("users").select(
                 "*").eq("id", uuid).execute().data
-            # df = prompt_llm(response)
-            # print(response)
+            print(response)
+            metrics = response[0]["user"]['metrics']
+
             df = baseline_prompt(response, key_g)
-            print('data after baseline', df)
-            evals = evaluate(df, key_g)
+            print('data after baseline prompt', df)
+            evals = evaluate(df, key_g, metrics)
             print(evals)
             df = df.replace('\n', '', regex=True)
             # print('before cos', df.shape)
@@ -124,7 +125,6 @@ app.register_blueprint(api_bp, url_prefix="/api")
 if __name__ == "__main__":
     prod = os.environ.get("DEV") or 'production'
     if prod == 'development':
-        print('here')
         app.run(debug=True, use_reloader=False)
     else:
         app.run(debug=True, host="0.0.0.0", port=int(
