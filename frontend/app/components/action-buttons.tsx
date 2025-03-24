@@ -291,9 +291,9 @@ export default function ActionButtons({
           >
             Download Simulated Data
           </Button>
-          <Button variant="secondary" disabled={isDisabled ? true : false}>
+          {/* <Button variant="secondary" disabled={isDisabled ? true : false}>
             Download Evaluations
-          </Button>
+          </Button> */}
         </div>
         <div className="flex gap-4">
           <Button variant="destructive" onClick={handleReset}>

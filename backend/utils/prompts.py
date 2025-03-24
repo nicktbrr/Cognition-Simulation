@@ -44,24 +44,31 @@ def process_row(row_idx, df, prompt, key_g, system_prompt):
                 # First prompt depends on whether we have a seed
                 if seed_value != "no-seed":
                     llm_prompt = (f"""You are participating in an interview that aims to {seed_value}.
-                              First, provide an answer to this question: {str.upper(col_name)}. We will call your answer to this question, "step_answer".
-                              Please respond with ONLY the question and absolutely no additional text or explanation. The structure should include the following fields:
-                              {instructions}: answer_text. (string, your response to the question, plain text only)""")
+                        The current step is: {str.upper(col_name)}
+                        Please respond to the following: {instructions}
+
+                        Please respond with ONLY the question and absolutely no additional text or explanation. The structure should include the following fields:
+                        answer_text. (string, your response to the question, plain text only)
+                        """)
                 else:
                     llm_prompt = (f"""You are participating in an interview.
-                              First, provide an answer to this question: {str.upper(col_name)}. We will call your answer to this question, "step_answer".
-                              Please respond with ONLY the question and absolutely no additional text or explanation. The structure should include the following fields:
-                              {instructions}: answer_text. (string, your response to the question, plain text only)""")
+                        The current step is: {str.upper(col_name)}
+                        Please respond to the following: {instructions}
+
+                        Please respond with ONLY the question and absolutely no additional text or explanation. The structure should include the following fields:
+                        answer_text. (string, your response to the question, plain text only""")
             else:
                 # For subsequent columns, reference the previous column's response
                 previous_col = df.columns[col_idx-1]
                 previous_response = row_data[previous_col]
                 llm_prompt = (f"""Given the previous step '{previous_col}' with response: '{previous_response}'
-                            Provide an answer to this question: {str.upper(col_name)}. We will call your answer to this question, "step_answer".
-                            Please respond with ONLY the question and absolutely no additional text or explanation. The structure should include the following fields:
-                            {instructions}: answer_text. (string, your response to the question, plain text only)""")
+                            The current step is: {str.upper(col_name)}
+                            Please respond to the following: {instructions}
 
-            print(llm_prompt)
+                            Please respond with ONLY the question and absolutely no additional text or explanation. The structure should include the following fields:
+                            answer_text. (string, your response to the question, plain text only)
+                            """)
+
             # Configure the AI model
             genai.configure(api_key=key_g)
             model = genai.GenerativeModel(
