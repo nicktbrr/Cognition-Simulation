@@ -89,7 +89,7 @@ class Evaluation(Resource):  # Inherit from Resource
             # df = prompt_llm(response)
             # print(response)
             df = baseline_prompt(response, key_g)
-            print('data after baseline', df)
+            print('data after baseline prompt', df)
             evals = evaluate(df, key_g, metrics)
             print(evals)
             df = df.replace('\n', '', regex=True)
