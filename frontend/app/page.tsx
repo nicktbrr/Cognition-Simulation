@@ -161,7 +161,7 @@ interface Edge {
 
 export default function Home() {
   const [steps, setSteps] = useState<Step[]>([]);
-  const [selectedMetrics, setSelectedMetrics] = useState<string[]>([]);
+  const [selectedMetrics, setSelectedMetrics] = useState<any[]>([]);
   const [temperature, setTemperature] = useState<number>(50);
   // Add state for tracking edges
   const [edges, setEdges] = useState<Edge[]>([]);
@@ -172,7 +172,7 @@ export default function Home() {
   };
 
   // Update selected evaluation criteria (metrics)
-  const handleMetricsUpdate = (metrics: string[]) => {
+  const handleMetricsUpdate = (metrics: any[]) => {
     setSelectedMetrics(metrics);
   };
 

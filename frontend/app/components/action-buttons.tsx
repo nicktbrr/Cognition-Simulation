@@ -133,6 +133,7 @@ export default function ActionButtons({
   const handleSubmit = async () => {
     console.log("edges", edges);
     console.log("nodes", steps);
+    console.log("metrics", metrics);
     if (!validateInputs()) {
       alert("Please fill out all fields before submitting.");
       return;
@@ -203,7 +204,7 @@ export default function ActionButtons({
       const jsonData = {
         seed: "no-seed",
         steps: orderedSteps,
-        metrics: metrics,
+        metrics: metrics.keys(),
         iters: 10,
         temperature: 0.5,
       };
