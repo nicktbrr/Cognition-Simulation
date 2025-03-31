@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, X, LockIcon, Trash2 } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 
 interface Criterion {
   name: string;
@@ -19,49 +19,49 @@ const initialCriteria: Criterion[] = [
     name: "Clarity",
     description:
       "The degree to which there are fewer possible interpretations of the text.",
-    isDefault: true
+    isDefault: true,
   },
   {
     name: "Fairness",
     description:
       "The degree to which the text is free from bias, favoritism, or injustice.",
-    isDefault: true
+    isDefault: true,
   },
   {
     name: "Feasibility",
     description:
       "The degree to which something is solvable, attainable, or achievable.",
-    isDefault: true
+    isDefault: true,
   },
   {
     name: "Importance",
     description:
       "The degree to which something is valuable, meaningful, or significant.",
-    isDefault: true
+    isDefault: true,
   },
   {
     name: "Novelty",
     description:
       "The degree to which something is unique, original, or distinct.",
-    isDefault: true
+    isDefault: true,
   },
   {
     name: "Quality",
     description:
       "The degree to which something is cohesive, coherent, and concise.",
-    isDefault: true
+    isDefault: true,
   },
   {
     name: "Usefulness",
     description:
       "The degree to which something is functional, helpful, or practical.",
-    isDefault: true
+    isDefault: true,
   },
 ];
 
 export default function EvaluationCriteria({
   onMetricsChange,
-  simulationActive = false
+  simulationActive = false,
 }: {
   onMetricsChange: (metrics: string[]) => void;
   simulationActive?: boolean;
@@ -73,20 +73,33 @@ export default function EvaluationCriteria({
     name: "",
     description: "",
   });
-  
+  const [showLimitWarning, setShowLimitWarning] = useState(false);
+
   // Use a ref to track if we've already called onMetricsChange with the current selection
   const prevSelectedRef = useRef<string[]>([]);
 
+  // Calculate number of custom criteria
+  const customCriteriaCount = useMemo(
+    () => criteria.filter((c) => !c.isDefault).length,
+    [criteria]
+  );
+
+  // Show limit warning temporarily
+  const showTemporaryLimitWarning = useCallback(() => {
+    setShowLimitWarning(true);
+    setTimeout(() => setShowLimitWarning(false), 3000);
+  }, []);
+
   // Send just the names to maintain backward compatibility
   useEffect(() => {
-    const criteriaNames = selectedCriteria.map(criterion => criterion.name);
-    
+    const criteriaNames = selectedCriteria.map((criterion) => criterion.name);
+
     // Only call onMetricsChange if the selection has actually changed
     const prevNames = prevSelectedRef.current;
-    const hasChanged = 
-      prevNames.length !== criteriaNames.length || 
+    const hasChanged =
+      prevNames.length !== criteriaNames.length ||
       criteriaNames.some((name, i) => prevNames[i] !== name);
-    
+
     if (hasChanged) {
       prevSelectedRef.current = criteriaNames;
       onMetricsChange(selectedCriteria);
@@ -95,14 +108,14 @@ export default function EvaluationCriteria({
 
   const toggleCriterion = (criterion: Criterion) => {
     if (simulationActive) return; // Prevent toggling if simulation is active
-    
+
     setSelectedCriteria((prev) => {
       // Check if this criterion is already selected (by name)
-      const isSelected = prev.some(c => c.name === criterion.name);
-      
+      const isSelected = prev.some((c) => c.name === criterion.name);
+
       if (isSelected) {
         // Remove it if already selected
-        return prev.filter(c => c.name !== criterion.name);
+        return prev.filter((c) => c.name !== criterion.name);
       } else {
         // Add it if not selected
         return [...prev, criterion];
@@ -112,18 +125,19 @@ export default function EvaluationCriteria({
 
   const handleAddCriterion = () => {
     // Validate inputs
+
     if (!newCriterion.name.trim() || !newCriterion.description.trim()) {
       return;
     }
 
     const newCriterionObject = { ...newCriterion, isDefault: false };
-    
+
     // Add new criterion
     setCriteria((prev) => [...prev, newCriterionObject]);
-    
+
     // Auto-select the newly added criterion
     setSelectedCriteria((prev) => [...prev, newCriterionObject]);
-    
+
     // Reset form and hide it
     setNewCriterion({ name: "", description: "" });
     setShowNewCriterionForm(false);
@@ -136,12 +150,12 @@ export default function EvaluationCriteria({
 
   const deleteCriterion = (criterionName: string) => {
     if (simulationActive) return; // Prevent deletion if simulation is active
-    
+
     // Remove from criteria list
-    setCriteria(prev => prev.filter(c => c.name !== criterionName));
-    
+    setCriteria((prev) => prev.filter((c) => c.name !== criterionName));
+
     // Remove from selected criteria if selected
-    setSelectedCriteria(prev => prev.filter(c => c.name !== criterionName));
+    setSelectedCriteria((prev) => prev.filter((c) => c.name !== criterionName));
   };
 
   return (
@@ -167,12 +181,12 @@ export default function EvaluationCriteria({
           <Card
             key={criterion.name}
             className={`w-[200px] p-4 transition-colors relative ${
-              selectedCriteria.some(c => c.name === criterion.name)
+              selectedCriteria.some((c) => c.name === criterion.name)
                 ? "border-primary bg-primary/5"
                 : "hover:border-primary/50"
             } ${simulationActive ? "opacity-70" : "cursor-pointer"}`}
           >
-            <div 
+            <div
               className="space-y-2"
               onClick={() => toggleCriterion(criterion)}
             >
@@ -181,7 +195,7 @@ export default function EvaluationCriteria({
                 {criterion.description}
               </p>
             </div>
-            
+
             {/* Delete button for custom criteria */}
             {!criterion.isDefault && !simulationActive && (
               <Button
@@ -200,14 +214,34 @@ export default function EvaluationCriteria({
         ))}
 
         {!showNewCriterionForm && !simulationActive && (
-          <Button 
-            size="icon" 
-            className="h-[116px] w-[50px]" 
-            variant="outline"
-            onClick={() => setShowNewCriterionForm(true)}
-          >
-            <Plus className="h-4 w-4" />
-          </Button>
+          <div className="relative">
+            <Button
+              size="icon"
+              className="h-[116px] w-[50px]"
+              variant="outline"
+              onClick={() => {
+                if (customCriteriaCount >= 5) {
+                  showTemporaryLimitWarning();
+                } else {
+                  setShowNewCriterionForm(true);
+                }
+              }}
+              disabled={customCriteriaCount >= 5 || simulationActive}
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+
+            {/* Limit Warning Message */}
+            {showLimitWarning && (
+              <div
+                className="absolute top-[-40px] left-1/2 transform -translate-x-1/2 
+                bg-amber-100 border border-amber-300 text-amber-800 px-3 py-1 
+                rounded-md whitespace-nowrap text-sm shadow-md"
+              >
+                Maximum of 5 custom criteria allowed
+              </div>
+            )}
+          </div>
         )}
       </div>
 
@@ -216,15 +250,11 @@ export default function EvaluationCriteria({
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <h3 className="font-medium">Add New Criterion</h3>
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={cancelAddCriterion}
-              >
+              <Button size="icon" variant="ghost" onClick={cancelAddCriterion}>
                 <X className="h-4 w-4" />
               </Button>
             </div>
-            
+
             <div className="space-y-2">
               <label htmlFor="criterionName" className="text-sm font-medium">
                 Name
@@ -233,30 +263,45 @@ export default function EvaluationCriteria({
                 id="criterionName"
                 placeholder="e.g., Originality"
                 value={newCriterion.name}
-                onChange={(e) => setNewCriterion(prev => ({ ...prev, name: e.target.value }))}
+                maxLength={20}
+                onChange={(e) =>
+                  setNewCriterion((prev) => ({ ...prev, name: e.target.value }))
+                }
               />
             </div>
-            
+
             <div className="space-y-2">
-              <label htmlFor="criterionDescription" className="text-sm font-medium">
+              <label
+                htmlFor="criterionDescription"
+                className="text-sm font-medium"
+              >
                 Description
               </label>
-              <Textarea
-                id="criterionDescription"
-                placeholder="The degree to which..."
-                value={newCriterion.description}
-                onChange={(e) => setNewCriterion(prev => ({ ...prev, description: e.target.value }))}
-                rows={3}
-              />
+              <div className="relative">
+                <Textarea
+                  id="criterionDescription"
+                  placeholder="The degree to which..."
+                  value={newCriterion.description}
+                  maxLength={75}
+                  onChange={(e) =>
+                    setNewCriterion((prev) => ({
+                      ...prev,
+                      description: e.target.value,
+                    }))
+                  }
+                  rows={3}
+                />
+                <div className="absolute bottom-2 right-2 text-xs text-muted-foreground">
+                  {newCriterion.description.length}/75
+                </div>
+              </div>
             </div>
-            
+
             <div className="flex justify-end space-x-2">
               <Button variant="outline" onClick={cancelAddCriterion}>
                 Cancel
               </Button>
-              <Button onClick={handleAddCriterion}>
-                Add Criterion
-              </Button>
+              <Button onClick={handleAddCriterion}>Add Criterion</Button>
             </div>
           </div>
         </Card>
@@ -264,7 +309,7 @@ export default function EvaluationCriteria({
 
       {selectedCriteria.length > 0 && (
         <p className="text-sm text-muted-foreground">
-          Selected criteria: {selectedCriteria.map(c => c.name).join(", ")}
+          Selected criteria: {selectedCriteria.map((c) => c.name).join(", ")}
         </p>
       )}
     </section>

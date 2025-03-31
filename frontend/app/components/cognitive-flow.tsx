@@ -24,7 +24,6 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
-
 interface Step {
   id: number;
   label: string;
@@ -112,7 +111,11 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
 
   return (
     <>
-      <div className={`w-[220px] p-4 border ${isDisabled ? 'border-gray-300' : 'border-primary'} rounded-md bg-white shadow-md ${isDisabled ? 'opacity-80' : ''}`}>
+      <div
+        className={`w-[220px] p-4 border ${
+          isDisabled ? "border-gray-300" : "border-primary"
+        } rounded-md bg-white shadow-md ${isDisabled ? "opacity-80" : ""}`}
+      >
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             {isDisabled ? (
@@ -128,36 +131,45 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
               Step {data.stepId}
             </span>
           </div>
-          <input
-            type="text"
-            placeholder="[Add Label]"
-            className="w-full text-sm border rounded p-2 text-primary"
-            value={localLabel}
-            onChange={(e) => {
-              if (isDisabled) return;
-              const newValue = e.target.value;
-              setLocalLabel(newValue);
-              handleUpdate("label", newValue);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.currentTarget.blur();
-              }
-            }}
-            disabled={isDisabled}
-          />
-          <textarea
-            className="w-full h-24 text-sm resize-none border rounded p-2"
-            placeholder="[Enter instructions, as if you were asking a human to complete this step.]"
-            value={localInstructions}
-            onChange={(e) => {
-              if (isDisabled) return;
-              const newValue = e.target.value;
-              setLocalInstructions(newValue);
-              handleUpdate("instructions", newValue);
-            }}
-            disabled={isDisabled}
-          />
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="[Add Label]"
+              className="w-full text-sm border rounded p-2 text-primary"
+              value={localLabel}
+              maxLength={20}
+              onChange={(e) => {
+                if (isDisabled) return;
+                const newValue = e.target.value;
+                setLocalLabel(newValue);
+                handleUpdate("label", newValue);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.currentTarget.blur();
+                }
+              }}
+              disabled={isDisabled}
+            />
+          </div>
+          <div className="relative">
+            <textarea
+              className="w-full h-24 text-sm resize-none border rounded p-2"
+              placeholder="[Enter instructions, as if you were asking a human to complete this step.]"
+              value={localInstructions}
+              maxLength={75}
+              onChange={(e) => {
+                if (isDisabled) return;
+                const newValue = e.target.value;
+                setLocalInstructions(newValue);
+                handleUpdate("instructions", newValue);
+              }}
+              disabled={isDisabled}
+            />
+            <div className="absolute bottom-2 right-2 text-xs text-muted-foreground">
+              {localInstructions.length}/75
+            </div>
+          </div>
           <div className="space-y-1">
             <div className="text-sm">Temperature: {localTemperature}</div>
             <Slider
@@ -361,7 +373,7 @@ function Flow({
     (id: number, field: keyof Step, value: string | number) => {
       // Don't update if disabled
       if (disabled) return;
-      
+
       // Update local steps
       setLocalSteps((prevSteps) => {
         const newSteps = prevSteps.map((step) =>
@@ -383,14 +395,14 @@ function Flow({
       if (disabled) {
         // Only allow selection changes when disabled
         const allowedChanges = changes.filter(
-          (change) => change.type === 'select'
+          (change) => change.type === "select"
         );
         if (allowedChanges.length > 0) {
           onNodesChange(allowedChanges);
         }
         return;
       }
-      
+
       changes.forEach((change) => {
         if (change.type === "position" && change.id && change.position) {
           nodePositionsRef.current[change.id] = { ...change.position };
@@ -406,7 +418,7 @@ function Flow({
     (id: number) => {
       // Don't delete if disabled
       if (disabled) return;
-      
+
       // Remove the step from local steps
       setLocalSteps((prevSteps) => {
         const updatedSteps = prevSteps.filter((step) => step.id !== id);
@@ -514,7 +526,15 @@ function Flow({
     if (newNodes.length > 0 || updatedNodes.length !== nodes.length) {
       setNodes([...updatedNodes, ...newNodes]);
     }
-  }, [localSteps, nodes, setNodes, updateStepData, deleteStep, fitView, disabled]);
+  }, [
+    localSteps,
+    nodes,
+    setNodes,
+    updateStepData,
+    deleteStep,
+    fitView,
+    disabled,
+  ]);
 
   // Function to show connection errors temporarily
   const showConnectionError = useCallback((message: string) => {
@@ -539,7 +559,7 @@ function Flow({
         showConnectionError("Connections are locked during simulation");
         return;
       }
-    
+
       // Prevent self-loops (connecting a node to itself)
       if (params.source === params.target) {
         showConnectionError("Cannot connect a node to itself");
@@ -613,13 +633,13 @@ function Flow({
             gap: "20px",
           }}
         >
-          <Button 
+          <Button
             onClick={() => setShowMinimap((prev) => !prev)}
             disabled={disabled}
           >
             {showMinimap ? "Hide Minimap" : "Show Minimap"}
           </Button>
-          <Button 
+          <Button
             onClick={() => setShowPanel((prev) => !prev)}
             disabled={disabled}
           >
@@ -726,8 +746,8 @@ function Flow({
               style={{ pointerEvents: "auto" }}
             >
               <div>
-                {disabled 
-                  ? "Editing is locked during simulation" 
+                {disabled
+                  ? "Editing is locked during simulation"
                   : "Drag nodes to reposition • Connect nodes by dragging between handles"}
               </div>
               <div className="text-xs mt-1 text-gray-500">
