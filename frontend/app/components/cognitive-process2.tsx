@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Plus, AlertCircle } from "lucide-react";
 import CognitiveFlow from "./cognitive-flow";
+import { isValidURL } from "@/app/utils/urlParser";
 
 interface Step {
   id: number;
@@ -38,8 +39,30 @@ export default function CognitiveProcess2({
   simulationActive?: boolean;
 }) {
   const [steps, setSteps] = useState<Step[]>([]);
+  const [urlWarnings, setUrlWarnings] = useState<{ [key: number]: string[] }>(
+    {}
+  );
 
   const handleStepsChange = (updatedSteps: Step[]) => {
+    // Check each step for URLs
+    const warnings: { [key: number]: string[] } = {};
+
+    updatedSteps.forEach((step) => {
+      const stepWarnings: string[] = [];
+
+      if (isValidURL(step.label)) {
+        stepWarnings.push("label");
+      }
+      if (isValidURL(step.instructions)) {
+        stepWarnings.push("instructions");
+      }
+
+      if (stepWarnings.length > 0) {
+        warnings[step.id] = stepWarnings;
+      }
+    });
+
+    setUrlWarnings(warnings);
     setSteps(updatedSteps);
     onStepsChange(updatedSteps);
   };
@@ -91,9 +114,34 @@ export default function CognitiveProcess2({
 
   const incompleteSteps = getIncompleteStepsInfo();
 
+  // Add a function to check if any steps contain URLs
+  const hasURLs = Object.keys(urlWarnings).length > 0;
+
   return (
     <section className="space-y-4">
       <h2 className="text-xl font-bold">1. Add Steps to Cognitive Process</h2>
+
+      {/* URL Warning Banner */}
+      {hasURLs && (
+        <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-4">
+          <div className="flex items-center gap-2 text-red-700">
+            <AlertCircle className="h-5 w-5" />
+            <span className="font-medium">URLs Detected</span>
+          </div>
+          <div className="mt-2 text-sm text-red-600">
+            URLs have been detected in the following locations:
+            {Object.entries(urlWarnings).map(([stepId, fields]) => (
+              <div key={stepId} className="ml-4">
+                • Step {stepId}: {fields.join(", ")}
+              </div>
+            ))}
+            <div className="mt-2">
+              Please remove all URLs before proceeding.
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="relative">
         <div
           className={`h-[400px] border rounded-md overflow-hidden ${

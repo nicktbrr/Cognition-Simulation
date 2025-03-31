@@ -3,6 +3,8 @@
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { isValidURL } from "@/app/utils/urlParser";
+import { AlertCircle } from "lucide-react";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -25,6 +27,7 @@ interface ActionButtonsProps {
   metrics: string[];
   edges: any;
   setSimulationActive: (active: boolean) => void;
+  hasUrls: boolean;
 }
 
 export default function ActionButtons({
@@ -32,7 +35,8 @@ export default function ActionButtons({
   steps,
   metrics,
   edges,
-  setSimulationActive
+  setSimulationActive,
+  hasUrls,
 }: ActionButtonsProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -59,91 +63,33 @@ export default function ActionButtons({
   };
 
   const validateInputs = () => {
-    return steps.every(
+    const allFieldsFilled = steps.every(
       (step) => step.label.trim() !== "" && step.instructions.trim() !== ""
     );
+
+    const hasStepUrls = steps.some(
+      (step) => isValidURL(step.label) || isValidURL(step.instructions)
+    );
+
+    if (hasStepUrls || hasUrls) {
+      alert("Please remove all URLs before submitting.");
+      return false;
+    }
+
+    return allFieldsFilled;
   };
-
-  // const handleSubmit = async () => {
-  //   console.log("edges", edges);
-  //   console.log("nodes", steps);
-  //   if (!validateInputs()) {
-  //     alert("Please fill out all fields before submitting.");
-  //     return;
-  //   }
-
-  //   setIsProcessing(true);
-  //   setLoading(true);
-
-  //   try {
-  //     // Prepare data for Supabase
-  //     const uuid = crypto.randomUUID();
-  //     const jsonData = {
-  //       seed: "some-seed-value",
-  //       steps: steps.reduce((acc, step) => {
-  //         acc[step.label] = step.instructions;
-  //         return acc;
-  //       }, {} as Record<string, string>),
-  //       metrics: metrics, // ✅ Added metrics
-  //       iters: 10,
-  //       temperature: 0.5,
-  //     };
-
-  //     console.log(jsonData);
-
-  //     // Insert into Supabase
-  //     const { error } = await supabase
-  //       .from("users")
-  //       .insert([{ id: uuid, user: jsonData }]);
-  //     if (error) {
-  //       alert("Error saving data to Supabase");
-  //       throw error;
-  //     } else {
-  //       alert("JSON data saved successfully!");
-
-  //       // Define backend URL
-  //       console.log(prod);
-  //       const url =
-  //         prod === "development"
-  //           ? "http://127.0.0.1:5000/api/evaluate"
-  //           : "https://cognition-backend-81313456654.us-west1.run.app/api/evaluate";
-
-  //       // Send request to backend
-  //       const response = await fetch(url, {
-  //         method: "POST",
-  //         headers: {
-  //           "Content-Type": "application/json",
-  //           ...(prod !== "development"
-  //             ? { Authorization: `Bearer ${token}` }
-  //             : {}),
-  //         },
-  //         body: JSON.stringify({ uuid }),
-  //       });
-  //       const a = await response.json();
-  //       console.log(a);
-  //       setDownload(a.evaluation.public_url);
-  //       setIsDisabled(false);
-  //     }
-  //   } catch (error) {
-  //     console.error("Error in POST request:", error);
-  //   } finally {
-  //     setIsProcessing(false);
-  //     setLoading(false);
-  //   }
-  // };
 
   const handleSubmit = async () => {
     console.log("edges", edges);
     console.log("nodes", steps);
     console.log("metrics", metrics);
     if (!validateInputs()) {
-      alert("Please fill out all fields before submitting.");
       return;
     }
 
     setIsProcessing(true);
     setLoading(true);
-    setSimulationActive(true)
+    setSimulationActive(true);
 
     try {
       // Prepare data for Supabase
@@ -250,10 +196,9 @@ export default function ActionButtons({
     } catch (error) {
       console.error("Error in POST request:", error);
     } finally {
-      setSimulationActive(false)
+      setSimulationActive(false);
       setIsProcessing(false);
       setLoading(false);
-     
     }
   };
 
@@ -270,6 +215,21 @@ export default function ActionButtons({
   return (
     <section className="space-y-4">
       <h2 className="text-xl font-bold">3. Submit and Download Data</h2>
+
+      {(hasUrls ||
+        steps.some(
+          (step) => isValidURL(step.label) || isValidURL(step.instructions)
+        )) && (
+        <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-4">
+          <div className="flex items-center gap-2 text-red-700">
+            <AlertCircle className="h-5 w-5" />
+            <span>
+              URLs detected - Please remove all URLs before submitting
+            </span>
+          </div>
+        </div>
+      )}
+
       <div className="space-y-4">
         <div className="flex flex-wrap gap-4">
           <Button
@@ -282,7 +242,24 @@ export default function ActionButtons({
             variant="secondary"
             className="bg-primary text-primary-foreground"
             onClick={handleSubmit}
-            disabled={isProcessing || loading}
+            disabled={
+              isProcessing ||
+              loading ||
+              hasUrls ||
+              steps.some(
+                (step) =>
+                  isValidURL(step.label) || isValidURL(step.instructions)
+              )
+            }
+            title={
+              hasUrls ||
+              steps.some(
+                (step) =>
+                  isValidURL(step.label) || isValidURL(step.instructions)
+              )
+                ? "Please remove all URLs before submitting"
+                : "Submit for simulation"
+            }
           >
             {isProcessing ? "Processing..." : "Submit for Simulation"}
           </Button>

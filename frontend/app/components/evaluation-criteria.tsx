@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, X, LockIcon, Trash2 } from "lucide-react";
+import { Plus, X, LockIcon, Trash2, AlertCircle } from "lucide-react";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { isValidURL } from "@/app/utils/urlParser";
 
 interface Criterion {
   name: string;
@@ -62,9 +63,11 @@ const initialCriteria: Criterion[] = [
 export default function EvaluationCriteria({
   onMetricsChange,
   simulationActive = false,
+  onUrlDetected,
 }: {
   onMetricsChange: (metrics: string[]) => void;
   simulationActive?: boolean;
+  onUrlDetected: (hasUrls: boolean) => void;
 }) {
   const [criteria, setCriteria] = useState<Criterion[]>(initialCriteria);
   const [selectedCriteria, setSelectedCriteria] = useState<Criterion[]>([]);
@@ -74,6 +77,7 @@ export default function EvaluationCriteria({
     description: "",
   });
   const [showLimitWarning, setShowLimitWarning] = useState(false);
+  const [urlError, setUrlError] = useState<string | null>(null);
 
   // Use a ref to track if we've already called onMetricsChange with the current selection
   const prevSelectedRef = useRef<string[]>([]);
@@ -124,8 +128,21 @@ export default function EvaluationCriteria({
   };
 
   const handleAddCriterion = () => {
-    // Validate inputs
+    // Check for URLs in both name and description
+    if (isValidURL(newCriterion.name)) {
+      setUrlError("Criterion name cannot contain URLs");
+      return;
+    }
 
+    if (isValidURL(newCriterion.description)) {
+      setUrlError("Criterion description cannot contain URLs");
+      return;
+    }
+
+    // Clear any existing URL errors
+    setUrlError(null);
+
+    // Validate inputs
     if (!newCriterion.name.trim() || !newCriterion.description.trim()) {
       return;
     }
@@ -156,6 +173,30 @@ export default function EvaluationCriteria({
 
     // Remove from selected criteria if selected
     setSelectedCriteria((prev) => prev.filter((c) => c.name !== criterionName));
+  };
+
+  // Modify handleNameChange to notify parent
+  const handleNameChange = (value: string) => {
+    if (isValidURL(value)) {
+      setUrlError("URLs are not allowed in criterion name");
+      onUrlDetected(true);
+    } else {
+      setUrlError(null);
+      onUrlDetected(false);
+    }
+    setNewCriterion((prev) => ({ ...prev, name: value }));
+  };
+
+  // Modify handleDescriptionChange to notify parent
+  const handleDescriptionChange = (value: string) => {
+    if (isValidURL(value)) {
+      setUrlError("URLs are not allowed in criterion description");
+      onUrlDetected(true);
+    } else {
+      setUrlError(null);
+      onUrlDetected(false);
+    }
+    setNewCriterion((prev) => ({ ...prev, description: value }));
   };
 
   return (
@@ -255,6 +296,14 @@ export default function EvaluationCriteria({
               </Button>
             </div>
 
+            {/* Show URL Error if present */}
+            {urlError && (
+              <div className="text-sm text-red-600 flex items-center gap-2">
+                <AlertCircle className="h-4 w-4" />
+                <span>{urlError}</span>
+              </div>
+            )}
+
             <div className="space-y-2">
               <label htmlFor="criterionName" className="text-sm font-medium">
                 Name
@@ -264,8 +313,11 @@ export default function EvaluationCriteria({
                 placeholder="e.g., Originality"
                 value={newCriterion.name}
                 maxLength={20}
-                onChange={(e) =>
-                  setNewCriterion((prev) => ({ ...prev, name: e.target.value }))
+                onChange={(e) => handleNameChange(e.target.value)}
+                className={
+                  urlError && isValidURL(newCriterion.name)
+                    ? "border-red-500"
+                    : ""
                 }
               />
             </div>
@@ -283,13 +335,13 @@ export default function EvaluationCriteria({
                   placeholder="The degree to which..."
                   value={newCriterion.description}
                   maxLength={75}
-                  onChange={(e) =>
-                    setNewCriterion((prev) => ({
-                      ...prev,
-                      description: e.target.value,
-                    }))
-                  }
+                  onChange={(e) => handleDescriptionChange(e.target.value)}
                   rows={3}
+                  className={
+                    urlError && isValidURL(newCriterion.description)
+                      ? "border-red-500"
+                      : ""
+                  }
                 />
                 <div className="absolute bottom-2 right-2 text-xs text-muted-foreground">
                   {newCriterion.description.length}/75
@@ -301,7 +353,16 @@ export default function EvaluationCriteria({
               <Button variant="outline" onClick={cancelAddCriterion}>
                 Cancel
               </Button>
-              <Button onClick={handleAddCriterion}>Add Criterion</Button>
+              <Button
+                onClick={handleAddCriterion}
+                disabled={
+                  !!urlError ||
+                  !newCriterion.name.trim() ||
+                  !newCriterion.description.trim()
+                }
+              >
+                Add Criterion
+              </Button>
             </div>
           </div>
         </Card>
