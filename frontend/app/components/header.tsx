@@ -1,6 +1,7 @@
-export default function Header() {
+export default function Header({ name }: { name: string }) {
   return (
     <header className="text-center space-y-4">
+      <h1 className="text-4xl font-bold">Welcome {name}!</h1>
       <h1 className="text-4xl font-bold">Simulating Human Cognition with AI</h1>
       <p className="text-muted-foreground max-w-4xl mx-auto">
         This platform offers an interactive tool for researchers to design their own cognitive processes and collect
