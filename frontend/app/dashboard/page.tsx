@@ -1,0 +1,177 @@
+"use client";
+import { useState, useEffect } from "react";
+import Header from "../components/header";
+import CollapsibleNav from "../components/collapsible-nav";
+import CognitiveProcess from "../components/cognitive-process";
+import EvaluationCriteria from "../components/evaluation-criteria";
+import ActionButtons from "../components/action-buttons";
+import CognitiveProcess2 from "../components/cognitive-process2";
+import SimulationStatusIndicator from "../components/indicator";
+import { Button } from "../components/ui/button"
+import { LogOut } from "lucide-react"
+import { useRouter } from 'next/navigation'
+
+interface Step {
+  id: number;
+  label: string;
+  instructions: string;
+  temperature: number;
+}
+
+// Define an Edge interface to track connections
+interface Edge {
+  id: string;
+  source: string;
+  sourceHandle?: string;
+  target: string;
+  targetHandle?: string;
+  animated?: boolean;
+  style?: any;
+  markerEnd?: any;
+}
+
+interface GoogleUser {
+    name: string
+    email: string
+    picture: string
+    sub: string // Google's user ID
+  }
+  
+
+export default function Dashboard() {
+  const [steps, setSteps] = useState<Step[]>([]);
+  const [selectedMetrics, setSelectedMetrics] = useState<any[]>([]);
+  const [temperature, setTemperature] = useState<number>(50);
+  const [user, setUser] = useState<GoogleUser | null>(null);
+  // Add state for tracking edges
+  const [edges, setEdges] = useState<Edge[]>([]);
+
+  const [simulationActive, setSimulationActive] = useState<boolean>(false);
+  const [hasUrls, setHasUrls] = useState(false);
+  const [scriptLoaded, setScriptLoaded] = useState(false)
+  const router = useRouter()
+
+  // Update steps when they change
+  const handleStepsUpdate = (updatedSteps: Step[]) => {
+    setSteps(updatedSteps);
+  };
+
+  // Update selected evaluation criteria (metrics)
+  const handleMetricsUpdate = (metrics: any[]) => {
+    setSelectedMetrics(metrics);
+  };
+
+  // Update global temperature when changed
+  const handleTemperatureChange = (newTemperature: number) => {
+    setTemperature(newTemperature);
+  };
+
+  // Add handler for edge updates
+  const handleEdgesUpdate = (updatedEdges: Edge[]) => {
+    setEdges(updatedEdges);
+  };
+
+  // Add handler for URL detection
+  const handleUrlDetection = (detected: boolean) => {
+    setHasUrls(detected);
+  };
+
+  // When the submit button is pressed, log and alert the data
+  const handleSubmit = () => {
+    console.log("Submitted Steps Order:", steps);
+    console.log("Selected Metrics:", selectedMetrics);
+    console.log("Temperature:", temperature);
+    console.log("Node Connections:", edges);
+
+    // Create a map of step connections for easier understanding
+    const connections = edges.map((edge) => ({
+      from:
+        steps.find((step) => step.id.toString() === edge.source)?.label ||
+        edge.source,
+      to:
+        steps.find((step) => step.id.toString() === edge.target)?.label ||
+        edge.target,
+    }));
+    console.log("Step Flow:", connections);
+
+    alert("Steps submitted! Check console for output.");
+  };
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem("googleUser")
+    if (storedUser) {
+      try {
+        const parsedUser = JSON.parse(storedUser)
+        setUser(parsedUser)
+      } catch (e) {
+        localStorage.removeItem("googleUser")
+      }
+    }
+  }, [])
+
+  const handleSignOut = () => {
+    if (window.google && scriptLoaded) {
+      window.google.accounts.id.disableAutoSelect()
+      window.google.accounts.id.revoke(user?.sub || "", () => {
+        setUser(null)
+        localStorage.removeItem("googleUser")
+        router.push('/')
+
+      })
+    } else {
+      setUser(null)
+      localStorage.removeItem("googleUser")
+      router.push('/')
+
+    }
+  }
+
+  return (
+    <>
+    {user ? (
+        <>
+      <SimulationStatusIndicator isActive={simulationActive} />
+      <div className="max-w-6xl mx-auto p-6 space-y-8">
+      <Button
+                variant="outline"
+                size="sm"
+                className="border-[#6a03ab] bg-[#6a03ab] text-white hover:bg-[#6a03abe6] hover:text-white"
+                onClick={handleSignOut}
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                Sign Out
+              </Button>
+        <Header name={user.name} />
+        <CollapsibleNav />
+        <main className="space-y-8">
+          <CognitiveProcess2
+            onStepsChange={handleStepsUpdate}
+            onTemperatureChange={handleTemperatureChange}
+            edges={edges}
+            onEdgesChange={handleEdgesUpdate}
+            simulationActive={simulationActive}
+          />
+          <EvaluationCriteria
+            onMetricsChange={handleMetricsUpdate}
+            simulationActive={simulationActive}
+            onUrlDetected={handleUrlDetection}
+          />
+          <ActionButtons
+            onSubmit={handleSubmit}
+            steps={steps}
+            metrics={selectedMetrics}
+            edges={edges}
+            setSimulationActive={setSimulationActive}
+            hasUrls={hasUrls}
+          />
+        </main>
+        </div>
+        </>
+    ) : (
+      <div>
+        <h1>Please sign in to continue</h1>
+      </div>
+    )}
+    </>
+  );
+}
