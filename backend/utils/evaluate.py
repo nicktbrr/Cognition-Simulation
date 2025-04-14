@@ -32,7 +32,7 @@ def process_row(row_idx, df_row, system_prompt, metrics_to_evaluate):
     for col in range(start_col, len(df_row)):
         try:
             model = genai.GenerativeModel(
-                "gemini-1.5-flash", system_instruction=system_prompt)
+                "gemini-2.0-flash", system_instruction=system_prompt)
 
             response = model.generate_content(
                 df_row.iloc[col],  # Input text

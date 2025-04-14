@@ -72,7 +72,7 @@ def process_row(row_idx, df, prompt, key_g, system_prompt):
             # Configure the AI model
             genai.configure(api_key=key_g)
             model = genai.GenerativeModel(
-                "gemini-1.5-flash", system_instruction=system_prompt)
+                "gemini-2.0-flash", system_instruction=system_prompt)
 
             response = model.generate_content(llm_prompt,
                                               generation_config=genai.types.GenerationConfig(
