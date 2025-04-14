@@ -158,7 +158,7 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
               className="w-full h-24 text-sm resize-none border rounded p-2"
               placeholder="[Enter instructions, as if you were asking a human to complete this step.]"
               value={localInstructions}
-              maxLength={75}
+              maxLength={200}
               onChange={(e) => {
                 if (isDisabled) return;
                 const newValue = e.target.value;
@@ -168,7 +168,7 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
               disabled={isDisabled}
             />
             <div className="absolute bottom-2 right-2 text-xs text-muted-foreground">
-              {localInstructions.length}/75
+              {localInstructions.length}/200
             </div>
           </div>
           <div className="space-y-1">

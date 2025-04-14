@@ -54,9 +54,6 @@ api = Api(api_bp)
 url: str = os.environ.get("VITE_SUPABASE_URL")
 key: str = os.environ.get("VITE_SUPABASE_KEY")
 
-
-print(url)
-
 env_path = Path('.') / '.env'
 load_dotenv(dotenv_path=env_path)
 key_g = os.environ.get('GEMINI_KEY')
