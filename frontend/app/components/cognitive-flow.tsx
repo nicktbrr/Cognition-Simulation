@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
 import { useCallback, useEffect, useRef, useMemo, useState } from "react";
-import { Trash2, GripVertical, LockIcon } from "lucide-react";
+import { Trash2, GripVertical, LockIcon, Plus, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import {
@@ -314,6 +314,7 @@ function Flow({
   // UI toggles
   const [showPanel, setShowPanel] = useState(true);
   const [showMinimap, setShowMinimap] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Add connection error message state
   const [connectionError, setConnectionError] = useState<string | null>(null);
@@ -610,6 +611,45 @@ function Flow({
     };
   }, []);
 
+
+
+  const areAllStepsFilled = () => {
+    console.log("\n\n\n here \n\n\n", steps);
+    return steps.every(
+      (step) => step.label.trim() !== "" && step.instructions.trim() !== ""
+    );
+  };
+
+  const isAddButtonDisabled = !areAllStepsFilled();
+
+  const addStep = () => {
+    // Check for maximum steps limit
+    if (steps.length >= 20) {
+      return; // Don't add more steps if limit reached
+    }
+
+    // Only add a new step if all existing steps are filled out
+    if (areAllStepsFilled()) {
+      const newSteps = [
+        ...steps,
+        {
+          id: steps.length > 0 ? Math.max(...steps.map((s) => s.id)) + 1 : 1,
+          label: "",
+          instructions: "",
+          temperature: 50,
+        },
+      ];
+      onStepsChange(newSteps);
+    }
+  };
+
+  // Handle fullscreen toggle
+  const toggleFullscreen = useCallback(() => {
+    setIsFullscreen((prev) => !prev);
+    // Give the DOM time to update before fitting the view
+    setTimeout(() => fitView({ padding: 0.2 }), 100);
+  }, [fitView]);
+
   // Context value
   const stepsContextValue = useMemo(
     () => ({
@@ -622,18 +662,45 @@ function Flow({
 
   return (
     <StepsContext.Provider value={stepsContextValue}>
-      <div ref={reactFlowWrapper} style={{ width: "100%", height: "100%" }}>
+      <div 
+        ref={reactFlowWrapper} 
+        style={{ 
+          width: isFullscreen ? "100vw" : "100%", 
+          height: isFullscreen ? "100vh" : "100%",
+          position: isFullscreen ? "fixed" : "relative",
+          top: isFullscreen ? 0 : "auto",
+          left: isFullscreen ? 0 : "auto",
+          zIndex: isFullscreen ? 50 : "auto",
+          background: "white"
+        }}
+      >
         {/* Controls */}
         <div
           style={{
             position: "absolute",
             top: 10,
             right: 10,
-            zIndex: 10,
+            zIndex: 1000,
             display: "flex",
             gap: "20px",
           }}
         >
+           <Button
+              onClick={addStep}
+              disabled={
+                disabled || isAddButtonDisabled || steps.length >= 20
+              }
+              className="flex items-center gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Add Step
+            </Button>
+          <Button
+            onClick={toggleFullscreen}
+            disabled={disabled}
+          >
+            {isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+          </Button>
           <Button
             onClick={() => setShowMinimap((prev) => !prev)}
             disabled={disabled}

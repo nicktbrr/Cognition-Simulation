@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Plus, AlertCircle } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import CognitiveFlow from "./cognitive-flow";
 import { isValidURL } from "@/app/utils/urlParser";
 
@@ -178,23 +177,6 @@ export default function CognitiveProcess2({
             <span className="text-sm text-muted-foreground">
               {steps.length}/20 steps
             </span>
-            <Button
-              onClick={addStep}
-              className="flex items-center gap-2"
-              disabled={
-                simulationActive || isAddButtonDisabled || steps.length >= 20
-              }
-              title={
-                steps.length >= 20
-                  ? "Maximum number of steps reached"
-                  : isAddButtonDisabled
-                  ? "Please fill out all textboxes in existing steps first"
-                  : "Add a new step"
-              }
-            >
-              <Plus className="h-4 w-4" />
-              Add Step
-            </Button>
           </div>
         </div>
       </div>
