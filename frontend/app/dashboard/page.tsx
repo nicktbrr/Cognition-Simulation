@@ -109,7 +109,7 @@ export default function Dashboard() {
     }
   }, [])
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
     if (window.google && scriptLoaded) {
       window.google.accounts.id.disableAutoSelect()
       window.google.accounts.id.revoke(user?.sub || "", () => {
@@ -121,7 +121,7 @@ export default function Dashboard() {
     } else {
       setUser(null)
       localStorage.removeItem("googleUser")
-      router.push('/')
+      window.location.replace('/');      
 
     }
   }
