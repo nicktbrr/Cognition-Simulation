@@ -52,6 +52,7 @@ def process_row_with_chat(row_idx, df, prompt, key_g, system_prompt):
 
         if matching_step:
             instructions = matching_step['instructions']
+            temperature = matching_step['temperature']
 
             # First column after seed (or first column if no seed)
             if col_idx == 0:
@@ -96,10 +97,9 @@ def process_row_with_chat(row_idx, df, prompt, key_g, system_prompt):
 
             response = model.generate_content(llm_prompt,
                                               generation_config=genai.types.GenerationConfig(
-                                                  temperature=1.0,
+                                                  temperature=temperature/100.0,
                                                   response_mime_type="application/json",
                                                   response_schema=BaseClass))
-
             try:
                 json_response = json.loads(
                     response._result.candidates[0].content.parts[0].text)
@@ -118,87 +118,88 @@ def process_row_with_chat(row_idx, df, prompt, key_g, system_prompt):
     print('finished row')
     return row_data
 
-def process_row(row_idx, df, prompt, key_g, system_prompt):
-    if "seed" in df.columns:
-        row_data = {'seed': df.iloc[row_idx]['seed']}
-        seed_value = df.iloc[row_idx]['seed']
-    else:
-        row_data = {}
-        seed_value = "no-seed"  # Default value when seed is not included
+# def process_row(row_idx, df, prompt, key_g, system_prompt):
+#     if "seed" in df.columns:
+#         row_data = {'seed': df.iloc[row_idx]['seed']}
+#         seed_value = df.iloc[row_idx]['seed']
+#     else:
+#         row_data = {}
+#         seed_value = "no-seed"  # Default value when seed is not included
 
-    # Get the steps array from the prompt
-    steps = prompt[0]['user']['steps']
+#     # Get the steps array from the prompt
+#     steps = prompt[0]['user']['steps']
 
-    # Start from appropriate column index based on whether seed is in columns
-    start_col = 1 if "seed" in df.columns else 0
+#     # Start from appropriate column index based on whether seed is in columns
+#     start_col = 1 if "seed" in df.columns else 0
 
-    for col_idx in range(start_col, df.shape[1]):
-        col_name = df.columns[col_idx]
+#     for col_idx in range(start_col, df.shape[1]):
+#         col_name = df.columns[col_idx]
 
-        # Find the matching step by label
-        matching_step = next(
-            (step for step in steps if step['label'] == col_name), None)
+#         # Find the matching step by label
+#         matching_step = next(
+#             (step for step in steps if step['label'] == col_name), None)
+        
+#         if matching_step:
+#             instructions = matching_step['instructions']
+#             temperature = matching_step['temperature']
 
-        if matching_step:
-            instructions = matching_step['instructions']
+#             # First column after seed (or first column if no seed)
+#             if col_idx == start_col:
+#                 # First prompt depends on whether we have a seed
+#                 if seed_value != "no-seed":
+#                     llm_prompt = (f"""You are participating in an interview that aims to {seed_value}.
+#                         The current step is: {str.upper(col_name)}
+#                         Please respond to the following: {instructions}
 
-            # First column after seed (or first column if no seed)
-            if col_idx == start_col:
-                # First prompt depends on whether we have a seed
-                if seed_value != "no-seed":
-                    llm_prompt = (f"""You are participating in an interview that aims to {seed_value}.
-                        The current step is: {str.upper(col_name)}
-                        Please respond to the following: {instructions}
+#                         Please respond with ONLY the question and absolutely no additional text or explanation. The structure should include the following fields:
+#                         answer_text. (string, your response to the question, plain text only)
+#                         """)
+#                 else:
+#                     llm_prompt = (f"""You are participating in an interview.
+#                         The current step is: {str.upper(col_name)}
+#                         Please respond to the following: {instructions}
 
-                        Please respond with ONLY the question and absolutely no additional text or explanation. The structure should include the following fields:
-                        answer_text. (string, your response to the question, plain text only)
-                        """)
-                else:
-                    llm_prompt = (f"""You are participating in an interview.
-                        The current step is: {str.upper(col_name)}
-                        Please respond to the following: {instructions}
+#                         Please respond with ONLY the question and absolutely no additional text or explanation. The structure should include the following fields:
+#                         answer_text. (string, your response to the question, plain text only""")
+#             else:
+#                 # For subsequent columns, reference the previous column's response
+#                 previous_col = df.columns[col_idx-1]
+#                 previous_response = row_data[previous_col]
+#                 llm_prompt = (f"""Given the previous step '{previous_col}' with response: '{previous_response}'
+#                             The current step is: {str.upper(col_name)}
+#                             Please respond to the following: {instructions}
 
-                        Please respond with ONLY the question and absolutely no additional text or explanation. The structure should include the following fields:
-                        answer_text. (string, your response to the question, plain text only""")
-            else:
-                # For subsequent columns, reference the previous column's response
-                previous_col = df.columns[col_idx-1]
-                previous_response = row_data[previous_col]
-                llm_prompt = (f"""Given the previous step '{previous_col}' with response: '{previous_response}'
-                            The current step is: {str.upper(col_name)}
-                            Please respond to the following: {instructions}
+#                             Please respond with ONLY the question and absolutely no additional text or explanation. The structure should include the following fields:
+#                             answer_text. (string, your response to the question, plain text only)
+#                             """)
 
-                            Please respond with ONLY the question and absolutely no additional text or explanation. The structure should include the following fields:
-                            answer_text. (string, your response to the question, plain text only)
-                            """)
+#             # Configure the AI model
+#             genai.configure(api_key=key_g)
+#             model = genai.GenerativeModel(
+#                 "gemini-2.0-flash", system_instruction=system_prompt)
+            
+#             response = model.generate_content(llm_prompt,
+#                                               generation_config=genai.types.GenerationConfig(
+#                                                   temperature=temperature / 100.0,
+#                                                   response_mime_type="application/json",
+#                                                   response_schema=BaseClass))
 
-            # Configure the AI model
-            genai.configure(api_key=key_g)
-            model = genai.GenerativeModel(
-                "gemini-2.0-flash", system_instruction=system_prompt)
+#             try:
+#                 json_response = json.loads(
+#                     response._result.candidates[0].content.parts[0].text)
+#                 row_data[col_name] = json_response['response']
+#                 # print(json_response)
+#             except Exception as e:
+#                 print(
+#                     f'Error processing row {row_idx}, column {col_name}: {e}')
+#                 # Handle failures gracefully
+#                 row_data[col_name] = "Error processing row ignore in simulation"
+#         else:
+#             print(f"Warning: No matching step found for column {col_name}")
+#             row_data[col_name] = "No matching instructions found"
 
-            response = model.generate_content(llm_prompt,
-                                              generation_config=genai.types.GenerationConfig(
-                                                  temperature=1.0,
-                                                  response_mime_type="application/json",
-                                                  response_schema=BaseClass))
-
-            try:
-                json_response = json.loads(
-                    response._result.candidates[0].content.parts[0].text)
-                row_data[col_name] = json_response['response']
-                # print(json_response)
-            except Exception as e:
-                print(
-                    f'Error processing row {row_idx}, column {col_name}: {e}')
-                # Handle failures gracefully
-                row_data[col_name] = "Error processing row ignore in simulation"
-        else:
-            print(f"Warning: No matching step found for column {col_name}")
-            row_data[col_name] = "No matching instructions found"
-
-    print('finished row')
-    return row_data
+#     print('finished row')
+#     return row_data
 
 
 def baseline_prompt(prompt, key_g):
