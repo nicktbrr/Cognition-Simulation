@@ -96,7 +96,7 @@ export default function ActionButtons({
       const uuid = crypto.randomUUID();
 
       // Create an ordered array of steps based on edge connections
-      const orderedSteps: Array<{ label: string; instructions: string }> = [];
+      const orderedSteps: Array<{ label: string; instructions: string; temperature: number }> = [];
 
       // Find the starting node (the one that isn't a target in any edge)
       const targetNodes = edges.map((edge) => Number(edge.target));
@@ -123,6 +123,7 @@ export default function ActionButtons({
             orderedSteps.push({
               label: node.label,
               instructions: node.instructions,
+              temperature: node.temperature
             });
 
             // Find the next node in the path
@@ -144,20 +145,23 @@ export default function ActionButtons({
           orderedSteps.push({
             label: step.label,
             instructions: step.instructions,
+            temperature: step.temperature
           });
         });
       }
-
-      console.log(orderedSteps);
+      
+      console.log("orderedSteps", orderedSteps);
+      //console.log(orderedSteps);
 
       const jsonData = {
         seed: "no-seed",
         steps: orderedSteps,
         metrics: metrics,
         iters: 10,
-        temperature: 0.5,
+        temperature: 0.5
       };
 
+      console.log(jsonData);
       console.log(jsonData);
 
       // Insert into Supabase
