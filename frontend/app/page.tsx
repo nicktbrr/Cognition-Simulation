@@ -68,6 +68,7 @@ export default function Home() {
 
     try {
       window.google.accounts.id.initialize({
+        client_id: process.env.NEXT_PUBLIC_OAUTH_CLIENT_ID,
         callback: handleCredentialResponse,
         auto_select: false,
         cancel_on_tap_outside: true,
