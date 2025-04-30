@@ -5,11 +5,20 @@ import type React from "react"
 import { useState, useEffect, useCallback } from "react"
 import Script from "next/script"
 import { useRouter } from 'next/navigation'
+import { createClient } from "@supabase/supabase-js";
 import Image from "next/image"
 import { Button } from "@/components/ui/button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { LogOut, MousePointer, Check, Lock, Brain, Users, Laptop, LineChart, Shield, Server  } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
+
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+
 // Define Google credential response type
 interface CredentialResponse {
   credential: string
@@ -47,7 +56,7 @@ export default function Home() {
 
       // Store in localStorage for persistence
       localStorage.setItem("googleUser", JSON.stringify({ name, email, picture, sub }))
-
+      logUser()
       // Redirect to dashboard
       router.push('/dashboard')
     }
@@ -58,9 +67,7 @@ export default function Home() {
     if (!window.google || !scriptLoaded) return
 
     try {
-      console.log(process.env.NEXT_PUBLIC_OAUTH_CLIENT_ID)
       window.google.accounts.id.initialize({
-        client_id: process.env.NEXT_PUBLIC_OAUTH_CLIENT_ID,
         callback: handleCredentialResponse,
         auto_select: false,
         cancel_on_tap_outside: true,
@@ -75,12 +82,6 @@ export default function Home() {
         logo_alignment: "left",
         width: 250,
       })
-
-      // Also display the One Tap prompt
-      if (!user) {
-        window.google.accounts.id.prompt()
-        //window.location.href = "/dashboard"
-      }
     } catch (error) {
       console.error("Error initializing Google One Tap:", error)
     }
@@ -109,13 +110,29 @@ export default function Home() {
       try {
         const parsedUser = JSON.parse(storedUser)
         setUser(parsedUser)
-        // Redirect to dashboard if already logged in
+        logUser()
         router.push('/dashboard')
       } catch (e) {
         localStorage.removeItem("googleUser")
       }
     }
   }, [router])
+
+  const logUser = async () => {
+    const email = JSON.parse(localStorage.getItem("googleUser") || "{}").email
+        const sid = JSON.parse(localStorage.getItem("googleUser") || "{}").sub
+        const uuid = crypto.randomUUID()
+        const { error } = await supabase
+          .from("user_emails")
+          .upsert([{ uuid: uuid, user_email: email, user_id: sid }], {
+            onConflict: 'user_email'
+          });
+        if (error) {
+          console.log("Supabase error", error);
+        } else {
+          console.log("Supabase success")
+        }
+  }
 
   // Initialize Google One Tap when script is loaded
   useEffect(() => {
