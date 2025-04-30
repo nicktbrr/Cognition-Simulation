@@ -68,7 +68,6 @@ export default function CognitiveProcess2({
 
   // Validation function to check if all textboxes are filled
   const areAllStepsFilled = () => {
-    console.log("\n\n\n here \n\n\n", steps);
     return steps.every(
       (step) => step.label.trim() !== "" && step.instructions.trim() !== ""
     );
