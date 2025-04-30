@@ -5,7 +5,6 @@ import CollapsibleNav from "../components/collapsible-nav";
 import CognitiveProcess from "../components/cognitive-process";
 import EvaluationCriteria from "../components/evaluation-criteria";
 import ActionButtons from "../components/action-buttons";
-import CognitiveProcess2 from "../components/cognitive-process2";
 import SimulationStatusIndicator from "../components/indicator";
 import { Button } from "../components/ui/button"
 import { LogOut } from "lucide-react"
@@ -144,7 +143,7 @@ export default function Dashboard() {
         <Header name={user.name} />
         <CollapsibleNav />
         <main className="space-y-8">
-          <CognitiveProcess2
+          <CognitiveProcess
             onStepsChange={handleStepsUpdate}
             onTemperatureChange={handleTemperatureChange}
             edges={edges}
