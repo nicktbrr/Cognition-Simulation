@@ -327,6 +327,8 @@ function Flow({
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, handleEdgesChange] = useEdgesState(parentEdges); // Renamed to avoid conflict
 
+  console.log("edges", edges);
+
   // Sync edges back to parent when they change
   useEffect(() => {
     if (parentOnEdgesChange && edges) {
@@ -614,7 +616,6 @@ function Flow({
 
 
   const areAllStepsFilled = () => {
-    console.log("\n\n\n here \n\n\n", steps);
     return steps.every(
       (step) => step.label.trim() !== "" && step.instructions.trim() !== ""
     );

@@ -136,21 +136,32 @@ export default function ActionButtons({
           }
         };
 
+
         // Start traversal from the identified start node
         traverseGraph(startNodeId);
+        console.log('len', orderedSteps.length)
+        console.log('len', steps.length)
+        
+        if (orderedSteps.length !== steps.length) {
+          alert("All nodes must be connected. Please ensure all nodes are properly linked.");
+          setIsProcessing(false);
+          setLoading(false);
+          setSimulationActive(false);
+          return;
+        }
       } else {
         // Fallback if we can't determine the order from edges
         // This will happen if there are no connections or if there's a cycle
-        steps.forEach((step) => {
-          orderedSteps.push({
-            label: step.label,
-            instructions: step.instructions,
-            temperature: step.temperature
-          });
-        });
+        if (orderedSteps.length !== steps.length) {
+          alert("All nodes must be connected. Please ensure all nodes are properly linked.");
+          setIsProcessing(false);
+          setLoading(false);
+          setSimulationActive(false);
+          return;
+        }
       }
       
-      console.log("orderedSteps", orderedSteps);
+      // console.log("orderedSteps", orderedSteps);
       //console.log(orderedSteps);
 
       const jsonData = {
@@ -161,8 +172,7 @@ export default function ActionButtons({
         temperature: 0.5
       };
 
-      console.log(jsonData);
-      console.log(jsonData);
+      console.log("jsonData", jsonData);
 
       // Insert into Supabase
       const { error } = await supabase
