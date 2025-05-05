@@ -198,7 +198,7 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
         </div>
 
         {/* Connection Handles */}
-        <div className="absolute left-0 right-0 top-0 h-4 flex justify-center">
+        {/* <div className="absolute left-0 right-0 top-0 h-4 flex justify-center">
           <Handle
             type="target"
             position={Position.Top}
@@ -225,7 +225,7 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
             isConnectable={!isDisabled}
             id="source-top"
           />
-        </div>
+        </div> */}
         <div className="absolute left-0 top-0 bottom-0 w-4 flex items-center">
           <Handle
             type="target"
@@ -256,7 +256,7 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
             id="source-right"
           />
         </div>
-        <div className="absolute left-0 right-0 bottom-0 h-4 flex justify-center">
+        {/* <div className="absolute left-0 right-0 bottom-0 h-4 flex justify-center">
           <Handle
             type="target"
             position={Position.Bottom}
@@ -283,7 +283,7 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
             isConnectable={!isDisabled}
             id="source-bottom"
           />
-        </div>
+        </div> */}
       </div>
     </>
   );
@@ -631,16 +631,38 @@ function Flow({
 
     // Only add a new step if all existing steps are filled out
     if (areAllStepsFilled()) {
+      const newStepId = steps.length > 0 ? Math.max(...steps.map((s) => s.id)) + 1 : 1;
       const newSteps = [
         ...steps,
         {
-          id: steps.length > 0 ? Math.max(...steps.map((s) => s.id)) + 1 : 1,
+          id: newStepId,
           label: "",
           instructions: "",
           temperature: 50,
         },
       ];
       onStepsChange(newSteps);
+
+      // Automatically add an edge from the previous node to the new node
+      if (steps.length > 0) {
+        const prevNodeId = steps[steps.length - 1].id.toString();
+        const newNodeId = newStepId.toString();
+        const uniqueId = `e${prevNodeId}-${newNodeId}-${Date.now()}`;
+        const newEdge = {
+          id: uniqueId,
+          source: prevNodeId,
+          target: newNodeId,
+          animated: true,
+          style: { stroke: "hsl(var(--primary))", strokeWidth: 2 },
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            width: 20,
+            height: 20,
+            color: "hsl(var(--primary))",
+          },
+        };
+        setEdges((eds) => [...eds, newEdge]);
+      }
     }
   };
 
@@ -767,6 +789,8 @@ function Flow({
         <ReactFlow
           nodes={nodes}
           edges={edges}
+          edgesUpdatable={false}
+          edgesFocusable={false}
           onNodesChange={handleNodesChange}
           onEdgesChange={disabled ? () => {} : handleEdgesChange}
           onConnect={onConnect}
@@ -775,7 +799,6 @@ function Flow({
           minZoom={0.5}
           maxZoom={1.5}
           proOptions={{ hideAttribution: true }}
-          deleteKeyCode={disabled ? [] : ["Backspace", "Delete"]}
           connectionMode="loose"
           defaultEdgeOptions={{
             animated: true,
@@ -783,7 +806,7 @@ function Flow({
           }}
           nodesDraggable={!disabled}
           nodesConnectable={!disabled}
-          elementsSelectable={true}
+          elementsSelectable={false}
         >
           <Background color="#aaa" gap={16} />
           <Controls />
