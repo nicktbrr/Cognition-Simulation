@@ -793,19 +793,19 @@ function Flow({
           edgesFocusable={false}
           onNodesChange={handleNodesChange}
           onEdgesChange={disabled ? () => {} : handleEdgesChange}
-          onConnect={onConnect}
+          onConnect={() => {}}
           nodeTypes={nodeTypes}
           defaultViewport={{ x: 0, y: 0, zoom: 1 }}
           minZoom={0.5}
           maxZoom={1.5}
           proOptions={{ hideAttribution: true }}
-          connectionMode="loose"
           defaultEdgeOptions={{
             animated: true,
             style: { stroke: "var(--primary)", strokeWidth: 2 },
           }}
           nodesDraggable={!disabled}
-          nodesConnectable={!disabled}
+          nodesConnectable={false}
+          edgesConnectable={false}
           elementsSelectable={false}
         >
           <Background color="#aaa" gap={16} />
