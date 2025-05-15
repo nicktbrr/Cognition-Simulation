@@ -2,8 +2,15 @@ import pandas as pd
 import google.generativeai as genai
 import typing_extensions as typing
 import json
+from pydantic import BaseModel
 import concurrent.futures
 import os
+import openai
+
+
+class EvaluationMetricsGPT4(BaseModel):
+    metric: list[str]
+    score: list[float]
 
 
 class EvaluationMetrics(typing.TypedDict):
@@ -27,9 +34,21 @@ def process_row(row_idx, df_row, system_prompt, metrics_to_evaluate):
     }
     row_scores.update({m: [] for m in metrics_to_evaluate})
     # Determine start column based on whether 'seed' is in the columns
+
+    row_scores_gpt4 = {
+        "GPT4_Clarity": [],
+        "GPT4_Feasibility": [],
+        "GPT4_Importance": [],
+        "GPT4_Novelty": [],
+        "GPT4_Fairness": [],
+        "GPT4_Quality": [],
+        "GPT4_Usefulness": []
+    }
+
+    row_scores_gpt4.update({f"GPT4_{m}": [] for m in metrics_to_evaluate})
     start_col = 1 if 'seed' in df_row.index else 0
 
-    for col in range(start_col, len(df_row)):
+    for col in range(start_col, len(df_row) - 1):
         try:
             model = genai.GenerativeModel(
                 "gemini-2.0-flash", system_instruction=system_prompt)
@@ -53,15 +72,30 @@ def process_row(row_idx, df_row, system_prompt, metrics_to_evaluate):
                 else:
                     row_scores[metric].append(json_response["score"][idx])
 
+            client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+            response = client.responses.parse(
+                model="gpt-4o-mini",
+                input=[{"role": "system", "content": system_prompt}, {"role": "user", "content": df_row.iloc[col]}],
+                text_format=EvaluationMetricsGPT4,
+                temperature=1.0
+            )
+            for idx, metric in enumerate(row_scores_gpt4.keys()):
+                if idx >= len(response.output_parsed.metric):
+                    row_scores_gpt4[metric].append('Poorly Defined Critiria')
+                else:
+                    row_scores_gpt4[metric].append(response.output_parsed.score[idx])
+
         except Exception as e:
             print(
                 f"Error processing row {row_idx}, column {df_row.index[col]}: {e}")
             for metric in row_scores.keys():
-                row_scores[metric].append(None)  # Handle failures gracefully
+                row_scores[metric].append(0)  # Handle failures gracefully
+            for metric in row_scores_gpt4.keys():
+                row_scores_gpt4[metric].append(0)
 
     print(f"Finished processing row {row_idx}")
     print(row_scores)
-    return row_scores
+    return row_scores, row_scores_gpt4
 
 
 def evaluate(df, key_g, metrics):
@@ -76,7 +110,7 @@ def evaluate(df, key_g, metrics):
     metric_description = {m["name"]: m["description"] for m in metrics}
 
     metrics_to_evaluate = metric_name - metrics_set
- 
+
     criteria = ""
     criteria_description = ""
     for i, m in enumerate(metrics_to_evaluate):
@@ -141,7 +175,8 @@ def evaluate(df, key_g, metrics):
 """
     
     max_workers = 2
-    results = []
+    results_gemini = []
+    results_gpt4 = []
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {executor.submit(
@@ -149,12 +184,22 @@ def evaluate(df, key_g, metrics):
 
         for future in concurrent.futures.as_completed(futures):
             try:
-                results.append(future.result())
+                results_gemini.append(future.result()[0])
+                results_gpt4.append(future.result()[1])
             except Exception as e:
                 print(f"Error in thread execution: {e}")
 
     # Convert results into a DataFrame
-    results_df = pd.DataFrame(results)
+    print('gemini results', results_gemini)
+    print('gpt4 results', results_gpt4)
+
+    results_df_gemini = pd.DataFrame(results_gemini)
+    results_df_gpt4 = pd.DataFrame(results_gpt4)
+    print('results_df_gemini', results_df_gemini)
+    print('results_df_gpt4', results_df_gpt4)
+    results_df = pd.concat([results_df_gemini, results_df_gpt4], axis=1)
+
+    print('results_df', results_df)
 
     # Determine column names for results DataFrame
     # Check if 'seed' is in the original DataFrame columns
