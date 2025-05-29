@@ -113,7 +113,7 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
   return (
     <>
       <div
-        className={`w-[220px] p-4 border ${
+        className={`w-[450px] h-[400px] p-4 border ${
           isDisabled ? "border-gray-300" : "border-primary"
         } rounded-md bg-white shadow-md ${isDisabled ? "opacity-80" : ""}`}
       >
@@ -155,10 +155,10 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
           </div>
           <div className="relative">
             <textarea
-              className="w-full h-24 text-sm resize-none border rounded p-2"
+              className="w-full h-[200px] text-sm resize-none border rounded p-2"
               placeholder="[Enter instructions, as if you were asking a human to complete this step.]"
               value={localInstructions}
-              maxLength={200}
+              maxLength={500}
               onChange={(e) => {
                 if (isDisabled) return;
                 const newValue = e.target.value;
@@ -168,7 +168,7 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
               disabled={isDisabled}
             />
             <div className="absolute bottom-2 right-2 text-xs text-muted-foreground">
-              {localInstructions.length}/200
+              {localInstructions.length}/500
             </div>
           </div>
           <div className="space-y-1">
@@ -613,8 +613,6 @@ function Flow({
     };
   }, []);
 
-
-
   const areAllStepsFilled = () => {
     return steps.every(
       (step) => step.label.trim() !== "" && step.instructions.trim() !== ""
@@ -683,6 +681,10 @@ function Flow({
     [localSteps, updateStepData, disabled]
   );
 
+  const incompleteSteps = localSteps.filter(
+    (step) => step.label.trim() === "" || step.instructions.trim() === ""
+  );
+
   return (
     <StepsContext.Provider value={stepsContextValue}>
       <div 
@@ -737,6 +739,21 @@ function Flow({
             {showPanel ? "Hide Panel" : "Show Panel"}
           </Button>
         </div>
+
+        {/* Warning Message */}
+        {isAddButtonDisabled && incompleteSteps.length > 0 && (
+          <div 
+            className="text-sm text-amber-600 flex items-center gap-2 absolute top-10 left-1/2 transform -translate-x-1/2 z-[1000] bg-white/90 px-4 py-2 rounded-md shadow-md"
+          >
+            <AlertCircle className="h-4 w-4" />
+            <span>
+              Please fill out all required fields in step
+              {incompleteSteps.length > 1 ? "s" : ""}{" "}
+              {incompleteSteps.map((s) => s.id).join(", ")} before adding a
+              new step.
+            </span>
+          </div>
+        )}
 
         {/* Simulation Active Warning */}
         {disabled && (

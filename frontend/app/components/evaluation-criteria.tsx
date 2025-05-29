@@ -106,7 +106,7 @@ export default function EvaluationCriteria({
 
     if (hasChanged) {
       prevSelectedRef.current = criteriaNames;
-      onMetricsChange(selectedCriteria);
+      onMetricsChange(selectedCriteria.map(c => c.name));
     }
   }, [selectedCriteria, onMetricsChange]);
 
@@ -205,12 +205,40 @@ export default function EvaluationCriteria({
         <h2 className="text-xl font-bold">
           2. Choose Criteria to Evaluate Steps
         </h2>
-        {simulationActive && (
-          <div className="text-amber-600 flex items-center gap-2">
-            <LockIcon className="h-4 w-4" />
-            <span className="text-sm">Locked during simulation</span>
-          </div>
-        )}
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-[#6a03ab] bg-[#6a03ab] text-white hover:bg-[#6a03abe6] hover:text-white"
+            onClick={() => {
+              if (simulationActive) return;
+              setSelectedCriteria([...criteria]);
+              onMetricsChange(criteria.map(c => c.name));
+            }}
+            disabled={simulationActive}
+          >
+            Select All
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-[#6a03ab] bg-[#6a03ab] text-white hover:bg-[#6a03abe6] hover:text-white"
+            onClick={() => {
+              if (simulationActive) return;
+              setSelectedCriteria([]);
+              onMetricsChange([]);
+            }}
+            disabled={simulationActive}
+          >
+            Deselect All
+          </Button>
+          {simulationActive && (
+            <div className="flex items-center gap-2">
+              <LockIcon className="h-4 w-4" />
+              <span className="text-sm">Locked during simulation</span>
+            </div>
+          )}
+        </div>
       </div>
       <p className="text-muted-foreground">
         Select the criteria used to measure the cognitive process above. You can
