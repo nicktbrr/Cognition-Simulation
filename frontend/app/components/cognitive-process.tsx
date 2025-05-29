@@ -4,6 +4,7 @@ import { useState } from "react";
 import { AlertCircle } from "lucide-react";
 import CognitiveFlow from "./cognitive-flow";
 import { isValidURL } from "@/app/utils/urlParser";
+import Papa from "papaparse";
 
 interface Step {
   id: number;
@@ -118,6 +119,78 @@ export default function CognitiveProcess2({
   return (
     <section className="space-y-4">
       <h2 className="text-xl font-bold">1. Add Steps to Cognitive Process</h2>
+
+      {/* CSV Upload Button */}
+      <div className="mb-4">
+        <input
+          type="file"
+          accept=".csv"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) {
+              Papa.parse(file, {
+                header: true,
+                complete: (results) => {
+                  // First clear all existing steps and edges
+                  handleStepsChange([]);
+                  if (onEdgesChange) {
+                    onEdgesChange([]);
+                  }
+
+                  const newSteps = results.data
+                    .filter((row: any) => row.label && row.description)
+                    .slice(0, 20)
+                    .map((row: any, index: number) => ({
+                      id: index + 1, // Start from 1 for new steps
+                      label: row.label,
+                      instructions: row.description,
+                      temperature: 50,
+                    }));
+
+                  if (newSteps.length > 0) {
+                    // Add new steps
+                    handleStepsChange(newSteps);
+
+                    // Create sequential connections between nodes
+                    const newEdges = newSteps.slice(0, -1).map((step, index) => ({
+                      id: `e${step.id}-${newSteps[index + 1].id}`,
+                      source: step.id.toString(),
+                      target: newSteps[index + 1].id.toString(),
+                      animated: true,
+                      style: { stroke: "hsl(var(--primary))", strokeWidth: 2 },
+                      markerEnd: {
+                        type: "arrowclosed",
+                        width: 20,
+                        height: 20,
+                        color: "hsl(var(--primary))",
+                      },
+                    }));
+
+                    // Update edges if onEdgesChange is provided
+                    if (onEdgesChange) {
+                      onEdgesChange(newEdges);
+                    }
+                  }
+                },
+                error: (error) => {
+                  console.error('Error parsing CSV:', error);
+                }
+              });
+            }
+          }}
+          className="hidden"
+          id="csv-upload"
+        />
+        <label
+          htmlFor="csv-upload"
+          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary cursor-pointer"
+        >
+          Upload CSV
+        </label>
+        <span className="ml-2 text-sm text-muted-foreground">
+          Upload a CSV file with 'label' and 'description' columns (max 20 rows)
+        </span>
+      </div>
 
       {/* URL Warning Banner */}
       {hasURLs && (
