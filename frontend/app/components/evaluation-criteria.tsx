@@ -65,7 +65,7 @@ export default function EvaluationCriteria({
   simulationActive = false,
   onUrlDetected,
 }: {
-  onMetricsChange: (metrics: string[]) => void;
+  onMetricsChange: (metrics: any[]) => void;
   simulationActive?: boolean;
   onUrlDetected: (hasUrls: boolean) => void;
 }) {
@@ -106,7 +106,7 @@ export default function EvaluationCriteria({
 
     if (hasChanged) {
       prevSelectedRef.current = criteriaNames;
-      onMetricsChange(selectedCriteria.map(c => c.name));
+      onMetricsChange(selectedCriteria);
     }
   }, [selectedCriteria, onMetricsChange]);
 
