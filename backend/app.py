@@ -83,15 +83,11 @@ class Evaluation(Resource):  # Inherit from Resource
 
             df = baseline_prompt(response, key_g)
             print('data after baseline prompt', df)
-            evals = evaluate(df, key_g, metrics)
-            print(evals)
+            fn = evaluate(df, key_g, metrics)
             df = df.replace('\n', '', regex=True)
             # print('before cos', df.shape)
             sim_matrix = create_sim_matrix(df)
             # Generate a unique filename for the CSV
-            timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-            fn = f'csv_{timestamp}.csv'
-            evals.to_csv(fn, index=False)
 
             # Upload the CSV to the Supabase bucket
             bucket_name = "llm-responses"  # Replace with your bucket name

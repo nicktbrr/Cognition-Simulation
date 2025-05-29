@@ -282,7 +282,7 @@ export default function ActionButtons({
             disabled={isDisabled ? true : false}
             onClick={() => {
               console.log(download);
-              handleDownload(download, "simulated_data.csv");
+              handleDownload(download, "simulated_data.xlsx");
             }}
           >
             Download Simulated Data

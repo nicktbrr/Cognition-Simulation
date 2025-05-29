@@ -6,7 +6,7 @@ from pydantic import BaseModel
 import concurrent.futures
 import os
 import openai
-
+from datetime import datetime
 
 class EvaluationMetricsGPT4(BaseModel):
     metric: list[str]
@@ -16,6 +16,61 @@ class EvaluationMetricsGPT4(BaseModel):
 class EvaluationMetrics(typing.TypedDict):
     metric: list[str]
     score: list[float]
+
+
+def dataframe_to_excel(df_response, df_gpt4, df_gemini):
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    fn = f'multiple_sheets_{timestamp}.xlsx'
+
+    metric_dataframes = create_metric_dataframes(df_response, df_gpt4, df_gemini)
+
+    with pd.ExcelWriter(fn, engine='openpyxl') as writer:
+        df_response.to_excel(writer, sheet_name='Response', index=False)
+        for metric, df in metric_dataframes.items():
+            df.to_excel(writer, sheet_name=metric, index=False)
+    
+    return fn
+
+
+def create_metric_dataframes(df_response, df_gpt4, df_gemini):
+    """
+    Creates separate dataframes for each metric where columns are the first n columns
+    of df_response with either 'gemini' or 'gpt' appended.
+    
+    Args:
+        df_response: Original response dataframe
+        df_gpt4: GPT4 evaluation results
+        df_gemini: Gemini evaluation results
+        
+    Returns:
+        Dictionary of dataframes, one for each metric
+    """
+    # Get the first n columns from df_response (excluding the last column)
+    response_cols = df_response.columns[:-1]
+    
+    # Create a dictionary to store metric-specific dataframes
+    metric_dfs = {}
+    
+    # Get all metrics (excluding GPT4 prefix)
+    metrics = [col for col in df_gemini.columns if not col.startswith('GPT4_')]
+    
+    for metric in metrics:
+        # Create new dataframe for this metric
+        metric_df = pd.DataFrame()
+        
+        # Add columns for each response column
+        for idx, col in enumerate(response_cols):
+            # Get the corresponding scores from both models
+            gemini_scores = df_gemini[metric].apply(lambda x: x[idx] if isinstance(x, list) else x)
+            gpt_scores = df_gpt4[f'GPT4_{metric}'].apply(lambda x: x[idx] if isinstance(x, list) else x)
+            
+            # Add columns with appropriate names
+            metric_df[f'{col}_gemini'] = gemini_scores
+            metric_df[f'{col}_gpt'] = gpt_scores
+        
+        metric_dfs[metric] = metric_df
+    
+    return metric_dfs
 
 
 def process_row(row_idx, df_row, system_prompt, metrics_to_evaluate):
@@ -201,27 +256,6 @@ def evaluate(df, key_g, metrics):
 
     print('results_df', results_df)
 
-    # Determine column names for results DataFrame
-    # Check if 'seed' is in the original DataFrame columns
-    if 'seed' in df.columns:
-        # For each metric, create one column for each non-seed column in original df
-        all_columns = []
-        metrics = ["Clarity", "Feasibility", "Importance",
-                   "Uniqueness", "Fairness", "Quality"]
-        data_columns = [col for col in df.columns if col != 'seed']
+    excel_file = dataframe_to_excel(df, results_df_gpt4, results_df_gemini)
 
-        for metric in metrics:
-            # Create column names like "Clarity_column1", "Clarity_column2", etc.
-            metric_columns = [f"{metric}_{col}" for col in data_columns]
-            all_columns.extend(metric_columns)
-
-        # Rename columns in results DataFrame
-        results_df.columns = all_columns
-    else:
-        # If there's no seed column, just use default column names
-        pass
-
-    # Merge with original DataFrame
-    final_df = pd.concat([df, results_df], axis=1)
-
-    return final_df
+    return excel_file
