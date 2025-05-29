@@ -59,10 +59,10 @@ def create_metric_dataframes(df_response, df_gpt4, df_gemini):
         metric_df = pd.DataFrame()
         
         # Add columns for each response column
-        for col in response_cols:
+        for idx, col in enumerate(response_cols):
             # Get the corresponding scores from both models
-            gemini_scores = df_gemini[metric].apply(lambda x: x[0] if isinstance(x, list) else x)
-            gpt_scores = df_gpt4[f'GPT4_{metric}'].apply(lambda x: x[0] if isinstance(x, list) else x)
+            gemini_scores = df_gemini[metric].apply(lambda x: x[idx] if isinstance(x, list) else x)
+            gpt_scores = df_gpt4[f'GPT4_{metric}'].apply(lambda x: x[idx] if isinstance(x, list) else x)
             
             # Add columns with appropriate names
             metric_df[f'{col}_gemini'] = gemini_scores
