@@ -215,7 +215,7 @@ export default function CognitiveProcess2({
 
       <div className="relative">
         <div
-          className={`h-[400px] border rounded-md overflow-hidden ${
+          className={`h-[600px] border rounded-md overflow-hidden ${
             simulationActive ? "opacity-80" : ""
           }`}
         >
@@ -229,7 +229,8 @@ export default function CognitiveProcess2({
         </div>
 
         <div className="mt-4 flex justify-between items-center">
-          {isAddButtonDisabled && incompleteSteps.length > 0 && (
+          <div></div>
+          {/* {isAddButtonDisabled && incompleteSteps.length > 0 && (
             <div className="text-sm text-amber-600 flex items-center gap-2">
               <AlertCircle className="h-4 w-4" />
               <span>
@@ -239,7 +240,7 @@ export default function CognitiveProcess2({
                 new step.
               </span>
             </div>
-          )}
+          )} */}
 
           {!isAddButtonDisabled && (
             <div className="text-sm text-green-600 flex-1"></div>

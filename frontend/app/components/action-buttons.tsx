@@ -248,13 +248,7 @@ export default function ActionButtons({
         <div className="flex flex-wrap gap-4">
           <Button
             variant="secondary"
-            className="bg-primary text-primary-foreground"
-          >
-            Download Summary
-          </Button>
-          <Button
-            variant="secondary"
-            className="bg-primary text-primary-foreground"
+            className="bg-primary text-primary-foreground hover:bg-[#6a03abe6] hover:text-white"
             onClick={handleSubmit}
             disabled={
               isProcessing ||
