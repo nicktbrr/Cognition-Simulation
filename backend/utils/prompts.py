@@ -107,9 +107,11 @@ def process_row_with_chat(row_idx, df, prompt, key_g, system_prompt):
                                                   response_mime_type="application/json",
                                                   response_schema=BaseClass))
             
+            print('response', response.usage_metadata)
+            
             tokens_dict['prompt_tokens'] += response.usage_metadata.prompt_token_count
             tokens_dict['response_tokens'] += response.usage_metadata.candidates_token_count
-            tokens_dict['total_tokens'] += response.usage_metadata.total_tokens
+            tokens_dict['total_tokens'] += response.usage_metadata.total_token_count
             try:
                 json_response = json.loads(
                     response._result.candidates[0].content.parts[0].text)

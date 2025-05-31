@@ -124,7 +124,7 @@ def process_row(row_idx, df_row, system_prompt, metrics_to_evaluate):
             )
             tokens_dict['gemini_prompt_tokens'] += response.usage_metadata.prompt_token_count
             tokens_dict['gemini_response_tokens'] += response.usage_metadata.candidates_token_count
-            tokens_dict['gemini_total_tokens'] += response.usage_metadata.total_tokens
+            tokens_dict['gemini_total_tokens'] += response.usage_metadata.total_token_count
 
             # Parse JSON response
             json_response = json.loads(
