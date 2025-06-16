@@ -446,7 +446,7 @@ function Flow({
       const initialNodes = localSteps.map((step, index) => ({
         id: step.id.toString(),
         type: "stepNode",
-        position: { x: index * 300, y: 100 },
+        position: { x: index * 600, y: 100 },
         data: {
           stepId: step.id,
           label: step.label,
