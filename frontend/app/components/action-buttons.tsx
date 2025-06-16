@@ -281,6 +281,7 @@ export default function ActionButtons({
           <Button
             variant="secondary"
             disabled={isDisabled ? true : false}
+            className={isDisabled ? "" : "bg-primary text-primary-foreground hover:bg-[#6a03abe6] hover:text-white"}
             onClick={() => {
               console.log(download);
               handleDownload(download, "simulated_data.xlsx");
