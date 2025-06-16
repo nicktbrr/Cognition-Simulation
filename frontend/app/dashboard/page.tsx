@@ -42,6 +42,7 @@ export default function Dashboard() {
   const [selectedMetrics, setSelectedMetrics] = useState<any[]>([]);
   const [temperature, setTemperature] = useState<number>(50);
   const [user, setUser] = useState<GoogleUser | null>(null);
+  const [title, setTitle] = useState<string>("");
   // Add state for tracking edges
   const [edges, setEdges] = useState<Edge[]>([]);
 
@@ -75,8 +76,14 @@ export default function Dashboard() {
     setHasUrls(detected);
   };
 
+  // Update title when it changes
+  const handleTitleChange = (newTitle: string) => {
+    setTitle(newTitle);
+  };
+
   // When the submit button is pressed, log and alert the data
   const handleSubmit = () => {
+    console.log("Title:", title);
     console.log("Submitted Steps Order:", steps);
     console.log("Selected Metrics:", selectedMetrics);
     console.log("Temperature:", temperature);
@@ -92,6 +99,10 @@ export default function Dashboard() {
         edge.target,
     }));
     console.log("Step Flow:", connections);
+
+    // Create the Excel filename with the title
+    const excelFilename = `cogsim_${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.xlsx`;
+    console.log("Excel Filename:", excelFilename);
 
     alert("Steps submitted! Check console for output.");
   };
@@ -149,6 +160,7 @@ export default function Dashboard() {
             edges={edges}
             onEdgesChange={handleEdgesUpdate}
             simulationActive={simulationActive}
+            onTitleChange={handleTitleChange}
           />
           <EvaluationCriteria
             onMetricsChange={handleMetricsUpdate}
@@ -162,6 +174,7 @@ export default function Dashboard() {
             edges={edges}
             setSimulationActive={setSimulationActive}
             hasUrls={hasUrls}
+            title={title}
           />
         </main>
         </div>

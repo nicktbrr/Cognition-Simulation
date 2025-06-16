@@ -21,13 +21,19 @@ interface Step {
   temperature: number;
 }
 
+interface Edge {
+  source: string;
+  target: string;
+}
+
 interface ActionButtonsProps {
   onSubmit: (steps: Step[], metrics: string[]) => void;
   steps: Step[];
   metrics: string[];
-  edges: any;
+  edges: Edge[];
   setSimulationActive: (active: boolean) => void;
   hasUrls: boolean;
+  title: string;
 }
 
 export default function ActionButtons({
@@ -37,6 +43,7 @@ export default function ActionButtons({
   edges,
   setSimulationActive,
   hasUrls,
+  title,
 }: ActionButtonsProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -51,7 +58,7 @@ export default function ActionButtons({
 
       const link = document.createElement("a");
       link.href = url;
-      link.setAttribute("download", filename); // Adjust the filename as needed
+      link.setAttribute("download", `cogsim_${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.xlsx`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);

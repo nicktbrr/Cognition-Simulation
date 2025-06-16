@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AlertCircle } from "lucide-react";
 import CognitiveFlow from "./cognitive-flow";
 import { isValidURL } from "@/app/utils/urlParser";
@@ -31,17 +31,27 @@ export default function CognitiveProcess2({
   edges = [],
   onEdgesChange,
   simulationActive = false,
+  onTitleChange,
 }: {
   onStepsChange: (steps: Step[]) => void;
   onTemperatureChange: (temperature: number) => void;
   edges?: Edge[];
   onEdgesChange?: (edges: Edge[]) => void;
   simulationActive?: boolean;
+  onTitleChange?: (title: string) => void;
 }) {
   const [steps, setSteps] = useState<Step[]>([]);
+  const [title, setTitle] = useState<string>("");
   const [urlWarnings, setUrlWarnings] = useState<{ [key: number]: string[] }>(
     {}
   );
+
+  // Add effect to notify parent of title changes
+  useEffect(() => {
+    if (onTitleChange) {
+      onTitleChange(title);
+    }
+  }, [title, onTitleChange]);
 
   const handleStepsChange = (updatedSteps: Step[]) => {
     // Check each step for URLs
@@ -120,6 +130,22 @@ export default function CognitiveProcess2({
     <section className="space-y-4">
       <h2 className="text-xl font-bold">1. Add Steps to Cognitive Process</h2>
 
+      {/* Title Input */}
+      <div className="mb-4">
+        <label htmlFor="title" className="block text-lg font-medium mb-2">
+          Title
+        </label>
+        <input
+          type="text"
+          id="title"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Enter a title for your cognitive process"
+          className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+          disabled={simulationActive}
+        />
+      </div>
+
       {/* CSV Upload Button */}
       <div className="mb-4">
         <input
@@ -128,6 +154,13 @@ export default function CognitiveProcess2({
           onChange={(e) => {
             const file = e.target.files?.[0];
             if (file) {
+              // Set the title from the file name (remove .csv extension)
+              const fileName = file.name.replace('.csv', '');
+              setTitle(fileName);
+              if (onTitleChange) {
+                onTitleChange(fileName);
+              }
+
               Papa.parse(file, {
                 header: true,
                 complete: (results) => {
@@ -190,6 +223,17 @@ export default function CognitiveProcess2({
         <span className="ml-2 text-sm text-muted-foreground">
           Upload a CSV file with 'label' and 'description' columns (max 20 rows)
         </span>
+
+      </div>
+
+      <div className="mb-4">
+        <a
+          href="/template.csv"
+          download
+          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary cursor-pointer"
+        >
+          Download template
+        </a>
       </div>
 
       {/* URL Warning Banner */}
