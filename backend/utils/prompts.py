@@ -169,7 +169,6 @@ def baseline_prompt(prompt, key_g):
         Do not use any newline characters or separate your answer with new lines. Provide the response in plain text format as a single continuous sentence.
         """
 
-    print('prompt', prompt[0])
     seed = prompt[0]['user']['seed']
 
     # Extract labels from the steps array

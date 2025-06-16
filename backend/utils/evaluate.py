@@ -210,8 +210,6 @@ def process_row(row_idx, df_row, system_prompt, metrics_to_evaluate):
             for metric in row_scores_gpt4.keys():
                 row_scores_gpt4[metric].append(0)
 
-    print(f"Finished processing row {row_idx}")
-    print('tokens_dict', tokens_dict)
     return row_scores, row_scores_gpt4, tokens_dict
 
 
@@ -230,7 +228,6 @@ def evaluate(df, key_g, metrics):
             - list: List of token usage statistics for each row
     """
     # Configure Gemini API
-    print(metrics)
     genai.configure(api_key=key_g)
     
     # Define standard metrics and process custom metrics
@@ -326,8 +323,6 @@ def evaluate(df, key_g, metrics):
     # Convert results to DataFrames
     results_df_gemini = pd.DataFrame(results_gemini)
     results_df_gpt4 = pd.DataFrame(results_gpt4)
-
-    print('tokens_ls', tokens_ls)
 
     # Generate Excel report
     excel_file = dataframe_to_excel(df, results_df_gpt4, results_df_gemini)
