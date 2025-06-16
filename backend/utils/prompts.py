@@ -94,7 +94,6 @@ def process_row_with_chat(row_idx, df, prompt, key_g, system_prompt):
 
                             Please respond with ONLY the question and absolutely no additional text or explanation. The structure should include the following fields:
                             """)
-            print('prompt\n\n\n\n\n', llm_prompt)
 
             # Configure the AI model
             genai.configure(api_key=key_g)
@@ -106,8 +105,6 @@ def process_row_with_chat(row_idx, df, prompt, key_g, system_prompt):
                                                   temperature=temperature/100.0,
                                                   response_mime_type="application/json",
                                                   response_schema=BaseClass))
-            
-            print('response', response.usage_metadata)
             
             tokens_dict['prompt_tokens'] += response.usage_metadata.prompt_token_count
             tokens_dict['response_tokens'] += response.usage_metadata.candidates_token_count
@@ -128,7 +125,10 @@ def process_row_with_chat(row_idx, df, prompt, key_g, system_prompt):
             row_data[col_name] = "No matching instructions found"
     row_data['persona'] = persona
 
+    print('tokens_dict', tokens_dict)
+
     print('finished row')
+
     return row_data, tokens_dict
 
 
@@ -197,5 +197,7 @@ def baseline_prompt(prompt, key_g):
 
     # Convert results back into a DataFrame
     final_df = pd.DataFrame(results)
+
+    print('tokens_ls', tokens_ls)
 
     return final_df, tokens_ls

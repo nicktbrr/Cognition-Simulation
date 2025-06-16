@@ -158,7 +158,7 @@ def process_row(row_idx, df_row, system_prompt, metrics_to_evaluate):
                 row_scores_gpt4[metric].append(0)
 
     print(f"Finished processing row {row_idx}")
-    print(row_scores)
+    print('tokens_dict', tokens_dict)
     return row_scores, row_scores_gpt4, tokens_dict
 
 
@@ -256,17 +256,12 @@ def evaluate(df, key_g, metrics):
             except Exception as e:
                 print(f"Error in thread execution: {e}")
 
-    # Convert results into a DataFrame
-    print('gemini results', results_gemini)
-    print('gpt4 results', results_gpt4)
 
     results_df_gemini = pd.DataFrame(results_gemini)
     results_df_gpt4 = pd.DataFrame(results_gpt4)
-    print('results_df_gemini', results_df_gemini)
-    print('results_df_gpt4', results_df_gpt4)
-    results_df = pd.concat([results_df_gemini, results_df_gpt4], axis=1)
+    # results_df = pd.concat([results_df_gemini, results_df_gpt4], axis=1)
 
-    print('results_df', results_df)
+    print('tokens_ls', tokens_ls)
 
     excel_file = dataframe_to_excel(df, results_df_gpt4, results_df_gemini)
 
