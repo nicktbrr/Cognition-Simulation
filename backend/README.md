@@ -24,11 +24,14 @@ This service provides an API endpoint for evaluating LLM responses using various
 ## Environment Variables
 
 Required environment variables:
+
 - `VITE_SUPABASE_URL`: Supabase project URL
 - `VITE_SUPABASE_KEY`: Supabase API key
+- `VITE_SUPABASE_BUCKET_URL` Supabase Bucket URL
 - `GEMINI_KEY`: Google Gemini API key
 - `VITE_GCP_TOKEN`: Authentication token for production
 - `DEV`: Set to 'development' for local development
+- `OPENAI_API_KEY` OpenAI API key
 
 ## Development
 
