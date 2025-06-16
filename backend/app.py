@@ -55,6 +55,8 @@ url: str = os.environ.get("VITE_SUPABASE_URL")
 key: str = os.environ.get("VITE_SUPABASE_KEY")
 
 env_path = Path('.') / '.env'
+
+print('env_path', env_path)
 load_dotenv(dotenv_path=env_path)
 key_g = os.environ.get('GEMINI_KEY')
 genai.configure(api_key=key_g)
@@ -81,13 +83,34 @@ class Evaluation(Resource):  # Inherit from Resource
             print(response)
             metrics = response[0]["user"]['metrics']
 
-            df = baseline_prompt(response, key_g)
+            df, prompt_tokens = baseline_prompt(response, key_g)
             print('data after baseline prompt', df)
-            fn = evaluate(df, key_g, metrics)
+
+
+            fn, eval_tokens = evaluate(df, key_g, metrics)
             df = df.replace('\n', '', regex=True)
-            # print('before cos', df.shape)
             sim_matrix = create_sim_matrix(df)
-            # Generate a unique filename for the CSV
+            
+            # Calculate total tokens from the list of token dictionaries
+            total_prompt_input_token = sum(token_dict['prompt_tokens'] for token_dict in prompt_tokens)
+            total_prompt_output_token = sum(token_dict['response_tokens'] for token_dict in prompt_tokens)
+            total_prompt_total_token = sum(token_dict['total_tokens'] for token_dict in prompt_tokens)
+
+            total_eval_input_token = sum(token_dict['gemini_prompt_tokens'] for token_dict in eval_tokens)
+            total_eval_output_token = sum(token_dict['gemini_response_tokens'] for token_dict in eval_tokens)
+            total_eval_total_token = sum(token_dict['gemini_total_tokens'] for token_dict in eval_tokens)
+
+            response_tokens = supabase.table("tokens").insert({
+                "id": uuid,
+                "prompt_input_token": total_prompt_input_token,
+                "prompt_output_token": total_prompt_output_token,
+                "prompt_total_token": total_prompt_total_token,
+                "eval_input_token": total_eval_input_token,
+                "eval_output_token": total_eval_output_token,
+                "eval_total_token": total_eval_total_token,
+            }).execute()
+
+            print('response_tokens', response_tokens)
 
             # Upload the CSV to the Supabase bucket
             bucket_name = "llm-responses"  # Replace with your bucket name

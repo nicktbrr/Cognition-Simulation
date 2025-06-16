@@ -103,6 +103,12 @@ def process_row(row_idx, df_row, system_prompt, metrics_to_evaluate):
     row_scores_gpt4.update({f"GPT4_{m}": [] for m in metrics_to_evaluate})
     start_col = 1 if 'seed' in df_row.index else 0
 
+    tokens_dict = {
+        'gemini_prompt_tokens': 0,
+        'gemini_response_tokens': 0,
+        'gemini_total_tokens': 0,
+    }
+
     for col in range(start_col, len(df_row) - 1):
         try:
             model = genai.GenerativeModel(
@@ -116,6 +122,9 @@ def process_row(row_idx, df_row, system_prompt, metrics_to_evaluate):
                     response_schema=EvaluationMetrics
                 )
             )
+            tokens_dict['gemini_prompt_tokens'] += response.usage_metadata.prompt_token_count
+            tokens_dict['gemini_response_tokens'] += response.usage_metadata.candidates_token_count
+            tokens_dict['gemini_total_tokens'] += response.usage_metadata.total_token_count
 
             # Parse JSON response
             json_response = json.loads(
@@ -149,8 +158,8 @@ def process_row(row_idx, df_row, system_prompt, metrics_to_evaluate):
                 row_scores_gpt4[metric].append(0)
 
     print(f"Finished processing row {row_idx}")
-    print(row_scores)
-    return row_scores, row_scores_gpt4
+    print('tokens_dict', tokens_dict)
+    return row_scores, row_scores_gpt4, tokens_dict
 
 
 def evaluate(df, key_g, metrics):
@@ -158,6 +167,8 @@ def evaluate(df, key_g, metrics):
     Evaluates multiple rows in parallel using threading and combines the results into a DataFrame.
     """
     # Configure `genai` globally
+    print(metrics)
+
     genai.configure(api_key=key_g)
     metrics_set = {"Clarity", "Feasibility", "Importance",
                    "Novelty", "Fairness", "Quality", "Usefulness"}
@@ -232,7 +243,7 @@ def evaluate(df, key_g, metrics):
     max_workers = 2
     results_gemini = []
     results_gpt4 = []
-
+    tokens_ls = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {executor.submit(
             process_row, idx, df.iloc[idx], system_prompt, metrics_to_evaluate): idx for idx in range(df.shape[0])}
@@ -241,21 +252,17 @@ def evaluate(df, key_g, metrics):
             try:
                 results_gemini.append(future.result()[0])
                 results_gpt4.append(future.result()[1])
+                tokens_ls.append(future.result()[2])
             except Exception as e:
                 print(f"Error in thread execution: {e}")
 
-    # Convert results into a DataFrame
-    print('gemini results', results_gemini)
-    print('gpt4 results', results_gpt4)
 
     results_df_gemini = pd.DataFrame(results_gemini)
     results_df_gpt4 = pd.DataFrame(results_gpt4)
-    print('results_df_gemini', results_df_gemini)
-    print('results_df_gpt4', results_df_gpt4)
-    results_df = pd.concat([results_df_gemini, results_df_gpt4], axis=1)
+    # results_df = pd.concat([results_df_gemini, results_df_gpt4], axis=1)
 
-    print('results_df', results_df)
+    print('tokens_ls', tokens_ls)
 
     excel_file = dataframe_to_excel(df, results_df_gpt4, results_df_gemini)
 
-    return excel_file
+    return excel_file, tokens_ls
