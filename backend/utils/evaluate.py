@@ -1,3 +1,8 @@
+"""
+This module provides functionality for evaluating AI model responses using both Gemini and GPT-4 models.
+It includes utilities for processing evaluation results and generating Excel reports with detailed metrics.
+"""
+
 import pandas as pd
 import google.generativeai as genai
 import typing_extensions as typing
@@ -9,16 +14,41 @@ import openai
 from datetime import datetime
 
 class EvaluationMetricsGPT4(BaseModel):
+    """
+    Pydantic model for GPT-4 evaluation metrics.
+    
+    Attributes:
+        metric (list[str]): List of metric names being evaluated
+        score (list[float]): List of corresponding scores for each metric
+    """
     metric: list[str]
     score: list[float]
 
 
 class EvaluationMetrics(typing.TypedDict):
+    """
+    TypedDict for Gemini evaluation metrics.
+    
+    Attributes:
+        metric (list[str]): List of metric names being evaluated
+        score (list[float]): List of corresponding scores for each metric
+    """
     metric: list[str]
     score: list[float]
 
 
 def dataframe_to_excel(df_response, df_gpt4, df_gemini):
+    """
+    Converts evaluation results into an Excel file with multiple sheets.
+    
+    Args:
+        df_response (pd.DataFrame): Original response dataframe
+        df_gpt4 (pd.DataFrame): GPT-4 evaluation results
+        df_gemini (pd.DataFrame): Gemini evaluation results
+        
+    Returns:
+        str: Filename of the generated Excel file
+    """
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
     fn = f'multiple_sheets_{timestamp}.xlsx'
 
@@ -38,12 +68,12 @@ def create_metric_dataframes(df_response, df_gpt4, df_gemini):
     of df_response with either 'gemini' or 'gpt' appended.
     
     Args:
-        df_response: Original response dataframe
-        df_gpt4: GPT4 evaluation results
-        df_gemini: Gemini evaluation results
+        df_response (pd.DataFrame): Original response dataframe
+        df_gpt4 (pd.DataFrame): GPT4 evaluation results
+        df_gemini (pd.DataFrame): Gemini evaluation results
         
     Returns:
-        Dictionary of dataframes, one for each metric
+        dict: Dictionary of dataframes, one for each metric
     """
     # Get the first n columns from df_response (excluding the last column)
     response_cols = df_response.columns[:-1]
@@ -75,9 +105,21 @@ def create_metric_dataframes(df_response, df_gpt4, df_gemini):
 
 def process_row(row_idx, df_row, system_prompt, metrics_to_evaluate):
     """
-    Processes a single row by evaluating responses using the AI model.
-    Returns a dictionary with scores for each metric.
+    Processes a single row by evaluating responses using both Gemini and GPT-4 models.
+    
+    Args:
+        row_idx (int): Index of the row being processed
+        df_row (pd.Series): Row of data to evaluate
+        system_prompt (str): System prompt for the AI models
+        metrics_to_evaluate (set): Set of additional metrics to evaluate
+        
+    Returns:
+        tuple: Contains:
+            - dict: Gemini evaluation scores
+            - dict: GPT-4 evaluation scores
+            - dict: Token usage statistics
     """
+    # Initialize score dictionaries for both models
     row_scores = {
         "Clarity": [],
         "Feasibility": [],
@@ -88,7 +130,6 @@ def process_row(row_idx, df_row, system_prompt, metrics_to_evaluate):
         "Usefulness": []
     }
     row_scores.update({m: [] for m in metrics_to_evaluate})
-    # Determine start column based on whether 'seed' is in the columns
 
     row_scores_gpt4 = {
         "GPT4_Clarity": [],
@@ -101,16 +142,21 @@ def process_row(row_idx, df_row, system_prompt, metrics_to_evaluate):
     }
 
     row_scores_gpt4.update({f"GPT4_{m}": [] for m in metrics_to_evaluate})
+    
+    # Determine start column based on whether 'seed' is in the columns
     start_col = 1 if 'seed' in df_row.index else 0
 
+    # Initialize token usage tracking
     tokens_dict = {
         'gemini_prompt_tokens': 0,
         'gemini_response_tokens': 0,
         'gemini_total_tokens': 0,
     }
 
+    # Process each column in the row
     for col in range(start_col, len(df_row) - 1):
         try:
+            # Evaluate using Gemini
             model = genai.GenerativeModel(
                 "gemini-2.0-flash", system_instruction=system_prompt)
 
@@ -122,6 +168,8 @@ def process_row(row_idx, df_row, system_prompt, metrics_to_evaluate):
                     response_schema=EvaluationMetrics
                 )
             )
+            
+            # Track token usage
             tokens_dict['gemini_prompt_tokens'] += response.usage_metadata.prompt_token_count
             tokens_dict['gemini_response_tokens'] += response.usage_metadata.candidates_token_count
             tokens_dict['gemini_total_tokens'] += response.usage_metadata.total_token_count
@@ -130,12 +178,14 @@ def process_row(row_idx, df_row, system_prompt, metrics_to_evaluate):
             json_response = json.loads(
                 response._result.candidates[0].content.parts[0].text)
 
+            # Process Gemini scores
             for idx, metric in enumerate(row_scores.keys()):
                 if idx >= len(json_response['score']):
                     row_scores[metric].append('Poorly Defined Critiria')
                 else:
                     row_scores[metric].append(json_response["score"][idx])
 
+            # Evaluate using GPT-4
             client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
             response = client.responses.parse(
                 model="gpt-4o-mini",
@@ -143,6 +193,8 @@ def process_row(row_idx, df_row, system_prompt, metrics_to_evaluate):
                 text_format=EvaluationMetricsGPT4,
                 temperature=1.0
             )
+            
+            # Process GPT-4 scores
             for idx, metric in enumerate(row_scores_gpt4.keys()):
                 if idx >= len(response.output_parsed.metric):
                     row_scores_gpt4[metric].append('Poorly Defined Critiria')
@@ -152,24 +204,33 @@ def process_row(row_idx, df_row, system_prompt, metrics_to_evaluate):
         except Exception as e:
             print(
                 f"Error processing row {row_idx}, column {df_row.index[col]}: {e}")
+            # Handle failures gracefully by adding zeros
             for metric in row_scores.keys():
-                row_scores[metric].append(0)  # Handle failures gracefully
+                row_scores[metric].append(0)
             for metric in row_scores_gpt4.keys():
                 row_scores_gpt4[metric].append(0)
 
-    print(f"Finished processing row {row_idx}")
-    print('tokens_dict', tokens_dict)
     return row_scores, row_scores_gpt4, tokens_dict
 
 
 def evaluate(df, key_g, metrics):
     """
     Evaluates multiple rows in parallel using threading and combines the results into a DataFrame.
+    
+    Args:
+        df (pd.DataFrame): Input dataframe containing responses to evaluate
+        key_g (str): Gemini API key
+        metrics (list): List of dictionaries containing metric definitions
+        
+    Returns:
+        tuple: Contains:
+            - str: Filename of the generated Excel report
+            - list: List of token usage statistics for each row
     """
-    # Configure `genai` globally
-    print(metrics)
-
+    # Configure Gemini API
     genai.configure(api_key=key_g)
+    
+    # Define standard metrics and process custom metrics
     metrics_set = {"Clarity", "Feasibility", "Importance",
                    "Novelty", "Fairness", "Quality", "Usefulness"}
     metric_name = set([m["name"] for m in metrics])
@@ -177,12 +238,14 @@ def evaluate(df, key_g, metrics):
 
     metrics_to_evaluate = metric_name - metrics_set
 
+    # Build criteria strings for the system prompt
     criteria = ""
     criteria_description = ""
     for i, m in enumerate(metrics_to_evaluate):
         criteria_description += f"{i+8}. {m}: {metric_description[m]}\n"
         criteria += f"{i+8}. {m}\n"
 
+    # Define the system prompt for evaluation
     system_prompt = f"""
         # Instruction
         You are an expert evaluator. Your task is to evaluate the quality of the responses generated by AI models.
@@ -240,6 +303,7 @@ def evaluate(df, key_g, metrics):
         At the end, you will present a table or list with each criterion and its corresponding score.
 """
     
+    # Process rows in parallel using ThreadPoolExecutor
     max_workers = 2
     results_gemini = []
     results_gpt4 = []
@@ -256,13 +320,11 @@ def evaluate(df, key_g, metrics):
             except Exception as e:
                 print(f"Error in thread execution: {e}")
 
-
+    # Convert results to DataFrames
     results_df_gemini = pd.DataFrame(results_gemini)
     results_df_gpt4 = pd.DataFrame(results_gpt4)
-    # results_df = pd.concat([results_df_gemini, results_df_gpt4], axis=1)
 
-    print('tokens_ls', tokens_ls)
-
+    # Generate Excel report
     excel_file = dataframe_to_excel(df, results_df_gpt4, results_df_gemini)
 
     return excel_file, tokens_ls

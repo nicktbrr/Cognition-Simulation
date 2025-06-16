@@ -1,6 +1,10 @@
+"""
+This module provides functionality for generating and processing AI responses using Google's Generative AI (Gemini) model.
+It includes utilities for handling persona-based responses and parallel processing of multiple prompts.
+"""
+
 import pandas as pd
 import google.generativeai as genai
-# from google import genai
 import typing_extensions as typing
 import json
 import concurrent.futures
@@ -9,16 +13,45 @@ import random
 from .personas import personas
 
 def random_persona_generator():
+    """
+    Generator function that yields random personas from the personas list.
+    
+    Yields:
+        str: A randomly selected persona from the personas list.
+    """
     while True:
         yield random.choice(personas)
 
 
 class BaseClass(typing.TypedDict, total=False):
+    """
+    TypedDict class defining the structure of the AI model's response.
+    
+    Attributes:
+        type (list[str]): List of response types
+        response (str): The actual response text
+    """
     type: list[str]
     response: str
 
 
 def process_row_with_chat(row_idx, df, prompt, key_g, system_prompt):
+    """
+    Process a single row of data using the Gemini AI model with chat-based interaction.
+    
+    Args:
+        row_idx (int): Index of the row to process
+        df (pd.DataFrame): DataFrame containing the data to process
+        prompt (list): List containing prompt configuration and steps
+        key_g (str): Google AI API key
+        system_prompt (str): System-level instructions for the AI model
+    
+    Returns:
+        tuple: (row_data, tokens_dict) where:
+            - row_data (dict): Processed response data for the row
+            - tokens_dict (dict): Token usage statistics
+    """
+    # Initialize row data based on whether seed column exists
     if "seed" in df.columns:
         row_data = {'seed': df.iloc[row_idx]['seed']}
         seed_value = df.iloc[row_idx]['seed']
@@ -31,19 +64,19 @@ def process_row_with_chat(row_idx, df, prompt, key_g, system_prompt):
 
     prompt_list = []
 
+    # Initialize token usage tracking
     tokens_dict = {
         'prompt_tokens': 0,
         'response_tokens': 0,
         'total_tokens': 0
     }
 
-    # Start from appropriate column index based on whether seed is in columns
-
+    # Select a random persona for this row
     persona = next(random_persona_generator())
 
+    # Process each column in the row
     for col_idx in range(0, df.shape[1]):
         col_name = df.columns[col_idx]
-
 
         # Find the matching step by label
         matching_step = next(
@@ -53,7 +86,7 @@ def process_row_with_chat(row_idx, df, prompt, key_g, system_prompt):
             instructions = matching_step['instructions']
             temperature = matching_step['temperature']
 
-            # First column after seed (or first column if no seed)
+            # Handle first column differently (initial prompt)
             if col_idx == 0:
                 llm_prompt = f"""You are {persona}, participating in a psychology study on cognitive processes. 
                 Your task is to generate concise and structured responses for a step in the process, which is based on instructions from a researcher and may build on previous steps and responses.
@@ -65,15 +98,9 @@ def process_row_with_chat(row_idx, df, prompt, key_g, system_prompt):
                 Please respond to the following: {instructions}
 
                 Please respond with ONLY the question and absolutely no additional text or explanation."""
-# """
                 prompt_list.append(llm_prompt)
-#                 llm_prompt = (f"""You are participating in an interview.
-#                     The current step is: {str.upper(col_name)}
-#                     Please respond to the following: {instructions}
-
-#                     Please respond with ONLY the question and absolutely no additional text or explanation. The structure should include the following fields:
-#                     answer_text. (string, your response to the question, plain text only""")
             else:
+                # Build prompt including previous steps and responses
                 llm_prompt = prompt_list[0]
                 llm_prompt += "Given the previous steps with responses:"
                 for i in range(col_idx):
@@ -88,7 +115,7 @@ def process_row_with_chat(row_idx, df, prompt, key_g, system_prompt):
                             Please respond with ONLY the question and absolutely no additional text or explanation. The structure should include the following fields:
                             """)
 
-            # Configure the AI model
+            # Configure and call the AI model
             genai.configure(api_key=key_g)
             model = genai.GenerativeModel(
                 "gemini-2.0-flash", system_instruction=system_prompt)
@@ -99,83 +126,77 @@ def process_row_with_chat(row_idx, df, prompt, key_g, system_prompt):
                                                   response_mime_type="application/json",
                                                   response_schema=BaseClass))
             
+            # Track token usage
             tokens_dict['prompt_tokens'] += response.usage_metadata.prompt_token_count
             tokens_dict['response_tokens'] += response.usage_metadata.candidates_token_count
             tokens_dict['total_tokens'] += response.usage_metadata.total_token_count
+            
+            # Process the response
             try:
                 json_response = json.loads(
                     response._result.candidates[0].content.parts[0].text)
                 row_data[col_name] = json_response['response']
-
-                # print(json_response)
             except Exception as e:
                 print(
                     f'Error processing row {row_idx}, column {col_name}: {e}')
-                # Handle failures gracefully
                 row_data[col_name] = "Error processing row ignore in simulation"
         else:
             print(f"Warning: No matching step found for column {col_name}")
             row_data[col_name] = "No matching instructions found"
+    
+    # Add persona information to the row data
     row_data['persona'] = persona
-
-    print('tokens_dict', tokens_dict)
-
-    print('finished row')
 
     return row_data, tokens_dict
 
 
 def baseline_prompt(prompt, key_g):
     """
-    Processes multiple rows in parallel using threading and combines the results into a DataFrame.
+    Process multiple rows in parallel using threading and combine results into a DataFrame.
+    
+    Args:
+        prompt (list): List containing prompt configuration including seed, steps, and iterations
+        key_g (str): Google AI API key
+    
+    Returns:
+        tuple: (final_df, tokens_ls) where:
+            - final_df (pd.DataFrame): DataFrame containing all processed responses
+            - tokens_ls (list): List of token usage dictionaries for each row
     """
+    # System-level instructions for the AI model
     system_prompt = """
         You are an AI participating in an interview-style interaction. Your task is to generate concise and structured responses based on a given question.
         Do not use any newline characters or separate your answer with new lines. Provide the response in plain text format as a single continuous sentence.
         """
 
-    print('prompt', prompt[0])
     seed = prompt[0]['user']['seed']
 
     # Extract labels from the steps array
     steps = prompt[0]['user']['steps']
     cols = [step['label'] for step in steps]
 
-    # Check if seed should be included in columns
+    # Add seed column if specified
     if seed != "no-seed":
         cols.insert(0, "seed")
 
+    # Initialize DataFrame
     df = pd.DataFrame(columns=cols)
 
+    # Create rows based on iteration count
     for i in range(prompt[0]['user']['iters']):
-        # Create a new row based on whether seed should be included
         if seed != "no-seed":
-            # Initialize with seed
             new_row = {'seed': seed}
-
-            # Add special case for "problem or task representation" if it exists
+            # Special handling for problem representation column
             for col in cols:
                 if col == "problem or task representation":
                     new_row[col] = seed
         else:
-            # No seed case - just create an empty dict
             new_row = {}
 
-        # Add the new row to the dataframe
         df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
 
-    # Process rows in parallel using ThreadPoolExecutor
+    # Process rows in parallel
     results = []
-    # with concurrent.futures.ThreadPoolExecutor() as executor:
-    #     futures = {executor.submit(process_row, row_idx, df, prompt, key_g,
-    #                                system_prompt): row_idx for row_idx in range(df.shape[0])}
-
-    #     for future in concurrent.futures.as_completed(futures):
-    #         try:
-    #             results.append(future.result())
-    #         except Exception as e:
-    #             print(f'Error in thread execution: {e}')
-
     with concurrent.futures.ThreadPoolExecutor() as executor:
         futures = {executor.submit(process_row_with_chat, row_idx, df, prompt, key_g, system_prompt): row_idx for row_idx in range(df.shape[0])}
         tokens_ls = []
@@ -188,9 +209,7 @@ def baseline_prompt(prompt, key_g):
             except Exception as e:
                 print(f'Error in thread execution: {e}')
 
-    # Convert results back into a DataFrame
+    # Convert results to DataFrame
     final_df = pd.DataFrame(results)
-
-    print('tokens_ls', tokens_ls)
 
     return final_df, tokens_ls
