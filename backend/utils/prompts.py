@@ -6,16 +6,9 @@ import json
 import concurrent.futures
 
 import random
+from .personas import personas
 
 def random_persona_generator():
-    personas = [
-        'a high school student at a college prep school who is in the top 1% of the class',
-        'a highschool student who is navigating their life goals and interests',
-        'an elementary school teacher in Utah',
-        'a professor of entrepreneurship and innovation at a university in California',
-        'a professor of fine arts at a small community college in Massachusetts'
-    ]
-    
     while True:
         yield random.choice(personas)
 
