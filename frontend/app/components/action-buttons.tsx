@@ -87,9 +87,6 @@ export default function ActionButtons({
   };
 
   const handleSubmit = async () => {
-    console.log("edges", edges);
-    console.log("nodes", steps);
-    console.log("metrics", metrics);
     if (!validateInputs()) {
       return;
     }
@@ -109,10 +106,6 @@ export default function ActionButtons({
       const targetNodes = edges.map((edge) => Number(edge.target));
       const sourceNodes = edges.map((edge) => Number(edge.source));
       const startNodeId = sourceNodes.find((id) => !targetNodes.includes(id));
-
-      console.log("targ", targetNodes);
-      console.log("source", sourceNodes);
-      console.log("start", startNodeId);
 
       if (startNodeId !== undefined) {
         // Map to track visited nodes to prevent infinite loops
@@ -146,8 +139,6 @@ export default function ActionButtons({
 
         // Start traversal from the identified start node
         traverseGraph(startNodeId);
-        console.log('len', orderedSteps.length)
-        console.log('len', steps.length)
         
         if (orderedSteps.length !== steps.length) {
           alert("All nodes must be connected. Please ensure all nodes are properly linked.");
@@ -167,9 +158,6 @@ export default function ActionButtons({
           return;
         }
       }
-      
-      // console.log("orderedSteps", orderedSteps);
-      //console.log(orderedSteps);
 
       const jsonData = {
         seed: "no-seed",
@@ -178,8 +166,6 @@ export default function ActionButtons({
         iters: 10,
         temperature: 0.5
       };
-
-      console.log("jsonData", jsonData);
 
       // Insert into Supabase
       const { error } = await supabase
@@ -192,7 +178,6 @@ export default function ActionButtons({
         alert("JSON data saved successfully!");
 
         // Define backend URL
-        console.log(prod);
         const url =
           prod === "development"
             ? "http://127.0.0.1:5000/api/evaluate"
@@ -210,7 +195,6 @@ export default function ActionButtons({
           body: JSON.stringify({ uuid }),
         });
         const a = await response.json();
-        console.log(a);
         setDownload(a.evaluation.public_url);
         setIsDisabled(false);
       }
@@ -283,7 +267,6 @@ export default function ActionButtons({
             disabled={isDisabled ? true : false}
             className={isDisabled ? "" : "bg-primary text-primary-foreground hover:bg-[#6a03abe6] hover:text-white"}
             onClick={() => {
-              console.log(download);
               handleDownload(download, "simulated_data.xlsx");
             }}
           >

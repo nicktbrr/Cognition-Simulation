@@ -83,12 +83,6 @@ export default function Dashboard() {
 
   // When the submit button is pressed, log and alert the data
   const handleSubmit = () => {
-    console.log("Title:", title);
-    console.log("Submitted Steps Order:", steps);
-    console.log("Selected Metrics:", selectedMetrics);
-    console.log("Temperature:", temperature);
-    console.log("Node Connections:", edges);
-
     // Create a map of step connections for easier understanding
     const connections = edges.map((edge) => ({
       from:
@@ -98,11 +92,9 @@ export default function Dashboard() {
         steps.find((step) => step.id.toString() === edge.target)?.label ||
         edge.target,
     }));
-    console.log("Step Flow:", connections);
 
     // Create the Excel filename with the title
     const excelFilename = `cogsim_${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.xlsx`;
-    console.log("Excel Filename:", excelFilename);
 
     alert("Steps submitted! Check console for output.");
   };
