@@ -100,9 +100,9 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
       updateStepData(data.stepId, field, value);
 
       // Store in global space for emergency recovery
-      if (!window.nodeValues) window.nodeValues = {};
-      if (!window.nodeValues[data.stepId]) window.nodeValues[data.stepId] = {};
-      window.nodeValues[data.stepId][field] = value;
+      if (!(window as any).nodeValues) (window as any).nodeValues = {};
+      if (!(window as any).nodeValues[data.stepId]) (window as any).nodeValues[data.stepId] = {};
+      (window as any).nodeValues[data.stepId][field] = value;
     },
     [data.stepId, updateStepData, disabled]
   );
@@ -307,6 +307,7 @@ function Flow({
   const { fitView } = useReactFlow();
   const initializedRef = useRef(false);
   const nodePositionsRef = useRef<Record<string, { x: number; y: number }>>({});
+  const pendingStepsUpdateRef = useRef<Step[] | null>(null); // Track pending steps update
 
   // Single source of truth for steps
   const [localSteps, setLocalSteps] = useState<Step[]>(steps);
@@ -324,8 +325,8 @@ function Flow({
   const nodeTypes = useMemo<NodeTypes>(() => ({ stepNode: StepNode }), []);
 
   // Initialize with parent edges if provided
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, handleEdgesChange] = useEdgesState(parentEdges); // Renamed to avoid conflict
+  const [nodes, setNodes, onNodesChange] = useNodesState<any>([]);
+  const [edges, setEdges, handleEdgesChange] = useEdgesState<any>(parentEdges); // Renamed to avoid conflict
 
   // Sync edges back to parent when they change
   useEffect(() => {
@@ -343,32 +344,23 @@ function Flow({
 
   // Update local steps when parent steps change (only for new steps)
   useEffect(() => {
-    if (!steps.length) return;
+    if (!steps.length) {
+      // If parent steps are empty, clear local steps
+      setLocalSteps([]);
+      return;
+    }
 
-    setLocalSteps((prevLocalSteps) => {
-      // Create a map of existing local steps
-      const localStepsMap = prevLocalSteps.reduce((map, step) => {
-        map[step.id] = step;
-        return map;
-      }, {} as Record<number, Step>);
-
-      // Merge with preserved values
-      return steps.map((parentStep) => {
-        const localStep = localStepsMap[parentStep.id];
-
-        if (localStep) {
-          return {
-            ...parentStep,
-            label: localStep.label || parentStep.label,
-            instructions: localStep.instructions || parentStep.instructions,
-            temperature: localStep.temperature || parentStep.temperature,
-          };
-        }
-
-        return { ...parentStep };
-      });
-    });
+    // Always replace local steps with parent steps completely
+    setLocalSteps(steps.map(step => ({ ...step })));
   }, [steps]);
+
+  // Handle pending steps updates
+  const processPendingUpdates = useCallback(() => {
+    if (pendingStepsUpdateRef.current !== null) {
+      onStepsChange(pendingStepsUpdateRef.current);
+      pendingStepsUpdateRef.current = null;
+    }
+  }, [onStepsChange]);
 
   // Update step data function
   const updateStepData = useCallback(
@@ -382,22 +374,25 @@ function Flow({
           step.id === id ? { ...step, [field]: value } : step
         );
 
-        // Call parent update
-        onStepsChange(newSteps);
+        // Store the update to be applied
+        pendingStepsUpdateRef.current = newSteps;
         return newSteps;
       });
+
+      // Process the update immediately
+      setTimeout(() => processPendingUpdates(), 0);
     },
-    [onStepsChange, disabled]
+    [disabled, processPendingUpdates]
   );
 
   // Track node positions
   const handleNodesChange = useCallback(
-    (changes) => {
+    (changes: any[]) => {
       // Don't update positions if disabled
       if (disabled) {
         // Only allow selection changes when disabled
         const allowedChanges = changes.filter(
-          (change) => change.type === "select"
+          (change: any) => change.type === "select"
         );
         if (allowedChanges.length > 0) {
           onNodesChange(allowedChanges);
@@ -405,7 +400,7 @@ function Flow({
         return;
       }
 
-      changes.forEach((change) => {
+      changes.forEach((change: any) => {
         if (change.type === "position" && change.id && change.position) {
           nodePositionsRef.current[change.id] = { ...change.position };
         }
@@ -421,122 +416,89 @@ function Flow({
       // Don't delete if disabled
       if (disabled) return;
 
+      const nodeIdToDelete = id.toString();
+
+      // Reconnect edges if a middle node is deleted
+      setEdges((currentEdges) => {
+        const incomingEdge = currentEdges.find(
+          (edge) => edge.target === nodeIdToDelete
+        );
+        const outgoingEdge = currentEdges.find(
+          (edge) => edge.source === nodeIdToDelete
+        );
+
+        const prevNodeId = incomingEdge?.source;
+        const nextNodeId = outgoingEdge?.target;
+
+        // Remove edges connected to the deleted node
+        let updatedEdges = currentEdges.filter(
+          (edge) =>
+            edge.source !== nodeIdToDelete && edge.target !== nodeIdToDelete
+        );
+
+        // If there's a previous and next node, create a new edge to connect them
+        if (prevNodeId && nextNodeId) {
+          const newEdge = {
+            id: `e${prevNodeId}-${nextNodeId}`,
+            source: prevNodeId,
+            target: nextNodeId,
+            animated: true,
+            style: { stroke: "hsl(var(--primary))", strokeWidth: 2 },
+            markerEnd: {
+              type: MarkerType.ArrowClosed,
+              width: 20,
+              height: 20,
+              color: "hsl(var(--primary))",
+            },
+          };
+          updatedEdges.push(newEdge);
+        }
+
+        return updatedEdges;
+      });
+
       // Remove the step from local steps
       setLocalSteps((prevSteps) => {
         const updatedSteps = prevSteps.filter((step) => step.id !== id);
-        onStepsChange(updatedSteps);
+        // Store the update to be applied
+        pendingStepsUpdateRef.current = updatedSteps;
         return updatedSteps;
       });
 
-      // Also remove any edges connected to this node
-      const nodeId = id.toString();
-      setEdges((eds) =>
-        eds.filter((edge) => edge.source !== nodeId && edge.target !== nodeId)
-      );
+      // Process the update immediately
+      setTimeout(() => processPendingUpdates(), 0);
     },
-    [onStepsChange, setEdges, disabled]
+    [disabled, processPendingUpdates, setEdges]
   );
 
-  // Initialize and sync nodes with steps - combined effect
+  // Derive nodes directly from localSteps to avoid infinite loops
+  const derivedNodes = useMemo(() => {
+    if (localSteps.length === 0) {
+      return [];
+    }
+
+    return localSteps.map((step, index) => ({
+      id: step.id.toString(),
+      type: "stepNode",
+      position: { x: index * 600, y: 100 },
+      data: {
+        stepId: step.id,
+        label: step.label,
+        instructions: step.instructions,
+        temperature: step.temperature,
+        updateStep: updateStepData,
+        deleteStep,
+        disabled,
+      },
+      connectable: !disabled,
+      draggable: !disabled,
+    }));
+  }, [localSteps, updateStepData, deleteStep, disabled]);
+
+  // Sync derived nodes to ReactFlow state
   useEffect(() => {
-    // Handle initialization
-    if (localSteps.length > 0 && !initializedRef.current) {
-      const initialNodes = localSteps.map((step, index) => ({
-        id: step.id.toString(),
-        type: "stepNode",
-        position: { x: index * 600, y: 100 },
-        data: {
-          stepId: step.id,
-          label: step.label,
-          instructions: step.instructions,
-          temperature: step.temperature,
-          updateStep: updateStepData,
-          deleteStep,
-          disabled,
-        },
-        connectable: !disabled,
-        draggable: !disabled,
-      }));
-
-      setNodes(initialNodes);
-      initializedRef.current = true;
-
-      // Store positions
-      initialNodes.forEach((node) => {
-        nodePositionsRef.current[node.id] = { ...node.position };
-      });
-
-      setTimeout(() => fitView({ padding: 0.2 }), 100);
-      return;
-    }
-
-    // Skip if not initialized
-    if (!initializedRef.current || localSteps.length === 0) return;
-
-    // Get node IDs for comparison
-    const existingNodeIds = new Set(nodes.map((node) => node.id));
-    const stepIds = new Set(localSteps.map((step) => step.id.toString()));
-
-    // Update existing nodes
-    const updatedNodes = nodes
-      .filter((node) => stepIds.has(node.id))
-      .map((node) => {
-        const step = localSteps.find((s) => s.id.toString() === node.id);
-        return {
-          ...node,
-          connectable: !disabled,
-          draggable: !disabled,
-          data: {
-            ...node.data,
-            stepId: step.id,
-            label: step.label,
-            instructions: step.instructions,
-            temperature: step.temperature,
-            disabled,
-          },
-        };
-      });
-
-    // Add new nodes
-    const newNodes = localSteps
-      .filter((step) => !existingNodeIds.has(step.id.toString()))
-      .map((step) => {
-        // Position at the end
-        const maxX = nodes.length
-          ? Math.max(...nodes.map((node) => node.position.x))
-          : 0;
-
-        return {
-          id: step.id.toString(),
-          type: "stepNode",
-          position: { x: maxX + 300, y: 100 },
-          data: {
-            stepId: step.id,
-            label: step.label,
-            instructions: step.instructions,
-            temperature: step.temperature,
-            updateStep: updateStepData,
-            deleteStep,
-            disabled,
-          },
-          connectable: !disabled,
-          draggable: !disabled,
-        };
-      });
-
-    // Only update if needed
-    if (newNodes.length > 0 || updatedNodes.length !== nodes.length) {
-      setNodes([...updatedNodes, ...newNodes]);
-    }
-  }, [
-    localSteps,
-    nodes,
-    setNodes,
-    updateStepData,
-    deleteStep,
-    fitView,
-    disabled,
-  ]);
+    setNodes(derivedNodes);
+  }, [derivedNodes, setNodes]);
 
   // Function to show connection errors temporarily
   const showConnectionError = useCallback((message: string) => {
@@ -804,13 +766,12 @@ function Flow({
         <ReactFlow
           nodes={nodes}
           edges={edges}
-          edgesUpdatable={false}
           edgesFocusable={false}
           onNodesChange={handleNodesChange}
           onEdgesChange={disabled ? () => {} : handleEdgesChange}
           onConnect={() => {}}
           nodeTypes={nodeTypes}
-          defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+          defaultViewport={{ x: 0, y: 0, zoom: 0.5 }}
           minZoom={0.5}
           maxZoom={1.5}
           proOptions={{ hideAttribution: true }}
@@ -820,7 +781,7 @@ function Flow({
           }}
           nodesDraggable={!disabled}
           nodesConnectable={false}
-          edgesConnectable={false}
+          edgesReconnectable={false}
           elementsSelectable={false}
         >
           <Background color="#aaa" gap={16} />
