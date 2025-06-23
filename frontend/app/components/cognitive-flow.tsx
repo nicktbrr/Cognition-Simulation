@@ -416,6 +416,47 @@ function Flow({
       // Don't delete if disabled
       if (disabled) return;
 
+      const nodeIdToDelete = id.toString();
+
+      // Reconnect edges if a middle node is deleted
+      setEdges((currentEdges) => {
+        const incomingEdge = currentEdges.find(
+          (edge) => edge.target === nodeIdToDelete
+        );
+        const outgoingEdge = currentEdges.find(
+          (edge) => edge.source === nodeIdToDelete
+        );
+
+        const prevNodeId = incomingEdge?.source;
+        const nextNodeId = outgoingEdge?.target;
+
+        // Remove edges connected to the deleted node
+        let updatedEdges = currentEdges.filter(
+          (edge) =>
+            edge.source !== nodeIdToDelete && edge.target !== nodeIdToDelete
+        );
+
+        // If there's a previous and next node, create a new edge to connect them
+        if (prevNodeId && nextNodeId) {
+          const newEdge = {
+            id: `e${prevNodeId}-${nextNodeId}`,
+            source: prevNodeId,
+            target: nextNodeId,
+            animated: true,
+            style: { stroke: "hsl(var(--primary))", strokeWidth: 2 },
+            markerEnd: {
+              type: MarkerType.ArrowClosed,
+              width: 20,
+              height: 20,
+              color: "hsl(var(--primary))",
+            },
+          };
+          updatedEdges.push(newEdge);
+        }
+
+        return updatedEdges;
+      });
+
       // Remove the step from local steps
       setLocalSteps((prevSteps) => {
         const updatedSteps = prevSteps.filter((step) => step.id !== id);
@@ -426,14 +467,8 @@ function Flow({
 
       // Process the update immediately
       setTimeout(() => processPendingUpdates(), 0);
-
-      // Also remove any edges connected to this node
-      const nodeId = id.toString();
-      setEdges((eds) =>
-        eds.filter((edge) => edge.source !== nodeId && edge.target !== nodeId)
-      );
     },
-    [setEdges, disabled, processPendingUpdates]
+    [disabled, processPendingUpdates, setEdges]
   );
 
   // Derive nodes directly from localSteps to avoid infinite loops
@@ -736,7 +771,7 @@ function Flow({
           onEdgesChange={disabled ? () => {} : handleEdgesChange}
           onConnect={() => {}}
           nodeTypes={nodeTypes}
-          defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+          defaultViewport={{ x: 0, y: 0, zoom: 0.5 }}
           minZoom={0.5}
           maxZoom={1.5}
           proOptions={{ hideAttribution: true }}
