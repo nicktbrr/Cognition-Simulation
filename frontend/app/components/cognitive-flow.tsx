@@ -164,8 +164,8 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
                 if (isDisabled) return;
                 const newValue = e.target.value;
                 setLocalLabel(newValue);
-                handleUpdate("label", newValue);
               }}
+              onBlur={() => handleUpdate("label", localLabel)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.currentTarget.blur();
@@ -184,8 +184,8 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
                 if (isDisabled) return;
                 const newValue = e.target.value;
                 setLocalInstructions(newValue);
-                handleUpdate("instructions", newValue);
               }}
+              onBlur={() => handleUpdate("instructions", localInstructions)}
               disabled={isDisabled}
             />
             <div className="absolute bottom-2 right-2 text-xs text-muted-foreground">
