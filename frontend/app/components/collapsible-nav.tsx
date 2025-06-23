@@ -4,12 +4,18 @@ import { useState } from "react"
 import { ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 
+/**
+ * Represents a single section in the collapsible navigation menu.
+ */
 interface Section {
   id: string
   title: string
   content: string
 }
 
+/**
+ * The data for the navigation sections.
+ */
 const sections: Section[] = [
   {
     id: "why-simulate",
@@ -34,9 +40,18 @@ Nicholas Barsi-Rhyne and Andrew Hoang are...`,
   },
 ]
 
+/**
+ * Renders a collapsible navigation menu.
+ * Each section can be expanded or collapsed by the user.
+ */
 export default function CollapsibleNav() {
+  // Tracks the ID of the currently expanded section.
   const [expandedSection, setExpandedSection] = useState<string | null>(null)
 
+  /**
+   * Toggles the expanded state of a section.
+   * @param sectionId The ID of the section to toggle.
+   */
   const toggleSection = (sectionId: string) => {
     setExpandedSection(expandedSection === sectionId ? null : sectionId)
   }
@@ -53,18 +68,26 @@ export default function CollapsibleNav() {
             )}
           >
             <ChevronDown
-              className={cn("h-4 w-4 transition-transform", expandedSection === section.id ? "rotate-180" : "")}
+              className={cn(
+                "h-4 w-4 transition-transform",
+                // Rotates the chevron icon when the section is open.
+                expandedSection === section.id ? "rotate-180" : "",
+              )}
             />
             {section.title}
           </button>
           <div
             className={cn(
               "grid transition-all",
+              // This CSS trick animates the height of the section.
+              // `grid-rows-[1fr]` expands the section to its content height.
+              // `grid-rows-[0fr]` collapses it to zero height.
               expandedSection === section.id ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
             )}
           >
             <div className="overflow-hidden">
               <div className="p-4 text-muted-foreground">
+                {/* The content is split into paragraphs based on double line breaks. */}
                 {section.content.split("\n\n").map((paragraph, index) => (
                   <p key={index} className="mb-4 last:mb-0">
                     {paragraph}

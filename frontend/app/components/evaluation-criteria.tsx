@@ -8,13 +8,24 @@ import { Plus, X, LockIcon, Trash2, AlertCircle } from "lucide-react";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { isValidURL } from "@/app/utils/urlParser";
 
+/**
+ * @interface Criterion
+ * @description Defines the structure for an evaluation criterion.
+ * @property {string} name - The unique name of the criterion.
+ * @property {string} description - A brief explanation of what the criterion measures.
+ * @property {boolean} [isDefault] - If true, the criterion is part of the initial set and cannot be deleted.
+ */
 interface Criterion {
   name: string;
   description: string;
   isDefault?: boolean;
 }
 
-// Mark initial criteria as default to prevent deletion
+/**
+ * @const initialCriteria
+ * @description A list of pre-defined criteria that are available by default.
+ * These are marked with `isDefault: true` to prevent them from being deleted by the user.
+ */
 const initialCriteria: Criterion[] = [
   {
     name: "Clarity",
@@ -60,6 +71,15 @@ const initialCriteria: Criterion[] = [
   },
 ];
 
+/**
+ * @component EvaluationCriteria
+ * @description A component that allows users to select from a list of predefined evaluation criteria
+ * and define their own custom criteria. It communicates the selected criteria to a parent component.
+ * @param {object} props - The component props.
+ * @param {function} props.onMetricsChange - A callback function that is invoked when the set of selected criteria changes.
+ * @param {boolean} [props.simulationActive=false] - A flag to indicate if a simulation is running. When true, interactions are disabled.
+ * @param {function} props.onUrlDetected - A callback to inform the parent component if a URL is detected in the input fields.
+ */
 export default function EvaluationCriteria({
   onMetricsChange,
   simulationActive = false,
@@ -69,32 +89,43 @@ export default function EvaluationCriteria({
   simulationActive?: boolean;
   onUrlDetected: (hasUrls: boolean) => void;
 }) {
+  // State for all available criteria, including custom ones added by the user.
   const [criteria, setCriteria] = useState<Criterion[]>(initialCriteria);
+  // State for the criteria currently selected by the user.
   const [selectedCriteria, setSelectedCriteria] = useState<Criterion[]>([]);
+  // State to control the visibility of the form for adding a new criterion.
   const [showNewCriterionForm, setShowNewCriterionForm] = useState(false);
+  // State to hold the data for a new criterion being created by the user.
   const [newCriterion, setNewCriterion] = useState<Criterion>({
     name: "",
     description: "",
   });
+  // State to control the visibility of a warning when the custom criteria limit is reached.
   const [showLimitWarning, setShowLimitWarning] = useState(false);
+  // State to hold any error message related to URL validation in the new criterion form.
   const [urlError, setUrlError] = useState<string | null>(null);
 
-  // Use a ref to track if we've already called onMetricsChange with the current selection
+  // A ref to store the names of the previously selected criteria.
+  // This is used to prevent redundant calls to the `onMetricsChange` callback.
   const prevSelectedRef = useRef<string[]>([]);
 
-  // Calculate number of custom criteria
+  // Memoized calculation for the number of custom (non-default) criteria.
+  // This avoids recalculating on every render unless the `criteria` state changes.
   const customCriteriaCount = useMemo(
     () => criteria.filter((c) => !c.isDefault).length,
     [criteria]
   );
 
-  // Show limit warning temporarily
+  // A callback function that shows the custom criteria limit warning for 3 seconds.
+  // `useCallback` ensures that the function reference is stable between renders.
   const showTemporaryLimitWarning = useCallback(() => {
     setShowLimitWarning(true);
     setTimeout(() => setShowLimitWarning(false), 3000);
   }, []);
 
-  // Send just the names to maintain backward compatibility
+  // This effect hook synchronizes the selected criteria with the parent component.
+  // It calls `onMetricsChange` only when the selection has actually changed
+  // by comparing the current selection with the values stored in `prevSelectedRef`.
   useEffect(() => {
     const criteriaNames = selectedCriteria.map((criterion) => criterion.name);
 
@@ -110,6 +141,12 @@ export default function EvaluationCriteria({
     }
   }, [selectedCriteria, onMetricsChange]);
 
+  /**
+   * Toggles the selection status of a given criterion.
+   * If the criterion is already selected, it's removed; otherwise, it's added.
+   * This action is disabled if a simulation is active.
+   * @param {Criterion} criterion - The criterion to toggle.
+   */
   const toggleCriterion = (criterion: Criterion) => {
     if (simulationActive) return; // Prevent toggling if simulation is active
 
@@ -127,6 +164,11 @@ export default function EvaluationCriteria({
     });
   };
 
+  /**
+   * Handles the logic for adding a new custom criterion.
+   * It performs validation to ensure the new criterion does not contain URLs
+   * and that its name and description are not empty.
+   */
   const handleAddCriterion = () => {
     // Check for URLs in both name and description
     if (isValidURL(newCriterion.name)) {
@@ -160,11 +202,20 @@ export default function EvaluationCriteria({
     setShowNewCriterionForm(false);
   };
 
+  /**
+   * Cancels the process of adding a new criterion.
+   * It resets the new criterion form and hides it.
+   */
   const cancelAddCriterion = () => {
     setNewCriterion({ name: "", description: "" });
     setShowNewCriterionForm(false);
   };
 
+  /**
+   * Deletes a custom criterion from the list.
+   * Default criteria cannot be deleted. This action is disabled if a simulation is active.
+   * @param {string} criterionName - The name of the criterion to delete.
+   */
   const deleteCriterion = (criterionName: string) => {
     if (simulationActive) return; // Prevent deletion if simulation is active
 
@@ -175,7 +226,11 @@ export default function EvaluationCriteria({
     setSelectedCriteria((prev) => prev.filter((c) => c.name !== criterionName));
   };
 
-  // Modify handleNameChange to notify parent
+  /**
+   * Handles changes to the new criterion's name input field.
+   * It validates the input for URLs and notifies the parent component.
+   * @param {string} value - The new value of the name input.
+   */
   const handleNameChange = (value: string) => {
     if (isValidURL(value)) {
       setUrlError("URLs are not allowed in criterion name");
@@ -187,7 +242,11 @@ export default function EvaluationCriteria({
     setNewCriterion((prev) => ({ ...prev, name: value }));
   };
 
-  // Modify handleDescriptionChange to notify parent
+  /**
+   * Handles changes to the new criterion's description input field.
+   * It validates the input for URLs and notifies the parent component.
+   * @param {string} value - The new value of the description input.
+   */
   const handleDescriptionChange = (value: string) => {
     if (isValidURL(value)) {
       setUrlError("URLs are not allowed in criterion description");
@@ -265,14 +324,15 @@ export default function EvaluationCriteria({
               </p>
             </div>
 
-            {/* Delete button for custom criteria */}
+            {/* Renders a delete button for custom (non-default) criteria. */}
+            {/* The button is hidden when a simulation is active. */}
             {!criterion.isDefault && !simulationActive && (
               <Button
                 size="icon"
                 variant="ghost"
                 className="absolute top-1 right-1 h-6 w-6 text-red-500 hover:bg-red-100 hover:text-red-700"
                 onClick={(e) => {
-                  e.stopPropagation(); // Prevent triggering the card click
+                  e.stopPropagation(); // Prevent triggering the card's onClick event.
                   deleteCriterion(criterion.name);
                 }}
               >
@@ -282,6 +342,8 @@ export default function EvaluationCriteria({
           </Card>
         ))}
 
+        {/* Renders a button to show the new criterion form. */}
+        {/* The button is hidden if the form is already visible or if a simulation is active. */}
         {!showNewCriterionForm && !simulationActive && (
           <div className="relative">
             <Button
@@ -300,7 +362,7 @@ export default function EvaluationCriteria({
               <Plus className="h-4 w-4" />
             </Button>
 
-            {/* Limit Warning Message */}
+            {/* Renders a warning message when the user tries to add more than 5 custom criteria. */}
             {showLimitWarning && (
               <div
                 className="absolute top-[-40px] left-1/2 transform -translate-x-1/2 
@@ -314,6 +376,8 @@ export default function EvaluationCriteria({
         )}
       </div>
 
+      {/* Renders the form for adding a new criterion. */}
+      {/* The form is hidden if `showNewCriterionForm` is false or if a simulation is active. */}
       {showNewCriterionForm && !simulationActive && (
         <Card className="p-4 w-full max-w-md">
           <div className="space-y-4">
@@ -324,7 +388,7 @@ export default function EvaluationCriteria({
               </Button>
             </div>
 
-            {/* Show URL Error if present */}
+            {/* Renders an error message if a URL is detected in the input fields. */}
             {urlError && (
               <div className="text-sm text-red-600 flex items-center gap-2">
                 <AlertCircle className="h-4 w-4" />
@@ -396,6 +460,7 @@ export default function EvaluationCriteria({
         </Card>
       )}
 
+      {/* Displays a comma-separated list of the names of the selected criteria. */}
       {selectedCriteria.length > 0 && (
         <p className="text-sm text-muted-foreground">
           Selected criteria: {selectedCriteria.map((c) => c.name).join(", ")}

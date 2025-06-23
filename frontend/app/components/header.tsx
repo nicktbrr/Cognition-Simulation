@@ -1,3 +1,8 @@
+// Header component for the dashboard page.
+// It displays a welcome message and a description of the platform.
+// It also displays the name of the user who is logged in.
+// It is used in the dashboard page.
+
 export default function Header({ name }: { name: string }) {
   return (
     <header className="text-center space-y-4">

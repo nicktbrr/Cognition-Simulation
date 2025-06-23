@@ -1,25 +1,38 @@
 "use client"
 
+// Import the React library.
 import * as React from "react"
+
+// Import the MenubarPrimitive component from the radix-ui library.
 import * as MenubarPrimitive from "@radix-ui/react-menubar"
+
+// Import the Check, ChevronRight, and Circle icons from the lucide-react library.
 import { Check, ChevronRight, Circle } from "lucide-react"
 
+// Import the cn function from the utils file.
 import { cn } from "@/lib/utils"
 
+// Define the MenubarMenu component for the application.
 const MenubarMenu = MenubarPrimitive.Menu
 
+// Define the MenubarGroup component for the application.
 const MenubarGroup = MenubarPrimitive.Group
 
+// Define the MenubarPortal component for the application.
 const MenubarPortal = MenubarPrimitive.Portal
 
+// Define the MenubarSub component for the application.
 const MenubarSub = MenubarPrimitive.Sub
 
+// Define the MenubarRadioGroup component for the application.
 const MenubarRadioGroup = MenubarPrimitive.RadioGroup
 
+// Define the Menubar component for the application.
 const Menubar = React.forwardRef<
   React.ElementRef<typeof MenubarPrimitive.Root>,
   React.ComponentPropsWithoutRef<typeof MenubarPrimitive.Root>
 >(({ className, ...props }, ref) => (
+  // Return the MenubarPrimitive.Root component.
   <MenubarPrimitive.Root
     ref={ref}
     className={cn(
@@ -31,10 +44,12 @@ const Menubar = React.forwardRef<
 ))
 Menubar.displayName = MenubarPrimitive.Root.displayName
 
+// Define the MenubarTrigger component for the application.
 const MenubarTrigger = React.forwardRef<
   React.ElementRef<typeof MenubarPrimitive.Trigger>,
   React.ComponentPropsWithoutRef<typeof MenubarPrimitive.Trigger>
 >(({ className, ...props }, ref) => (
+  // Return the MenubarPrimitive.Trigger component.
   <MenubarPrimitive.Trigger
     ref={ref}
     className={cn(
@@ -46,12 +61,14 @@ const MenubarTrigger = React.forwardRef<
 ))
 MenubarTrigger.displayName = MenubarPrimitive.Trigger.displayName
 
+// Define the MenubarSubTrigger component for the application.
 const MenubarSubTrigger = React.forwardRef<
   React.ElementRef<typeof MenubarPrimitive.SubTrigger>,
   React.ComponentPropsWithoutRef<typeof MenubarPrimitive.SubTrigger> & {
     inset?: boolean
   }
 >(({ className, inset, children, ...props }, ref) => (
+  // Return the MenubarPrimitive.SubTrigger component.
   <MenubarPrimitive.SubTrigger
     ref={ref}
     className={cn(
@@ -67,6 +84,7 @@ const MenubarSubTrigger = React.forwardRef<
 ))
 MenubarSubTrigger.displayName = MenubarPrimitive.SubTrigger.displayName
 
+// Define the MenubarSubContent component for the application.
 const MenubarSubContent = React.forwardRef<
   React.ElementRef<typeof MenubarPrimitive.SubContent>,
   React.ComponentPropsWithoutRef<typeof MenubarPrimitive.SubContent>

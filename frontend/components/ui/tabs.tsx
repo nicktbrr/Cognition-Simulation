@@ -1,12 +1,18 @@
 "use client"
 
+// Import the React library.
 import * as React from "react"
+
+// Import the TabsPrimitive component from the radix-ui library.
 import * as TabsPrimitive from "@radix-ui/react-tabs"
 
+// Import the cn function from the utils file.
 import { cn } from "@/lib/utils"
 
+// Define the Tabs component for the application.
 const Tabs = TabsPrimitive.Root
 
+// Define the TabsList component for the application.
 const TabsList = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.List>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.List>
@@ -22,6 +28,7 @@ const TabsList = React.forwardRef<
 ))
 TabsList.displayName = TabsPrimitive.List.displayName
 
+// Define the TabsTrigger component for the application.
 const TabsTrigger = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.Trigger>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.Trigger>
@@ -37,6 +44,7 @@ const TabsTrigger = React.forwardRef<
 ))
 TabsTrigger.displayName = TabsPrimitive.Trigger.displayName
 
+// Define the TabsContent component for the application.     
 const TabsContent = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.Content>

@@ -3,14 +3,19 @@
 // Inspired by react-hot-toast library
 import * as React from "react"
 
+// Import the ToastActionElement and ToastProps from the toast component.
 import type {
   ToastActionElement,
   ToastProps,
 } from "@/components/ui/toast"
 
+// Define the toast limit for the application.
 const TOAST_LIMIT = 1
+
+// Define the toast remove delay for the application.
 const TOAST_REMOVE_DELAY = 1000000
 
+// Define the toaster toast type for the application.
 type ToasterToast = ToastProps & {
   id: string
   title?: React.ReactNode
@@ -18,6 +23,7 @@ type ToasterToast = ToastProps & {
   action?: ToastActionElement
 }
 
+// Define the action types for the application.
 const actionTypes = {
   ADD_TOAST: "ADD_TOAST",
   UPDATE_TOAST: "UPDATE_TOAST",
@@ -25,15 +31,19 @@ const actionTypes = {
   REMOVE_TOAST: "REMOVE_TOAST",
 } as const
 
+// Define the count for the application.
 let count = 0
 
+// Generate an ID for the toast.
 function genId() {
   count = (count + 1) % Number.MAX_SAFE_INTEGER
   return count.toString()
 }
 
+// Define the action type for the application.
 type ActionType = typeof actionTypes
 
+// Define the action for the application.
 type Action =
   | {
       type: ActionType["ADD_TOAST"]
@@ -52,12 +62,15 @@ type Action =
       toastId?: ToasterToast["id"]
     }
 
+// Define the state for the application.
 interface State {
   toasts: ToasterToast[]
 }
 
+// Define the toast timeouts for the application.
 const toastTimeouts = new Map<string, ReturnType<typeof setTimeout>>()
 
+// Add to remove queue for the application.
 const addToRemoveQueue = (toastId: string) => {
   if (toastTimeouts.has(toastId)) {
     return
@@ -74,6 +87,7 @@ const addToRemoveQueue = (toastId: string) => {
   toastTimeouts.set(toastId, timeout)
 }
 
+// Define the reducer for the application.
 export const reducer = (state: State, action: Action): State => {
   switch (action.type) {
     case "ADD_TOAST":
@@ -129,19 +143,24 @@ export const reducer = (state: State, action: Action): State => {
   }
 }
 
+// Define the listeners for the application.
 const listeners: Array<(state: State) => void> = []
 
+// Define the memory state for the application.
 let memoryState: State = { toasts: [] }
 
-function dispatch(action: Action) {
+// Define the dispatch for the application.
+    function dispatch(action: Action) {
   memoryState = reducer(memoryState, action)
   listeners.forEach((listener) => {
     listener(memoryState)
   })
 }
 
+// Define the toast type for the application.
 type Toast = Omit<ToasterToast, "id">
 
+// Define the toast for the application.
 function toast({ ...props }: Toast) {
   const id = genId()
 
@@ -171,6 +190,7 @@ function toast({ ...props }: Toast) {
   }
 }
 
+// Define the use toast for the application.
 function useToast() {
   const [state, setState] = React.useState<State>(memoryState)
 
@@ -191,4 +211,5 @@ function useToast() {
   }
 }
 
+// Export the use toast and toast functions.
 export { useToast, toast }
