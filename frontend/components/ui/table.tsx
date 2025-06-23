@@ -2,10 +2,12 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
+// Define the Table component for the application.
 const Table = React.forwardRef<
   HTMLTableElement,
   React.HTMLAttributes<HTMLTableElement>
 >(({ className, ...props }, ref) => (
+  // Return the Table component.
   <div className="relative w-full overflow-auto">
     <table
       ref={ref}
@@ -16,6 +18,7 @@ const Table = React.forwardRef<
 ))
 Table.displayName = "Table"
 
+// Define the TableHeader component for the application.
 const TableHeader = React.forwardRef<
   HTMLTableSectionElement,
   React.HTMLAttributes<HTMLTableSectionElement>
@@ -24,6 +27,7 @@ const TableHeader = React.forwardRef<
 ))
 TableHeader.displayName = "TableHeader"
 
+// Define the TableBody component for the application.
 const TableBody = React.forwardRef<
   HTMLTableSectionElement,
   React.HTMLAttributes<HTMLTableSectionElement>
@@ -36,6 +40,7 @@ const TableBody = React.forwardRef<
 ))
 TableBody.displayName = "TableBody"
 
+// Define the TableFooter component for the application.
 const TableFooter = React.forwardRef<
   HTMLTableSectionElement,
   React.HTMLAttributes<HTMLTableSectionElement>
@@ -51,6 +56,7 @@ const TableFooter = React.forwardRef<
 ))
 TableFooter.displayName = "TableFooter"
 
+// Define the TableRow component for the application.
 const TableRow = React.forwardRef<
   HTMLTableRowElement,
   React.HTMLAttributes<HTMLTableRowElement>
@@ -66,6 +72,7 @@ const TableRow = React.forwardRef<
 ))
 TableRow.displayName = "TableRow"
 
+// Define the TableHead component for the application.
 const TableHead = React.forwardRef<
   HTMLTableCellElement,
   React.ThHTMLAttributes<HTMLTableCellElement>
@@ -81,6 +88,7 @@ const TableHead = React.forwardRef<
 ))
 TableHead.displayName = "TableHead"
 
+// Define the TableCell component for the application.
 const TableCell = React.forwardRef<
   HTMLTableCellElement,
   React.TdHTMLAttributes<HTMLTableCellElement>
@@ -93,6 +101,7 @@ const TableCell = React.forwardRef<
 ))
 TableCell.displayName = "TableCell"
 
+// Define the TableCaption component for the application.
 const TableCaption = React.forwardRef<
   HTMLTableCaptionElement,
   React.HTMLAttributes<HTMLTableCaptionElement>
@@ -105,6 +114,7 @@ const TableCaption = React.forwardRef<
 ))
 TableCaption.displayName = "TableCaption"
 
+// Export the Table component.
 export {
   Table,
   TableHeader,

@@ -3,12 +3,15 @@ import * as NavigationMenuPrimitive from "@radix-ui/react-navigation-menu"
 import { cva } from "class-variance-authority"
 import { ChevronDown } from "lucide-react"
 
+// Import the cn function from the utils file.
 import { cn } from "@/lib/utils"
 
+// Define the NavigationMenu component for the application.
 const NavigationMenu = React.forwardRef<
   React.ElementRef<typeof NavigationMenuPrimitive.Root>,
   React.ComponentPropsWithoutRef<typeof NavigationMenuPrimitive.Root>
 >(({ className, children, ...props }, ref) => (
+  // Return the NavigationMenuPrimitive.Root component.
   <NavigationMenuPrimitive.Root
     ref={ref}
     className={cn(
@@ -23,6 +26,7 @@ const NavigationMenu = React.forwardRef<
 ))
 NavigationMenu.displayName = NavigationMenuPrimitive.Root.displayName
 
+// Define the NavigationMenuList component for the application.
 const NavigationMenuList = React.forwardRef<
   React.ElementRef<typeof NavigationMenuPrimitive.List>,
   React.ComponentPropsWithoutRef<typeof NavigationMenuPrimitive.List>

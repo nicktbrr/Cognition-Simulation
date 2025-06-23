@@ -4,17 +4,21 @@ import * as React from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { DayPicker } from "react-day-picker"
 
+// Import the cn function from the utils file.
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
 
+// Define the CalendarProps type for the application.
 export type CalendarProps = React.ComponentProps<typeof DayPicker>
 
+// Define the Calendar component for the application.
 function Calendar({
   className,
   classNames,
   showOutsideDays = true,
   ...props
 }: CalendarProps) {
+  // Return the DayPicker component.
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}

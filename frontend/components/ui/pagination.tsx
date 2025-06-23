@@ -1,9 +1,14 @@
+// Import the React library.
 import * as React from "react"
+
+// Import the ChevronLeft, ChevronRight, and MoreHorizontal icons from the lucide-react library.
 import { ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react"
 
+// Import the cn function from the utils file.
 import { cn } from "@/lib/utils"
 import { ButtonProps, buttonVariants } from "@/components/ui/button"
 
+// Define the Pagination component for the application.
 const Pagination = ({ className, ...props }: React.ComponentProps<"nav">) => (
   <nav
     role="navigation"
@@ -14,6 +19,7 @@ const Pagination = ({ className, ...props }: React.ComponentProps<"nav">) => (
 )
 Pagination.displayName = "Pagination"
 
+// Define the PaginationContent component for the application.
 const PaginationContent = React.forwardRef<
   HTMLUListElement,
   React.ComponentProps<"ul">

@@ -1,4 +1,9 @@
 "use client";
+
+// Dashboard page for the application.
+// It displays the main components of the application.
+// It is used in the app/dashboard/page.tsx file.
+
 import { useState, useEffect } from "react";
 import Header from "../components/header";
 import CollapsibleNav from "../components/collapsible-nav";
@@ -10,6 +15,7 @@ import { Button } from "../components/ui/button"
 import { LogOut } from "lucide-react"
 import { useRouter } from 'next/navigation'
 
+// Step interface to track the steps of the cognitive process.
 interface Step {
   id: number;
   label: string;
@@ -17,6 +23,7 @@ interface Step {
   temperature: number;
 }
 
+// Edge interface to track connections between steps.
 // Define an Edge interface to track connections
 interface Edge {
   id: string;
@@ -29,6 +36,7 @@ interface Edge {
   markerEnd?: any;
 }
 
+// GoogleUser interface to track the user who is logged in.
 interface GoogleUser {
     name: string
     email: string
@@ -37,6 +45,7 @@ interface GoogleUser {
   }
   
 
+// Dashboard page component.
 export default function Dashboard() {
   const [steps, setSteps] = useState<Step[]>([]);
   const [selectedMetrics, setSelectedMetrics] = useState<any[]>([]);
@@ -51,39 +60,39 @@ export default function Dashboard() {
   const [scriptLoaded, setScriptLoaded] = useState(false)
   const router = useRouter()
 
-  // Update steps when they change
+  // Update steps when they change.
   const handleStepsUpdate = (updatedSteps: Step[]) => {
     setSteps(updatedSteps);
   };
 
-  // Update selected evaluation criteria (metrics)
+  // Update selected evaluation criteria (metrics).
   const handleMetricsUpdate = (metrics: any[]) => {
     setSelectedMetrics(metrics);
   };
 
-  // Update global temperature when changed
+  // Update global temperature when changed.
   const handleTemperatureChange = (newTemperature: number) => {
     setTemperature(newTemperature);
   };
 
-  // Add handler for edge updates
+  // Add handler for edge updates.
   const handleEdgesUpdate = (updatedEdges: Edge[]) => {
     setEdges(updatedEdges);
   };
 
-  // Add handler for URL detection
+  // Add handler for URL detection.
   const handleUrlDetection = (detected: boolean) => {
     setHasUrls(detected);
   };
 
-  // Update title when it changes
+  // Update title when it changes.
   const handleTitleChange = (newTitle: string) => {
     setTitle(newTitle);
   };
 
-  // When the submit button is pressed, log and alert the data
+  // When the submit button is pressed, log and alert the data.
   const handleSubmit = () => {
-    // Create a map of step connections for easier understanding
+    // Create a map of step connections for easier understanding.
     const connections = edges.map((edge) => ({
       from:
         steps.find((step) => step.id.toString() === edge.source)?.label ||
@@ -93,12 +102,13 @@ export default function Dashboard() {
         edge.target,
     }));
 
-    // Create the Excel filename with the title
+    // Create the Excel filename with the title.
     const excelFilename = `cogsim_${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.xlsx`;
 
     alert("Steps submitted! Check console for output.");
   };
 
+  // Use effect to check if the user is logged in.
   useEffect(() => {
     const storedUser = localStorage.getItem("googleUser")
     if (storedUser) {
@@ -111,6 +121,7 @@ export default function Dashboard() {
     }
   }, [])
 
+  // Handle sign out.
   const handleSignOut = async () => {
     if (window.google && scriptLoaded) {
       window.google.accounts.id.disableAutoSelect()
@@ -130,6 +141,7 @@ export default function Dashboard() {
 
   return (
     <>
+    {/* If the user is logged in, display the dashboard. */}
     {user ? (
         <>
       <SimulationStatusIndicator isActive={simulationActive} />
@@ -172,6 +184,7 @@ export default function Dashboard() {
         </div>
         </>
     ) : (
+      // If the user is not logged in, display a message to sign in.
       <div>
         <h1>Please sign in to continue</h1>
       </div>

@@ -1,19 +1,33 @@
 "use client"
 
+// Import the React library.
 import * as React from "react"
+
+// Import the useEmblaCarousel function from the embla-carousel-react library.
 import useEmblaCarousel, {
   type UseEmblaCarouselType,
 } from "embla-carousel-react"
+
+// Import the ArrowLeft and ArrowRight icons from the lucide-react library.
 import { ArrowLeft, ArrowRight } from "lucide-react"
 
+// Import the cn function from the utils file.
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 
+// Define the CarouselApi type for the application.
 type CarouselApi = UseEmblaCarouselType[1]
+
+// Define the UseCarouselParameters type for the application.
 type UseCarouselParameters = Parameters<typeof useEmblaCarousel>
+
+// Define the CarouselOptions type for the application.
 type CarouselOptions = UseCarouselParameters[0]
+
+// Define the CarouselPlugin type for the application.
 type CarouselPlugin = UseCarouselParameters[1]
 
+// Define the CarouselProps type for the application.
 type CarouselProps = {
   opts?: CarouselOptions
   plugins?: CarouselPlugin
@@ -21,6 +35,7 @@ type CarouselProps = {
   setApi?: (api: CarouselApi) => void
 }
 
+// Define the CarouselContextProps type for the application.
 type CarouselContextProps = {
   carouselRef: ReturnType<typeof useEmblaCarousel>[0]
   api: ReturnType<typeof useEmblaCarousel>[1]
@@ -32,6 +47,7 @@ type CarouselContextProps = {
 
 const CarouselContext = React.createContext<CarouselContextProps | null>(null)
 
+// Define the useCarousel function for the application.
 function useCarousel() {
   const context = React.useContext(CarouselContext)
 
@@ -42,6 +58,7 @@ function useCarousel() {
   return context
 }
 
+// Define the Carousel component for the application.
 const Carousel = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement> & CarouselProps
@@ -58,6 +75,7 @@ const Carousel = React.forwardRef<
     },
     ref
   ) => {
+    // Define the carouselRef and api variables for the application.
     const [carouselRef, api] = useEmblaCarousel(
       {
         ...opts,
@@ -65,9 +83,14 @@ const Carousel = React.forwardRef<
       },
       plugins
     )
+
+    // Define the canScrollPrev and canScrollNext variables for the application.
     const [canScrollPrev, setCanScrollPrev] = React.useState(false)
+
+    // Define the canScrollNext variable for the application.
     const [canScrollNext, setCanScrollNext] = React.useState(false)
 
+    // Define the onSelect function for the application.
     const onSelect = React.useCallback((api: CarouselApi) => {
       if (!api) {
         return
@@ -77,14 +100,17 @@ const Carousel = React.forwardRef<
       setCanScrollNext(api.canScrollNext())
     }, [])
 
+    // Define the scrollPrev function for the application.
     const scrollPrev = React.useCallback(() => {
       api?.scrollPrev()
     }, [api])
 
+    // Define the scrollNext function for the application.
     const scrollNext = React.useCallback(() => {
       api?.scrollNext()
     }, [api])
 
+    // Define the handleKeyDown function for the application.
     const handleKeyDown = React.useCallback(
       (event: React.KeyboardEvent<HTMLDivElement>) => {
         if (event.key === "ArrowLeft") {
@@ -98,6 +124,7 @@ const Carousel = React.forwardRef<
       [scrollPrev, scrollNext]
     )
 
+    // Define the useEffect function for the application.
     React.useEffect(() => {
       if (!api || !setApi) {
         return
@@ -106,6 +133,7 @@ const Carousel = React.forwardRef<
       setApi(api)
     }, [api, setApi])
 
+    // Define the useEffect function for the application.
     React.useEffect(() => {
       if (!api) {
         return
@@ -120,6 +148,7 @@ const Carousel = React.forwardRef<
       }
     }, [api, onSelect])
 
+    // Return the Carousel component.
     return (
       <CarouselContext.Provider
         value={{
@@ -150,6 +179,7 @@ const Carousel = React.forwardRef<
 )
 Carousel.displayName = "Carousel"
 
+// Define the CarouselContent component for the application.
 const CarouselContent = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
@@ -172,6 +202,7 @@ const CarouselContent = React.forwardRef<
 })
 CarouselContent.displayName = "CarouselContent"
 
+// Define the CarouselItem component for the application.
 const CarouselItem = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
@@ -194,6 +225,7 @@ const CarouselItem = React.forwardRef<
 })
 CarouselItem.displayName = "CarouselItem"
 
+// Define the CarouselPrevious component for the application.
 const CarouselPrevious = React.forwardRef<
   HTMLButtonElement,
   React.ComponentProps<typeof Button>
@@ -223,6 +255,7 @@ const CarouselPrevious = React.forwardRef<
 })
 CarouselPrevious.displayName = "CarouselPrevious"
 
+// Define the CarouselNext component for the application.
 const CarouselNext = React.forwardRef<
   HTMLButtonElement,
   React.ComponentProps<typeof Button>
@@ -252,6 +285,7 @@ const CarouselNext = React.forwardRef<
 })
 CarouselNext.displayName = "CarouselNext"
 
+// Export the Carousel component.
 export {
   type CarouselApi,
   Carousel,

@@ -1,5 +1,9 @@
 "use client";
 
+// StatusIndicator component for the dashboard page.
+// It displays a message when a simulation is active.
+// It is used in the dashboard page.
+
 const StatusIndicator = ({ isActive }: { isActive: boolean }) => {
   if (!isActive) return null;
 

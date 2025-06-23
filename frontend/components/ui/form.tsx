@@ -1,8 +1,15 @@
 "use client"
 
+// Import the React library.
 import * as React from "react"
+
+// Import the LabelPrimitive component from the radix-ui library.
 import * as LabelPrimitive from "@radix-ui/react-label"
+
+// Import the Slot component from the radix-ui library.
 import { Slot } from "@radix-ui/react-slot"
+
+// Import the Controller, ControllerProps, FieldPath, FieldValues, FormProvider, and useFormContext components from the react-hook-form library.
 import {
   Controller,
   ControllerProps,
@@ -12,11 +19,14 @@ import {
   useFormContext,
 } from "react-hook-form"
 
+// Import the cn function from the utils file.
 import { cn } from "@/lib/utils"
 import { Label } from "@/components/ui/label"
 
+// Define the Form component for the application.
 const Form = FormProvider
 
+// Define the FormFieldContextValue type for the application.
 type FormFieldContextValue<
   TFieldValues extends FieldValues = FieldValues,
   TName extends FieldPath<TFieldValues> = FieldPath<TFieldValues>
@@ -24,10 +34,12 @@ type FormFieldContextValue<
   name: TName
 }
 
+// Define the FormFieldContext for the application.
 const FormFieldContext = React.createContext<FormFieldContextValue>(
   {} as FormFieldContextValue
 )
 
+// Define the FormField component for the application.
 const FormField = <
   TFieldValues extends FieldValues = FieldValues,
   TName extends FieldPath<TFieldValues> = FieldPath<TFieldValues>

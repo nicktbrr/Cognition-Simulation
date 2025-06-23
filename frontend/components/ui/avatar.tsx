@@ -1,10 +1,16 @@
 "use client"
 
+// Avatar component for the application.
+// It is used in the application to display a user avatar.
+// It is used in the application to display a user avatar.
 import * as React from "react"
 import * as AvatarPrimitive from "@radix-ui/react-avatar"
 
 import { cn } from "@/lib/utils"
 
+// Avatar component for the application.
+// It is used in the application to display a user avatar.
+// It is used in the application to display a user avatar.
 const Avatar = React.forwardRef<
   React.ElementRef<typeof AvatarPrimitive.Root>,
   React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Root>
@@ -20,6 +26,9 @@ const Avatar = React.forwardRef<
 ))
 Avatar.displayName = AvatarPrimitive.Root.displayName
 
+// Avatar image component for the application.
+// It is used in the application to display a user avatar image.
+// It is used in the application to display a user avatar image.
 const AvatarImage = React.forwardRef<
   React.ElementRef<typeof AvatarPrimitive.Image>,
   React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Image>
@@ -32,6 +41,7 @@ const AvatarImage = React.forwardRef<
 ))
 AvatarImage.displayName = AvatarPrimitive.Image.displayName
 
+// Avatar fallback component for the application.
 const AvatarFallback = React.forwardRef<
   React.ElementRef<typeof AvatarPrimitive.Fallback>,
   React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Fallback>
@@ -47,4 +57,7 @@ const AvatarFallback = React.forwardRef<
 ))
 AvatarFallback.displayName = AvatarPrimitive.Fallback.displayName
 
+// Export the avatar component.
 export { Avatar, AvatarImage, AvatarFallback }
+
+// Export the avatar component.

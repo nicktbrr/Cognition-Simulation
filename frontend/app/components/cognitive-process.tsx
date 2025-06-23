@@ -1,11 +1,17 @@
 "use client";
 
+// Cognitive Process component for the application.
+// It is used to display the cognitive process of the application.
+// It is used in the application to display the cognitive process of the application.
+
+// Import the React library.
 import { useState, useEffect } from "react";
 import { AlertCircle } from "lucide-react";
 import CognitiveFlow from "./cognitive-flow";
 import { isValidURL } from "@/app/utils/urlParser";
 import Papa from "papaparse";
 
+// Define the Step interface for the application.
 interface Step {
   id: number;
   label: string;
@@ -13,7 +19,7 @@ interface Step {
   temperature: number;
 }
 
-// Define Edge interface to match the one in Home component
+// Define the Edge interface for the application.
 interface Edge {
   id: string;
   source: string;
@@ -25,6 +31,7 @@ interface Edge {
   markerEnd?: any;
 }
 
+// Define the CognitiveProcess2 component for the application.
 export default function CognitiveProcess2({
   onStepsChange,
   onTemperatureChange,
@@ -40,19 +47,25 @@ export default function CognitiveProcess2({
   simulationActive?: boolean;
   onTitleChange?: (title: string) => void;
 }) {
+  // State for the steps of the cognitive process.
   const [steps, setSteps] = useState<Step[]>([]);
+  // State for the title of the cognitive process.
   const [title, setTitle] = useState<string>("");
+  // State for the URL warnings of the cognitive process.
   const [urlWarnings, setUrlWarnings] = useState<{ [key: number]: string[] }>(
     {}
   );
+  // State for the flow key of the cognitive process.
+  const [flowKey, setFlowKey] = useState<number>(0); // Add key for forcing re-render
 
-  // Add effect to notify parent of title changes
+  // Effect to notify parent of title changes
   useEffect(() => {
     if (onTitleChange) {
       onTitleChange(title);
     }
   }, [title, onTitleChange]);
 
+  // Function to handle the steps change.
   const handleStepsChange = (updatedSteps: Step[]) => {
     // Check each step for URLs
     const warnings: { [key: number]: string[] } = {};
@@ -84,6 +97,7 @@ export default function CognitiveProcess2({
     );
   };
 
+  // Function to add a step to the cognitive process.
   const addStep = () => {
     // Check for maximum steps limit
     if (steps.length >= 20) {
@@ -105,10 +119,10 @@ export default function CognitiveProcess2({
     }
   };
 
-  // Check if button should be disabled
+  // Function to check if the add button should be disabled.
   const isAddButtonDisabled = !areAllStepsFilled();
 
-  // Find which steps are missing data for better feedback
+  // Function to find which steps are missing data for better feedback.
   const getIncompleteStepsInfo = () => {
     const incomplete = steps.filter(
       (step) => step.label.trim() === "" || step.instructions.trim() === ""
@@ -121,11 +135,10 @@ export default function CognitiveProcess2({
     }));
   };
 
-  const incompleteSteps = getIncompleteStepsInfo();
-
-  // Add a function to check if any steps contain URLs
+  // Function to check if any steps contain URLs.
   const hasURLs = Object.keys(urlWarnings).length > 0;
 
+  // Return the CognitiveProcess2 component.
   return (
     <section className="space-y-4">
       <h2 className="text-xl font-bold">1. Add Steps to Cognitive Process</h2>
@@ -164,12 +177,9 @@ export default function CognitiveProcess2({
               Papa.parse(file, {
                 header: true,
                 complete: (results) => {
-                  // First clear all existing steps and edges
-                  handleStepsChange([]);
-                  if (onEdgesChange) {
-                    onEdgesChange([]);
-                  }
-
+                  // Force re-render of CognitiveFlow
+                  setFlowKey(prev => prev + 1);
+                  
                   const newSteps = results.data
                     .filter((row: any) => row.label && row.description)
                     .slice(0, 20)
@@ -181,7 +191,7 @@ export default function CognitiveProcess2({
                     }));
 
                   if (newSteps.length > 0) {
-                    // Add new steps
+                    // Replace all steps with new ones
                     handleStepsChange(newSteps);
 
                     // Create sequential connections between nodes
@@ -209,6 +219,9 @@ export default function CognitiveProcess2({
                   console.error('Error parsing CSV:', error);
                 }
               });
+              
+              // Reset the file input so it can be used again
+              e.target.value = '';
             }
           }}
           className="hidden"
@@ -270,6 +283,7 @@ export default function CognitiveProcess2({
             edges={edges}
             onEdgesChange={onEdgesChange}
             disabled={simulationActive}
+            key={flowKey}
           />
         </div>
 

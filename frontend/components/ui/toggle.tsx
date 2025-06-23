@@ -1,11 +1,20 @@
 "use client"
 
+// Import the React library.
 import * as React from "react"
+
+// Import the TogglePrimitive component from the radix-ui library.
 import * as TogglePrimitive from "@radix-ui/react-toggle"
+
+// Import the cva function from the class-variance-authority library.
 import { cva, type VariantProps } from "class-variance-authority"
 
+// Import the cn function from the utils file.
 import { cn } from "@/lib/utils"
 
+// Define the toggle variants for the application.
+// It is used in the application to display a toggle button.
+// It is used in the application to display a toggle button.
 const toggleVariants = cva(
   "inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors hover:bg-muted hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=on]:bg-accent data-[state=on]:text-accent-foreground [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 gap-2",
   {
@@ -28,6 +37,9 @@ const toggleVariants = cva(
   }
 )
 
+// Define the Toggle component.
+// It is used in the application to display a toggle button.
+// It is used in the application to display a toggle button.
 const Toggle = React.forwardRef<
   React.ElementRef<typeof TogglePrimitive.Root>,
   React.ComponentPropsWithoutRef<typeof TogglePrimitive.Root> &
@@ -42,4 +54,5 @@ const Toggle = React.forwardRef<
 
 Toggle.displayName = TogglePrimitive.Root.displayName
 
+// Export the Toggle component.
 export { Toggle, toggleVariants }

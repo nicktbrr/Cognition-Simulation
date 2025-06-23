@@ -1,4 +1,8 @@
 "use client"
+// Home page for the application.
+// It displays a welcome message and a description of the platform.
+// It also displays the name of the user who is logged in.
+// It is used in the app/page.tsx file.
 
 import type React from "react"
 
@@ -13,6 +17,7 @@ import { LogOut, MousePointer, Check, Lock, Brain, Users, Laptop, LineChart, Shi
 import { Card, CardContent } from "@/components/ui/card"
 
 
+// Supabase client for the application.
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -25,6 +30,7 @@ interface CredentialResponse {
   select_by: string
 }
 
+// Google user interface to track the user who is logged in.
 interface GoogleUser {
   name: string
   email: string
@@ -38,6 +44,7 @@ export default function Home() {
   const [user, setUser] = useState<GoogleUser | null>(null)
   const [scriptLoaded, setScriptLoaded] = useState(false)
 
+  // Parse the JWT token to get the user's information.
   const parseJwt = (token: string) => {
     try {
       return JSON.parse(atob(token.split(".")[1]))
@@ -46,7 +53,7 @@ export default function Home() {
     }
   }
 
-  // Handle credential response from Google One Tap
+  // Handle credential response from Google One Tap.
   const handleCredentialResponse = useCallback((response: CredentialResponse) => {
     const decodedToken = parseJwt(response.credential)
 
@@ -54,15 +61,15 @@ export default function Home() {
       const { name, email, picture, sub } = decodedToken
       setUser({ name, email, picture, sub })
 
-      // Store in localStorage for persistence
+      // Store in localStorage for persistence.
       localStorage.setItem("googleUser", JSON.stringify({ name, email, picture, sub }))
       logUser()
-      // Redirect to dashboard
+      // Redirect to dashboard.
       router.push('/dashboard')
     }
   }, [router])
 
-  // Initialize Google One Tap
+  // Initialize Google One Tap.
   const initializeGoogleOneTap = useCallback(() => {
     if (!window.google || !scriptLoaded) return
 
@@ -88,7 +95,7 @@ export default function Home() {
     }
   }, [handleCredentialResponse, scriptLoaded, user])
 
-  // Handle sign out
+  // Handle sign out.
   const handleSignOut = () => {
     if (window.google && scriptLoaded) {
       window.google.accounts.id.disableAutoSelect()
@@ -104,7 +111,7 @@ export default function Home() {
     }
   }
 
-  // Check for existing user session on mount
+  // Check for existing user session on mount.
   useEffect(() => {
     const storedUser = localStorage.getItem("googleUser")
     if (storedUser) {
@@ -119,6 +126,7 @@ export default function Home() {
     }
   }, [router])
 
+  // Log the user to the database.
   const logUser = async () => {
     const email = JSON.parse(localStorage.getItem("googleUser") || "{}").email
         const sid = JSON.parse(localStorage.getItem("googleUser") || "{}").sub
@@ -135,16 +143,18 @@ export default function Home() {
         }
   }
 
-  // Initialize Google One Tap when script is loaded
+  // Initialize Google One Tap when script is loaded.         
   useEffect(() => {
     if (scriptLoaded) {
       initializeGoogleOneTap()
     }
   }, [scriptLoaded, initializeGoogleOneTap])
 
+  // Return the home page.
   return (
     <>
 
+      {/* Main content */}
       <div className="max-w-6xl mx-auto p-6 space-y-8">
 
         <main className="space-y-8">
@@ -154,7 +164,7 @@ export default function Home() {
             strategy="afterInteractive"
           />
 
-
+          {/* Authentication banner */}
           <section className="max-w-7xl mx-auto px-6 py-16 grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
             <div>
               <h1 className="text-4xl md:text-5xl font-bold text-[#8302AE] mb-6">Welcome to CogSim Portal!</h1>
@@ -200,7 +210,7 @@ export default function Home() {
             </div>
           </section>
 
-
+          {/* Authentication banner */}
           <section className="max-w-7xl mx-auto px-6 py-16">
             <h2 className="text-3xl md:text-4xl font-bold text-[#8302AE] mb-12 text-center">Authentication Banner</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -234,6 +244,7 @@ export default function Home() {
           </section>
 
 
+          {/* Google authentication banner */}
           <section className="min-h-screen bg-[#8302AE] bg-gradient-to-br from-[#8302AE] to-[#6a4bc4] flex items-center justify-center p-4">
             <div className="bg-white rounded-xl shadow-2xl p-8 max-w-4xl w-full">
               <h1 className="text-[#8302AE] text-3xl md:text-4xl font-bold text-center mb-12">Google Authentication</h1>
@@ -280,6 +291,7 @@ export default function Home() {
           </section>
 
 
+          {/* Features overview */}
           <section className="bg-gray-50 py-16">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
@@ -350,6 +362,7 @@ export default function Home() {
           </section>
 
 
+          {/* About CogSim */}
           <section className="bg-gray-50 py-16">
             <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
               <h2 className="text-4xl font-bold text-[#8302AE] text-center mb-16">About CogSim</h2>
@@ -417,6 +430,7 @@ export default function Home() {
           </section>
 
 
+          {/* Security assurance */}
           <section className="bg-gray-50 py-16">
             <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
               <h2 className="text-4xl font-bold text-[#8302AE] text-center mb-16">Security Assurance</h2>
@@ -472,6 +486,7 @@ export default function Home() {
           </section>
           
 
+          {/* Support information */}
           <section
       className="relative py-16 bg-cover bg-center"
       style={{
@@ -517,6 +532,7 @@ export default function Home() {
     </section>
 
 
+    {/* Join the CogSim community */} 
     <div className="bg-gray-50 py-16">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <h2 className="text-4xl font-bold text-[#8302AE] text-center mb-12">Join the CogSim Community</h2>
@@ -558,7 +574,7 @@ export default function Home() {
       </div>
     </div>
 
-
+      {/* Footer */}
 
 
 

@@ -1,3 +1,7 @@
+// Card component for the application.
+// It is used in the application to display content in a card format.
+// It is used in the application to display content in a card format.
+
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
