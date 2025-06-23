@@ -1,9 +1,26 @@
+// Cognitive Flow component for the application.
+// It is used to display the cognitive flow of the application.
+// It is used in the application to display the cognitive flow of the application.
+
+// Import the React library.
 "use client";
+
+// Import the React library.
 import React from "react";
+
+// Import the necessary hooks from React.
 import { useCallback, useEffect, useRef, useMemo, useState } from "react";
+
+// Import the necessary icons from Lucide.
 import { Trash2, GripVertical, LockIcon, Plus, AlertCircle } from "lucide-react";
+
+// Import the Button component from the UI library.
 import { Button } from "@/components/ui/button";
+
+// Import the Slider component from the UI library.
 import { Slider } from "@/components/ui/slider";
+
+// Import the ReactFlow component from the XYFlow library.
 import {
   ReactFlow,
   Background,
@@ -23,8 +40,11 @@ import {
   NodeToolbar,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+
+// Import the isValidURL function from the urlParser file.
 import { isValidURL } from "@/app/utils/urlParser";
 
+// Define the Step interface for the application.
 interface Step {
   id: number;
   label: string;
@@ -32,6 +52,7 @@ interface Step {
   temperature: number;
 }
 
+// Define the StepNodeProps interface for the application.
 interface StepNodeProps extends NodeProps {
   data: {
     stepId: number;
@@ -44,7 +65,7 @@ interface StepNodeProps extends NodeProps {
   };
 }
 
-// Context to hold the steps and update function
+// Define the StepsContext for the application.
 const StepsContext = React.createContext<{
   steps: Step[];
   updateStepData: (
