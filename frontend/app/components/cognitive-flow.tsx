@@ -344,31 +344,14 @@ function Flow({
 
   // Update local steps when parent steps change (only for new steps)
   useEffect(() => {
-    if (!steps.length) return;
+    if (!steps.length) {
+      // If parent steps are empty, clear local steps
+      setLocalSteps([]);
+      return;
+    }
 
-    setLocalSteps((prevLocalSteps) => {
-      // Create a map of existing local steps
-      const localStepsMap = prevLocalSteps.reduce((map, step) => {
-        map[step.id] = step;
-        return map;
-      }, {} as Record<number, Step>);
-
-      // Merge with preserved values
-      return steps.map((parentStep) => {
-        const localStep = localStepsMap[parentStep.id];
-
-        if (localStep) {
-          return {
-            ...parentStep,
-            label: localStep.label || parentStep.label,
-            instructions: localStep.instructions || parentStep.instructions,
-            temperature: localStep.temperature || parentStep.temperature,
-          };
-        }
-
-        return { ...parentStep };
-      });
-    });
+    // Always replace local steps with parent steps completely
+    setLocalSteps(steps.map(step => ({ ...step })));
   }, [steps]);
 
   // Handle pending steps updates

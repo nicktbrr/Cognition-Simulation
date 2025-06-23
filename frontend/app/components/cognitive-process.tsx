@@ -45,6 +45,7 @@ export default function CognitiveProcess2({
   const [urlWarnings, setUrlWarnings] = useState<{ [key: number]: string[] }>(
     {}
   );
+  const [flowKey, setFlowKey] = useState<number>(0); // Add key for forcing re-render
 
   // Add effect to notify parent of title changes
   useEffect(() => {
@@ -164,12 +165,9 @@ export default function CognitiveProcess2({
               Papa.parse(file, {
                 header: true,
                 complete: (results) => {
-                  // First clear all existing steps and edges
-                  handleStepsChange([]);
-                  if (onEdgesChange) {
-                    onEdgesChange([]);
-                  }
-
+                  // Force re-render of CognitiveFlow
+                  setFlowKey(prev => prev + 1);
+                  
                   const newSteps = results.data
                     .filter((row: any) => row.label && row.description)
                     .slice(0, 20)
@@ -181,7 +179,7 @@ export default function CognitiveProcess2({
                     }));
 
                   if (newSteps.length > 0) {
-                    // Add new steps
+                    // Replace all steps with new ones
                     handleStepsChange(newSteps);
 
                     // Create sequential connections between nodes
@@ -209,6 +207,9 @@ export default function CognitiveProcess2({
                   console.error('Error parsing CSV:', error);
                 }
               });
+              
+              // Reset the file input so it can be used again
+              e.target.value = '';
             }
           }}
           className="hidden"
@@ -270,6 +271,7 @@ export default function CognitiveProcess2({
             edges={edges}
             onEdgesChange={onEdgesChange}
             disabled={simulationActive}
+            key={flowKey}
           />
         </div>
 
