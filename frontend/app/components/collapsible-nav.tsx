@@ -31,8 +31,14 @@ Now, with advances in Large Language Models (LLMs), a new frontier is emerging: 
 
 Prof. Mana Azarm is an assistant professor of analytics and information systems. She dedicated her career to the continuous development of scalable data pipelines to enable intelligent decision making. With a deep understanding of diverse data architecture paradigms, including relational databases, data warehouses and lakes, multidimensional data cubes, time series optimized data stores, and other emerging paradigms, her current research focuses on Large Language Models (LLM) in development of data pipelines.
 
-Nicholas Barsi-Rhyne and Andrew Hoang are...`,
-  },
+Nicholas Barsi-Rhyne is a data scientist and machine learning engineer with a strong background in computer science and statistics. He earned his B.S. in Computer Science with a minor in Statistics from UC Santa Cruz and is currently pursuing his M.S. in Data Science at the USF. He is currently a Machine Learning Engineer at Quantum Ventura. 
+
+Andrew Hoang is a data engineer and AI enthusiast with a strong background in software development and computer science. He earned his B.S. in Computer Science from Cal State Fullerton and is currently pursuing his M.S. in Data Science at USF with a focus on Data Engineering. He previously worked at 2U on the edX platform and completed a practicum at SnapLogic, where he applied AI to classify enterprise pipeline metadata.
+
+`,
+  
+
+},
   {
     id: "methods",
     title: "Methods Appendix",
