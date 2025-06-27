@@ -95,14 +95,17 @@ class Evaluation(Resource):
                     return jsonify({"status": "error", "message": "Missing or invalid Authorization header"}), 401
 
             # Get user data from Supabase
-            uuid = request.get_json()['uuid']
+            uuid = request.get_json()['id']
+            data = request.get_json()['data']
             supabase: Client = create_client(url, key)
-            response = supabase.table("users").select(
-                "*").eq("id", uuid).execute().data
-            metrics = response[0]["user"]['metrics']
+            # response = supabase.table("users").select(
+            #     "*").eq("id", uuid).execute().data
+            metrics = data['metrics']
+
+            print('data', data)
 
             # Generate baseline prompt and get token usage
-            df, prompt_tokens = baseline_prompt(response, key_g)
+            df, prompt_tokens = baseline_prompt(data, key_g)
 
             # Evaluate responses and get token usage
             fn, eval_tokens = evaluate(df, key_g, metrics)
@@ -141,6 +144,16 @@ class Evaluation(Resource):
             public_url = supabase.storage.from_(bucket_name).get_public_url(
                 f'llm/{fn}')
             sim_matrix['public_url'] = public_url
+
+            response = supabase.table("dashboard").insert({
+                "id": uuid,
+                "data": data,
+                "url": public_url,
+                'user_id': data['user_id'],
+                'name': data['title']
+            }).execute()
+
+
 
             return jsonify({"status": "success", "evaluation": sim_matrix})
         except Exception as e:
