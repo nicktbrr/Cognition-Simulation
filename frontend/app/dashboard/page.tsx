@@ -8,7 +8,7 @@ import { Button } from "../components/ui/button";
 import { Download } from "lucide-react";
 import Link from "next/link";
 import { Play } from "lucide-react";
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "@/app/page";
 
 interface SimulationHistoryItem {
   created_at: string; // ISO string
@@ -25,12 +25,7 @@ interface GoogleUser {
 
 export default function DashboardHistory() {
   const [history, setHistory] = useState<SimulationHistoryItem[]>([]);
-  const [user, setUser] = useState<GoogleUser | null>(null);
-
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  const [user, setUser] = useState<GoogleUser | null>(null);``
 
   const getHistory = async (userId: string) => {
     const { data, error } = await supabase.from("dashboard").select("created_at, name, url").eq("user_id", userId);

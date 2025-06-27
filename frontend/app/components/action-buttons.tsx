@@ -6,15 +6,10 @@
 
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
-import { createClient } from "@supabase/supabase-js";
 import { isValidURL } from "@/app/utils/urlParser";
 import { AlertCircle } from "lucide-react";
 
-// Initialize Supabase client
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { supabase } from "@/app/page";
 
 // Determine environment and get GCP token
 const prod = process.env.NEXT_PUBLIC_DEV || "production";
