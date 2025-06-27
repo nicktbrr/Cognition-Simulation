@@ -426,7 +426,7 @@ export default function EvaluationCriteria({
                   id="criterionDescription"
                   placeholder="The degree to which..."
                   value={newCriterion.description}
-                  maxLength={75}
+                  maxLength={100}
                   onChange={(e) => handleDescriptionChange(e.target.value)}
                   rows={3}
                   className={
@@ -436,7 +436,7 @@ export default function EvaluationCriteria({
                   }
                 />
                 <div className="absolute bottom-2 right-2 text-xs text-muted-foreground">
-                  {newCriterion.description.length}/75
+                  {newCriterion.description.length}/100
                 </div>
               </div>
             </div>

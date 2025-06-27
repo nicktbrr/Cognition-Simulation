@@ -56,6 +56,7 @@ export default function Dashboard() {
   const [edges, setEdges] = useState<Edge[]>([]);
 
   const [simulationActive, setSimulationActive] = useState<boolean>(false);
+  const [simulationComplete, setSimulationComplete] = useState<boolean>(false);
   const [hasUrls, setHasUrls] = useState(false);
   const [scriptLoaded, setScriptLoaded] = useState(false)
   const router = useRouter()
@@ -144,7 +145,11 @@ export default function Dashboard() {
     {/* If the user is logged in, display the dashboard. */}
     {user ? (
         <>
-      <SimulationStatusIndicator isActive={simulationActive} />
+      <SimulationStatusIndicator
+        isActive={simulationActive}
+        isSuccess={simulationComplete}
+        message={simulationComplete ? `Your ${title} simulation is complete. You may now download the simulated data.` : undefined}
+      />
       <div className="max-w-6xl mx-auto p-6 space-y-8">
       <Button
                 variant="outline"
@@ -176,7 +181,11 @@ export default function Dashboard() {
             steps={steps}
             metrics={selectedMetrics}
             edges={edges}
-            setSimulationActive={setSimulationActive}
+            setSimulationActive={(active) => {
+              setSimulationActive(active);
+              if (!active) setSimulationComplete(true);
+              else setSimulationComplete(false);
+            }}
             hasUrls={hasUrls}
             title={title}
           />
