@@ -92,11 +92,12 @@ def create_metric_dataframes(df_response, df_gpt4, df_gemini):
         for idx, col in enumerate(response_cols):
             # Get the corresponding scores from both models
             gemini_scores = df_gemini[metric].apply(lambda x: x[idx] if isinstance(x, list) else x)
-            gpt_scores = df_gpt4[f'GPT4_{metric}'].apply(lambda x: x[idx] if isinstance(x, list) else x)
+            # gpt_scores = df_gpt4[f'GPT4_{metric}'].apply(lambda x: x[idx] if isinstance(x, list) else x)
             
             # Add columns with appropriate names
-            metric_df[f'{col}_gemini'] = gemini_scores
-            metric_df[f'{col}_gpt'] = gpt_scores
+            # metric_df[f'{col}_gemini'] = gemini_scores
+            metric_df[f'{col}_{metric}'] = gemini_scores
+            # metric_df[f'{col}_gpt'] = gpt_scores
         
         metric_dfs[metric] = metric_df
     
@@ -131,17 +132,17 @@ def process_row(row_idx, df_row, system_prompt, metrics_to_evaluate):
     }
     row_scores.update({m: [] for m in metrics_to_evaluate})
 
-    row_scores_gpt4 = {
-        "GPT4_Clarity": [],
-        "GPT4_Feasibility": [],
-        "GPT4_Importance": [],
-        "GPT4_Novelty": [],
-        "GPT4_Fairness": [],
-        "GPT4_Quality": [],
-        "GPT4_Usefulness": []
-    }
-
-    row_scores_gpt4.update({f"GPT4_{m}": [] for m in metrics_to_evaluate})
+    # Comment out GPT-4 evaluation - keeping structure for future use
+    # row_scores_gpt4 = {
+    #     "GPT4_Clarity": [],
+    #     "GPT4_Feasibility": [],
+    #     "GPT4_Importance": [],
+    #     "GPT4_Novelty": [],
+    #     "GPT4_Fairness": [],
+    #     "GPT4_Quality": [],
+    #     "GPT4_Usefulness": []
+    # }
+    # row_scores_gpt4.update({f"GPT4_{m}": [] for m in metrics_to_evaluate})
     
     # Determine start column based on whether 'seed' is in the columns
     start_col = 1 if 'seed' in df_row.index else 0
@@ -185,21 +186,22 @@ def process_row(row_idx, df_row, system_prompt, metrics_to_evaluate):
                 else:
                     row_scores[metric].append(json_response["score"][idx])
 
+            # Comment out GPT-4 evaluation - keeping structure for future use
             # Evaluate using GPT-4
-            client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-            response = client.responses.parse(
-                model="gpt-4o-mini",
-                input=[{"role": "system", "content": system_prompt}, {"role": "user", "content": df_row.iloc[col]}],
-                text_format=EvaluationMetricsGPT4,
-                temperature=1.0
-            )
+            # client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+            # response = client.responses.parse(
+            #     model="gpt-4o-mini",
+            #     input=[{"role": "system", "content": system_prompt}, {"role": "user", "content": df_row.iloc[col]}],
+            #     text_format=EvaluationMetricsGPT4,
+            #     temperature=1.0
+            # )
             
-            # Process GPT-4 scores
-            for idx, metric in enumerate(row_scores_gpt4.keys()):
-                if idx >= len(response.output_parsed.metric):
-                    row_scores_gpt4[metric].append('Poorly Defined Critiria')
-                else:
-                    row_scores_gpt4[metric].append(response.output_parsed.score[idx])
+            # # Process GPT-4 scores
+            # for idx, metric in enumerate(row_scores_gpt4.keys()):
+            #     if idx >= len(response.output_parsed.metric):
+            #         row_scores_gpt4[metric].append('Poorly Defined Critiria')
+            #     else:
+            #         row_scores_gpt4[metric].append(response.output_parsed.score[idx])
 
         except Exception as e:
             print(
@@ -207,10 +209,12 @@ def process_row(row_idx, df_row, system_prompt, metrics_to_evaluate):
             # Handle failures gracefully by adding zeros
             for metric in row_scores.keys():
                 row_scores[metric].append(0)
-            for metric in row_scores_gpt4.keys():
-                row_scores_gpt4[metric].append(0)
+            # Comment out GPT-4 error handling
+            # for metric in row_scores_gpt4.keys():
+            #     row_scores_gpt4[metric].append(0)
 
-    return row_scores, row_scores_gpt4, tokens_dict
+    # Return None for GPT-4 results since evaluation is commented out
+    return row_scores, None, tokens_dict
 
 
 def evaluate(df, key_g, metrics):
@@ -315,14 +319,18 @@ def evaluate(df, key_g, metrics):
         for future in concurrent.futures.as_completed(futures):
             try:
                 results_gemini.append(future.result()[0])
-                results_gpt4.append(future.result()[1])
+                # Handle None GPT-4 results since evaluation is commented out
+                gpt4_result = future.result()[1]
+                if gpt4_result is not None:
+                    results_gpt4.append(gpt4_result)
                 tokens_ls.append(future.result()[2])
             except Exception as e:
                 print(f"Error in thread execution: {e}")
 
     # Convert results to DataFrames
     results_df_gemini = pd.DataFrame(results_gemini)
-    results_df_gpt4 = pd.DataFrame(results_gpt4)
+    # Create empty DataFrame for GPT-4 since evaluation is commented out
+    results_df_gpt4 = pd.DataFrame()
 
     # Generate Excel report
     excel_file = dataframe_to_excel(df, results_df_gpt4, results_df_gemini)
