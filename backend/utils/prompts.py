@@ -35,7 +35,7 @@ class BaseClass(typing.TypedDict, total=False):
     response: str
 
 
-def process_row_with_chat(row_idx, df, prompt, key_g, system_prompt):
+def process_row_with_chat(row_idx, df, prompt, key_g, system_prompt, persona):
     """
     Process a single row of data using the Gemini AI model with chat-based interaction.
     
@@ -45,6 +45,7 @@ def process_row_with_chat(row_idx, df, prompt, key_g, system_prompt):
         prompt (list): List containing prompt configuration and steps
         key_g (str): Google AI API key
         system_prompt (str): System-level instructions for the AI model
+        persona (str): The persona to use for this row
     
     Returns:
         tuple: (row_data, tokens_dict) where:
@@ -70,9 +71,6 @@ def process_row_with_chat(row_idx, df, prompt, key_g, system_prompt):
         'response_tokens': 0,
         'total_tokens': 0
     }
-
-    # Select a random persona for this row
-    persona = next(random_persona_generator())
 
     # Process each column in the row
     for col_idx in range(0, df.shape[1]):
@@ -170,6 +168,22 @@ def baseline_prompt(prompt, key_g):
         """
 
     seed = prompt[0]['user']['seed']
+    iterations = prompt[0]['user']['iters']
+
+    # Select unique personas for each row
+    if len(personas) >= iterations:
+        # Shuffle personas and take the first N unique ones
+        selected_personas = random.sample(personas, iterations)
+    else:
+        # If we have fewer personas than iterations, repeat personas but ensure variety
+        selected_personas = []
+        while len(selected_personas) < iterations:
+            remaining_personas = [p for p in personas if p not in selected_personas]
+            if remaining_personas:
+                selected_personas.extend(remaining_personas)
+            else:
+                # If we've used all personas, start over
+                selected_personas.extend(random.sample(personas, min(len(personas), iterations - len(selected_personas))))
 
     # Extract labels from the steps array
     steps = prompt[0]['user']['steps']
@@ -183,7 +197,7 @@ def baseline_prompt(prompt, key_g):
     df = pd.DataFrame(columns=cols)
 
     # Create rows based on iteration count
-    for i in range(prompt[0]['user']['iters']):
+    for i in range(iterations):
         if seed != "no-seed":
             new_row = {'seed': seed}
             # Special handling for problem representation column
@@ -198,7 +212,7 @@ def baseline_prompt(prompt, key_g):
     # Process rows in parallel
     results = []
     with concurrent.futures.ThreadPoolExecutor() as executor:
-        futures = {executor.submit(process_row_with_chat, row_idx, df, prompt, key_g, system_prompt): row_idx for row_idx in range(df.shape[0])}
+        futures = {executor.submit(process_row_with_chat, row_idx, df, prompt, key_g, system_prompt, selected_personas[row_idx]): row_idx for row_idx in range(df.shape[0])}
         tokens_ls = []
 
         for future in concurrent.futures.as_completed(futures):
