@@ -1,203 +1,105 @@
 "use client";
 
-// Dashboard page for the application.
-// It displays the main components of the application.
-// It is used in the app/dashboard/page.tsx file.
-
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import Header from "../components/header";
 import CollapsibleNav from "../components/collapsible-nav";
-import CognitiveProcess from "../components/cognitive-process";
-import EvaluationCriteria from "../components/evaluation-criteria";
-import ActionButtons from "../components/action-buttons";
-import SimulationStatusIndicator from "../components/indicator";
-import { Button } from "../components/ui/button"
-import { LogOut } from "lucide-react"
-import { useRouter } from 'next/navigation'
+import { Button } from "../components/ui/button";
+import { Download } from "lucide-react";
+import Link from "next/link";
+import { Play } from "lucide-react";
 
-// Step interface to track the steps of the cognitive process.
-interface Step {
-  id: number;
-  label: string;
-  instructions: string;
-  temperature: number;
+interface SimulationHistoryItem {
+  date: string; // ISO string
+  title: string;
+  downloadUrl: string;
 }
 
-// Edge interface to track connections between steps.
-// Define an Edge interface to track connections
-interface Edge {
-  id: string;
-  source: string;
-  sourceHandle?: string;
-  target: string;
-  targetHandle?: string;
-  animated?: boolean;
-  style?: any;
-  markerEnd?: any;
-}
-
-// GoogleUser interface to track the user who is logged in.
 interface GoogleUser {
-    name: string
-    email: string
-    picture: string
-    sub: string // Google's user ID
-  }
-  
+  name: string;
+  email: string;
+  picture: string;
+  sub: string;
+}
 
-// Dashboard page component.
-export default function Dashboard() {
-  const [steps, setSteps] = useState<Step[]>([]);
-  const [selectedMetrics, setSelectedMetrics] = useState<any[]>([]);
-  const [temperature, setTemperature] = useState<number>(50);
+export default function DashboardHistory() {
+  const [history, setHistory] = useState<SimulationHistoryItem[]>([]);
   const [user, setUser] = useState<GoogleUser | null>(null);
-  const [title, setTitle] = useState<string>("");
-  // Add state for tracking edges
-  const [edges, setEdges] = useState<Edge[]>([]);
 
-  const [simulationActive, setSimulationActive] = useState<boolean>(false);
-  const [simulationComplete, setSimulationComplete] = useState<boolean>(false);
-  const [hasUrls, setHasUrls] = useState(false);
-  const [scriptLoaded, setScriptLoaded] = useState(false)
-  const router = useRouter()
-
-  // Update steps when they change.
-  const handleStepsUpdate = (updatedSteps: Step[]) => {
-    setSteps(updatedSteps);
-  };
-
-  // Update selected evaluation criteria (metrics).
-  const handleMetricsUpdate = (metrics: any[]) => {
-    setSelectedMetrics(metrics);
-  };
-
-  // Update global temperature when changed.
-  const handleTemperatureChange = (newTemperature: number) => {
-    setTemperature(newTemperature);
-  };
-
-  // Add handler for edge updates.
-  const handleEdgesUpdate = (updatedEdges: Edge[]) => {
-    setEdges(updatedEdges);
-  };
-
-  // Add handler for URL detection.
-  const handleUrlDetection = (detected: boolean) => {
-    setHasUrls(detected);
-  };
-
-  // Update title when it changes.
-  const handleTitleChange = (newTitle: string) => {
-    setTitle(newTitle);
-  };
-
-  // When the submit button is pressed, log and alert the data.
-  const handleSubmit = () => {
-    // Create a map of step connections for easier understanding.
-    const connections = edges.map((edge) => ({
-      from:
-        steps.find((step) => step.id.toString() === edge.source)?.label ||
-        edge.source,
-      to:
-        steps.find((step) => step.id.toString() === edge.target)?.label ||
-        edge.target,
-    }));
-
-    // Create the Excel filename with the title.
-    const excelFilename = `cogsim_${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.xlsx`;
-
-    alert("Steps submitted! Check console for output.");
-  };
-
-  // Use effect to check if the user is logged in.
   useEffect(() => {
-    const storedUser = localStorage.getItem("googleUser")
+    // Get user info
+    const storedUser = localStorage.getItem("googleUser");
     if (storedUser) {
       try {
-        const parsedUser = JSON.parse(storedUser)
-        setUser(parsedUser)
+        setUser(JSON.parse(storedUser));
       } catch (e) {
-        localStorage.removeItem("googleUser")
+        setUser(null);
       }
     }
-  }, [])
-
-  // Handle sign out.
-  const handleSignOut = async () => {
-    if (window.google && scriptLoaded) {
-      window.google.accounts.id.disableAutoSelect()
-      window.google.accounts.id.revoke(user?.sub || "", () => {
-        setUser(null)
-        localStorage.removeItem("googleUser")
-        router.push('/')
-
-      })
-    } else {
-      setUser(null)
-      localStorage.removeItem("googleUser")
-      window.location.replace('/');      
-
-    }
-  }
+    
+    // Add dummy simulation history data for testing
+    setHistory([
+      {
+        date: new Date().toISOString(),
+        title: "Cognitive Flow Test 1",
+        downloadUrl: "https://example.com/simulation1.xlsx"
+      },
+      {
+        date: new Date(Date.now() - 86400000).toISOString(),
+        title: "Memory Evaluation Run",
+        downloadUrl: "https://example.com/simulation2.xlsx"
+      },
+      {
+        date: new Date(Date.now() - 2 * 86400000).toISOString(),
+        title: "Reasoning Chain Alpha",
+        downloadUrl: "https://example.com/simulation3.xlsx"
+      }
+    ]);
+  }, []);
 
   return (
-    <>
-    {/* If the user is logged in, display the dashboard. */}
-    {user ? (
-        <>
-      <SimulationStatusIndicator
-        isActive={simulationActive}
-        isSuccess={simulationComplete}
-        message={simulationComplete ? `Your ${title} simulation is complete. You may now download the simulated data.` : undefined}
-      />
-      <div className="max-w-6xl mx-auto p-6 space-y-8">
-      <Button
-                variant="outline"
-                size="sm"
-                className="border-[#6a03ab] bg-[#6a03ab] text-white hover:bg-[#6a03abe6] hover:text-white"
-                onClick={handleSignOut}
-              >
-                <LogOut className="h-4 w-4 mr-2" />
-                Sign Out
-              </Button>
-        <Header name={user.name} />
-        <CollapsibleNav />
-        <main className="space-y-8">
-          <CognitiveProcess
-            onStepsChange={handleStepsUpdate}
-            onTemperatureChange={handleTemperatureChange}
-            edges={edges}
-            onEdgesChange={handleEdgesUpdate}
-            simulationActive={simulationActive}
-            onTitleChange={handleTitleChange}
-          />
-          <EvaluationCriteria
-            onMetricsChange={handleMetricsUpdate}
-            simulationActive={simulationActive}
-            onUrlDetected={handleUrlDetection}
-          />
-          <ActionButtons
-            onSubmit={handleSubmit}
-            steps={steps}
-            metrics={selectedMetrics}
-            edges={edges}
-            setSimulationActive={(active) => {
-              setSimulationActive(active);
-              if (!active) setSimulationComplete(true);
-              else setSimulationComplete(false);
-            }}
-            hasUrls={hasUrls}
-            title={title}
-          />
-        </main>
+    <div className="max-w-6xl mx-auto p-6 space-y-8">
+      {user && <Header name={user.name} />}
+      <CollapsibleNav />
+      <main className="space-y-8">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold">Simulation History</h1>
+          <Button asChild variant="default" size="sm" className="flex items-center gap-2">
+            <Link href="/simulation">
+              <Play className="h-4 w-4" />
+              Run New Simulation
+            </Link>
+          </Button>
         </div>
-        </>
-    ) : (
-      // If the user is not logged in, display a message to sign in.
-      <div>
-        <h1>Please sign in to continue</h1>
-      </div>
-    )}
-    </>
+        {history.length === 0 ? (
+          <div className="text-gray-500">No simulation history found.</div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Date</TableHead>
+                <TableHead>Simulation Name</TableHead>
+                <TableHead>Download</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {history.map((item, idx) => (
+                <TableRow key={idx}>
+                  <TableCell>{new Date(item.date).toLocaleString()}</TableCell>
+                  <TableCell>{item.title}</TableCell>
+                  <TableCell>
+                    <a href={item.downloadUrl} target="_blank" rel="noopener noreferrer">
+                      <Button variant="default" size="sm" className="flex items-center gap-2">
+                        <Download className="h-4 w-4" /> Download
+                      </Button>
+                    </a>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </main>
+    </div>
   );
 }
