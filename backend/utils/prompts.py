@@ -61,7 +61,7 @@ def process_row_with_chat(row_idx, df, prompt, key_g, system_prompt, persona):
         seed_value = "no-seed"  # Default value when seed is not included
 
     # Get the steps array from the prompt
-    steps = prompt[0]['user']['steps']
+    steps = prompt['steps']
 
     prompt_list = []
 
@@ -167,8 +167,8 @@ def baseline_prompt(prompt, key_g):
         Do not use any newline characters or separate your answer with new lines. Provide the response in plain text format as a single continuous sentence.
         """
 
-    seed = prompt[0]['user']['seed']
-    iterations = prompt[0]['user']['iters']
+    seed = prompt['seed']
+    iterations = prompt['iters']
 
     # Select unique personas for each row
     if len(personas) >= iterations:
@@ -186,7 +186,7 @@ def baseline_prompt(prompt, key_g):
                 selected_personas.extend(random.sample(personas, min(len(personas), iterations - len(selected_personas))))
 
     # Extract labels from the steps array
-    steps = prompt[0]['user']['steps']
+    steps = prompt['steps']
     cols = [step['label'] for step in steps]
 
     # Add seed column if specified
