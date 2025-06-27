@@ -225,5 +225,10 @@ def baseline_prompt(prompt, key_g):
 
     # Convert results to DataFrame
     final_df = pd.DataFrame(results)
+    
+    # Reorder columns to make persona the first column
+    if 'persona' in final_df.columns:
+        cols = ['persona'] + [col for col in final_df.columns if col != 'persona']
+        final_df = final_df[cols]
 
     return final_df, tokens_ls
