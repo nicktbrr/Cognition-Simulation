@@ -217,7 +217,7 @@ def process_row(row_idx, df_row, system_prompt, metrics_to_evaluate):
     return row_scores, None, tokens_dict
 
 
-def evaluate(df, key_g, metrics, uuid=None, socketio=None):
+def evaluate(df, key_g, metrics):
     """
     Evaluates multiple rows in parallel using threading and combines the results into a DataFrame.
     
@@ -225,8 +225,6 @@ def evaluate(df, key_g, metrics, uuid=None, socketio=None):
         df (pd.DataFrame): Input dataframe containing responses to evaluate
         key_g (str): Gemini API key
         metrics (list): List of dictionaries containing metric definitions
-        uuid (str): Unique identifier for progress tracking
-        socketio: SocketIO instance for progress updates
         
     Returns:
         tuple: Contains:
@@ -314,9 +312,6 @@ def evaluate(df, key_g, metrics, uuid=None, socketio=None):
     results_gemini = []
     results_gpt4 = []
     tokens_ls = []
-    total_rows = df.shape[0]
-    completed_rows = 0
-    
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {executor.submit(
             process_row, idx, df.iloc[idx], system_prompt, metrics_to_evaluate): idx for idx in range(df.shape[0])}
@@ -329,19 +324,8 @@ def evaluate(df, key_g, metrics, uuid=None, socketio=None):
                 if gpt4_result is not None:
                     results_gpt4.append(gpt4_result)
                 tokens_ls.append(future.result()[2])
-                completed_rows += 1
-                
-                # Emit progress update
-                if socketio and uuid:
-                    progress = int(50 + (completed_rows / total_rows) * 30)  # 50-80% range
-                    socketio.emit('update_progress', {
-                        'progress': progress, 
-                        'message': f'Evaluating row {completed_rows}/{total_rows}...'
-                    }, room=uuid)
-                    
             except Exception as e:
                 print(f"Error in thread execution: {e}")
-                completed_rows += 1
 
     # Convert results to DataFrames
     results_df_gemini = pd.DataFrame(results_gemini)

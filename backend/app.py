@@ -8,7 +8,6 @@ and handles CORS for both development and production environments.
 
 from flask import Flask, Blueprint, request, jsonify
 from flask_restful import Api, Resource
-from flask_socketio import SocketIO, emit
 from dotenv import load_dotenv
 from flask_cors import CORS
 import os
@@ -46,27 +45,11 @@ else:
         }
     })
 
-# Initialize SocketIO
-socketio = SocketIO(app, cors_allowed_origins="*" if prod == 'development' else "https://cognition-simulation-e9on.vercel.app")
-
-# Socket.IO event handlers
-@socketio.on('connect')
-def handle_connect():
-    print('Client connected')
-
-@socketio.on('disconnect')
-def handle_disconnect():
-    print('Client disconnected')
-
-@socketio.on('join_room')
-def handle_join_room(room):
-    from flask_socketio import join_room
-    join_room(room)
-    print(f'Client joined room: {room}')
-
 # Initialize API blueprint and RESTful API
 api_bp = Blueprint("api", __name__)
 api = Api(api_bp)
+
+print()
 
 # Configure Supabase connection
 url: str = os.environ.get("VITE_SUPABASE_URL")
@@ -114,21 +97,20 @@ class Evaluation(Resource):
                     return jsonify({"status": "error", "message": "Missing or invalid Authorization header"}), 401
 
             # Get user data from Supabase
-            uuid = request.get_json()['uuid']
+            uuid = request.get_json()['id']
+            data = request.get_json()['data']
             supabase: Client = create_client(url, key)
-            response = supabase.table("users").select(
-                "*").eq("id", uuid).execute().data
-            metrics = response[0]["user"]['metrics']
+            # response = supabase.table("users").select(
+            #     "*").eq("id", uuid).execute().data
+            metrics = data['metrics']
+
+            print('data', data)
 
             # Generate baseline prompt and get token usage
-            df, prompt_tokens = baseline_prompt(response, key_g)
+            df, prompt_tokens = baseline_prompt(data, key_g)
 
             # Evaluate responses and get token usage
-            fn, eval_tokens = evaluate(df, key_g, metrics, uuid, socketio)
-            
-            # Emit progress update - Processing results
-            socketio.emit('update_progress', {'progress': 80, 'message': 'Processing results...'}, room=uuid)
-            
+            fn, eval_tokens = evaluate(df, key_g, metrics)
             df = df.replace('\n', '', regex=True)
             sim_matrix = create_sim_matrix(df)
             
@@ -153,9 +135,6 @@ class Evaluation(Resource):
                 "eval_total_token": total_eval_total_token,
             }).execute()
 
-            # Emit progress update - Uploading to storage
-            socketio.emit('update_progress', {'progress': 90, 'message': 'Uploading results...'}, room=uuid)
-
             # Upload evaluation results to Supabase storage
             bucket_name = "llm-responses"
             with open(fn, 'rb') as f:
@@ -168,13 +147,20 @@ class Evaluation(Resource):
                 f'llm/{fn}')
             sim_matrix['public_url'] = public_url
 
+            response = supabase.table("dashboard").insert({
+                "id": uuid,
+                "data": data,
+                "url": public_url,
+                'user_id': data['user_id'],
+                'name': data['title']
+            }).execute()
+
+
+
             return jsonify({"status": "success", "evaluation": sim_matrix})
         except Exception as e:
-            # Emit error progress update
-            socketio.emit('update_progress', {'progress': 0, 'message': f'Error: {str(e)}'}, room=uuid)
             # Clean up temporary file and return error
-            if 'fn' in locals():
-                os.remove(fn)
+            os.remove(fn)
             return jsonify({"status": "error", "message": str(e)})
 
 
@@ -188,7 +174,7 @@ if __name__ == "__main__":
     # Configure and run the Flask application based on environment
     prod = os.environ.get("DEV") or 'production'
     if prod == 'development':
-        socketio.run(app, debug=True, use_reloader=False, host="0.0.0.0", port=5000)
+        app.run(debug=True, use_reloader=False)
     else:
-        socketio.run(app, debug=True, host="0.0.0.0", port=int(
+        app.run(debug=True, host="0.0.0.0", port=int(
             os.environ.get("PORT", 8080)))
