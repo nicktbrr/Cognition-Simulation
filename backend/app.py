@@ -114,21 +114,14 @@ class Evaluation(Resource):
                     return jsonify({"status": "error", "message": "Missing or invalid Authorization header"}), 401
 
             # Get user data from Supabase
-            uuid = request.get_json()['id']
-            data = request.get_json()['data']
+            uuid = request.get_json()['uuid']
             supabase: Client = create_client(url, key)
-            metrics = data['metrics']
-
-            print('data', data)
-
-            # Emit progress update - Starting baseline prompt generation
-            socketio.emit('update_progress', {'progress': 10, 'message': 'Generating baseline prompts...'}, room=uuid)
+            response = supabase.table("users").select(
+                "*").eq("id", uuid).execute().data
+            metrics = response[0]["user"]['metrics']
 
             # Generate baseline prompt and get token usage
-            df, prompt_tokens = baseline_prompt(data, key_g, uuid, socketio)
-
-            # Emit progress update - Starting evaluation
-            socketio.emit('update_progress', {'progress': 50, 'message': 'Evaluating responses...'}, room=uuid)
+            df, prompt_tokens = baseline_prompt(response, key_g)
 
             # Evaluate responses and get token usage
             fn, eval_tokens = evaluate(df, key_g, metrics, uuid, socketio)
@@ -174,17 +167,6 @@ class Evaluation(Resource):
             public_url = supabase.storage.from_(bucket_name).get_public_url(
                 f'llm/{fn}')
             sim_matrix['public_url'] = public_url
-
-            response = supabase.table("dashboard").insert({
-                "id": uuid,
-                "data": data,
-                "url": public_url,
-                'user_id': data['user_id'],
-                'name': data['title']
-            }).execute()
-
-            # Emit progress update - Complete
-            socketio.emit('update_progress', {'progress': 100, 'message': 'Complete!'}, room=uuid)
 
             return jsonify({"status": "success", "evaluation": sim_matrix})
         except Exception as e:

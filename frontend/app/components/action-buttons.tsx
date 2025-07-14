@@ -5,13 +5,16 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { createClient } from "@supabase/supabase-js";
 import { isValidURL } from "@/app/utils/urlParser";
 import { AlertCircle } from "lucide-react";
-import { Progress } from "@/components/ui/progress";
-import { io, Socket } from "socket.io-client";
 
-import { supabase } from "@/app/page";
+// Initialize Supabase client
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 // Determine environment and get GCP token
 const prod = process.env.NEXT_PUBLIC_DEV || "production";
@@ -229,29 +232,24 @@ export default function ActionButtons({
         }
       }
 
-      // Get the user from local storage
-      let parsedUser = null;
-      const storedUser = localStorage.getItem("googleUser")
-      if (storedUser) {
-        try {
-          parsedUser = JSON.parse(storedUser)
-        } catch (e) {
-          console.error("Error parsing user:", e)
-        }
-      }
-
       // Construct the JSON payload for the simulation
       const jsonData = {
         seed: "no-seed",
         steps: orderedSteps,
         metrics: metrics,
         iters: 10,
-        temperature: 0.5,
-        user_id: parsedUser.sub,
-        title: title,
+        temperature: 0.5
       };
 
-
+      // Insert the simulation data into Supabase
+      const { error } = await supabase
+        .from("users")
+        .insert([{ id: uuid, user: jsonData }]);
+      if (error) {
+        alert("Error saving data to Supabase");
+        throw error;
+      } else {
+        alert("JSON data saved successfully!");
 
         // Define backend URL based on environment
         const url =
@@ -268,20 +266,15 @@ export default function ActionButtons({
               ? { Authorization: `Bearer ${token}` }
               : {}),
           },
-          body: JSON.stringify({ id: uuid, data: jsonData}),
+          body: JSON.stringify({ uuid }),
         });
         const a = await response.json();
         // Set the download URL from the backend response and enable download button
         setDownload(a.evaluation.public_url);
         setIsDisabled(false);
-        
-        // Update progress to show completion
-        setProgress(100);
-        setProgressMessage("Simulation completed successfully!");
-    } catch (response) {
-      console.error("Error in POST request:", response);
-      setProgress(0);
-      setProgressMessage("Error occurred during simulation");
+      }
+    } catch (error) {
+      console.error("Error in POST request:", error);
     } finally {
       // Reset processing states regardless of outcome
       setSimulationActive(false);

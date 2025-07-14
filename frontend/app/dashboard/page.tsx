@@ -8,12 +8,11 @@ import { Button } from "../components/ui/button";
 import { Download } from "lucide-react";
 import Link from "next/link";
 import { Play } from "lucide-react";
-import { supabase } from "@/app/page";
 
 interface SimulationHistoryItem {
-  created_at: string; // ISO string
-  name: string;
-  url: string;
+  date: string; // ISO string
+  title: string;
+  downloadUrl: string;
 }
 
 interface GoogleUser {
@@ -25,52 +24,37 @@ interface GoogleUser {
 
 export default function DashboardHistory() {
   const [history, setHistory] = useState<SimulationHistoryItem[]>([]);
-  const [user, setUser] = useState<GoogleUser | null>(null);``
-
-  const getHistory = async (userId: string) => {
-    const { data, error } = await supabase.from("dashboard").select("created_at, name, url").eq("user_id", userId);
-    if (error) {
-      console.error("Error fetching history:", error);
-    } else {
-      setHistory(data);
-    }
-  }
-
-  const handleDownload = async (public_url: string, filename: string) => {
-    try {
-      // Fetch the file from the public URL
-      const response = await fetch(public_url);
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-
-      // Create a temporary link to trigger the download
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", `cogsim_${filename.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.xlsx`);
-      document.body.appendChild(link);
-      link.click();
-      // Clean up the temporary link and object URL
-      document.body.removeChild(link);
-
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error("Error downloading CSV:", error);
-    }
-  };
+  const [user, setUser] = useState<GoogleUser | null>(null);
 
   useEffect(() => {
     // Get user info
     const storedUser = localStorage.getItem("googleUser");
     if (storedUser) {
       try {
-        const parsedUser = JSON.parse(storedUser);
-        setUser(parsedUser.sub);
-        getHistory(parsedUser.sub || '');
+        setUser(JSON.parse(storedUser));
       } catch (e) {
         setUser(null);
       }
-
     }
+    
+    // Add dummy simulation history data for testing
+    setHistory([
+      {
+        date: new Date().toISOString(),
+        title: "Cognitive Flow Test 1",
+        downloadUrl: "https://example.com/simulation1.xlsx"
+      },
+      {
+        date: new Date(Date.now() - 86400000).toISOString(),
+        title: "Memory Evaluation Run",
+        downloadUrl: "https://example.com/simulation2.xlsx"
+      },
+      {
+        date: new Date(Date.now() - 2 * 86400000).toISOString(),
+        title: "Reasoning Chain Alpha",
+        downloadUrl: "https://example.com/simulation3.xlsx"
+      }
+    ]);
   }, []);
 
   return (
@@ -101,10 +85,10 @@ export default function DashboardHistory() {
             <TableBody>
               {history.map((item, idx) => (
                 <TableRow key={idx}>
-                  <TableCell>{new Date(item.created_at).toLocaleString()}</TableCell>
-                  <TableCell>{item.name}</TableCell>
+                  <TableCell>{new Date(item.date).toLocaleString()}</TableCell>
+                  <TableCell>{item.title}</TableCell>
                   <TableCell>
-                    <a target="_blank" rel="noopener noreferrer" onClick={() => handleDownload(item.url, item.name)}>
+                    <a href={item.downloadUrl} target="_blank" rel="noopener noreferrer">
                       <Button variant="default" size="sm" className="flex items-center gap-2">
                         <Download className="h-4 w-4" /> Download
                       </Button>
