@@ -49,6 +49,8 @@ else:
 api_bp = Blueprint("api", __name__)
 api = Api(api_bp)
 
+print()
+
 # Configure Supabase connection
 url: str = os.environ.get("VITE_SUPABASE_URL")
 key: str = os.environ.get("VITE_SUPABASE_KEY")
