@@ -74,6 +74,25 @@ export default function ActionButtons({
   const [progress, setProgress] = useState<ProgressData | null>(null);
   const [taskId, setTaskId] = useState<string | null>(null);
 
+  // Function to get download URL from dashboard table
+  const getDownloadUrl = async (taskId: string, userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('dashboard')
+        .select('url')
+        .eq('id', taskId)
+        .eq('user_id', userId)
+        .single();
+      
+      if (data && data.url) {
+        setDownload(data.url);
+        setIsDisabled(false);
+      }
+    } catch (error) {
+      console.error("Error getting download URL:", error);
+    }
+  };
+
   // Function to check progress
   const checkProgress = async (taskId: string, userId: string) => {
     try {
@@ -98,6 +117,8 @@ export default function ActionButtons({
               setSimulationActive(false);
               setIsProcessing(false);
               setLoading(false);
+              // Get the download URL from the dashboard table
+              getDownloadUrl(data.progress.id, data.progress.user_id);
             } else {
               setSimulationActive(false);
               setIsProcessing(false);
@@ -127,7 +148,7 @@ export default function ActionButtons({
       checkProgress(taskId, userId);
       interval = setInterval(() => {
         checkProgress(taskId, userId!);
-      }, 2000);
+      }, 1000);
     }
     return () => {
       if (interval) clearInterval(interval);
@@ -306,10 +327,10 @@ export default function ActionButtons({
       
       const result = await response.json();
       
-      if (result.status === "success") {
+      if (result.status === "started") {
         setTaskId(result.task_id); // This will trigger polling
-        setDownload(result.evaluation.public_url);
-        setIsDisabled(false);
+        // Don't set download URL yet - it will be available when progress is completed
+        setIsDisabled(true); // Keep disabled until completion
       } else {
         throw new Error(result.message || 'Simulation failed to start');
       }

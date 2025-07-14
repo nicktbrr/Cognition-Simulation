@@ -65,6 +65,7 @@ genai.configure(api_key=key_g)
 
 
 def run_evaluation(uuid, data, key_g, url, key):
+    fn = None  # Initialize fn variable for cleanup
     try:
         supabase: Client = create_client(url, key)
         metrics = data['metrics']
