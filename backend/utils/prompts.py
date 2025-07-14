@@ -148,13 +148,15 @@ def process_row_with_chat(row_idx, df, prompt, key_g, system_prompt, persona):
     return row_data, tokens_dict
 
 
-def baseline_prompt(prompt, key_g):
+def baseline_prompt(prompt, key_g, uuid=None, socketio=None):
     """
     Process multiple rows in parallel using threading and combine results into a DataFrame.
     
     Args:
         prompt (list): List containing prompt configuration including seed, steps, and iterations
         key_g (str): Google AI API key
+        uuid (str): Unique identifier for progress tracking
+        socketio: SocketIO instance for progress updates
     
     Returns:
         tuple: (final_df, tokens_ls) where:
@@ -211,6 +213,9 @@ def baseline_prompt(prompt, key_g):
 
     # Process rows in parallel
     results = []
+    total_rows = df.shape[0]
+    completed_rows = 0
+    
     with concurrent.futures.ThreadPoolExecutor() as executor:
         futures = {executor.submit(process_row_with_chat, row_idx, df, prompt, key_g, system_prompt, selected_personas[row_idx]): row_idx for row_idx in range(df.shape[0])}
         tokens_ls = []
@@ -220,8 +225,19 @@ def baseline_prompt(prompt, key_g):
                 row_data, tokens_dict = future.result()
                 results.append(row_data)
                 tokens_ls.append(tokens_dict)
+                completed_rows += 1
+                
+                # Emit progress update
+                if socketio and uuid:
+                    progress = int(10 + (completed_rows / total_rows) * 40)  # 10-50% range
+                    socketio.emit('update_progress', {
+                        'progress': progress, 
+                        'message': f'Processing row {completed_rows}/{total_rows}...'
+                    }, room=uuid)
+                    
             except Exception as e:
                 print(f'Error in thread execution: {e}')
+                completed_rows += 1
 
     # Convert results to DataFrame
     final_df = pd.DataFrame(results)

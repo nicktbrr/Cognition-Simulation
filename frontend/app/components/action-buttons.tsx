@@ -5,9 +5,11 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { isValidURL } from "@/app/utils/urlParser";
 import { AlertCircle } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { io, Socket } from "socket.io-client";
 
 import { supabase } from "@/app/page";
 
@@ -59,6 +61,37 @@ export default function ActionButtons({
   const [loading, setLoading] = useState(false);
   const [isDisabled, setIsDisabled] = useState(true);
   const [download, setDownload] = useState("");
+  const [progress, setProgress] = useState(0);
+  const [progressMessage, setProgressMessage] = useState("");
+  const [socket, setSocket] = useState<Socket | null>(null);
+
+  // Socket.IO connection setup
+  useEffect(() => {
+    const socketUrl = prod === "development" 
+      ? "http://127.0.0.1:5000" 
+      : "https://cognition-backend-81313456654.us-west1.run.app";
+    
+    const newSocket = io(socketUrl);
+    
+    newSocket.on("connect", () => {
+      console.log("Connected to Socket.IO server");
+    });
+    
+    newSocket.on("update_progress", (data) => {
+      setProgress(data.progress);
+      setProgressMessage(data.message);
+    });
+    
+    newSocket.on("disconnect", () => {
+      console.log("Disconnected from Socket.IO server");
+    });
+    
+    setSocket(newSocket);
+    
+    return () => {
+      newSocket.close();
+    };
+  }, []);
 
   /**
    * Handles downloading of the simulation result file.
@@ -124,10 +157,17 @@ export default function ActionButtons({
     setIsProcessing(true);
     setLoading(true);
     setSimulationActive(true);
+    setProgress(0);
+    setProgressMessage("Starting simulation...");
 
     try {
       // Prepare data for Supabase
       const uuid = crypto.randomUUID();
+      
+      // Join socket room for this specific simulation
+      if (socket) {
+        socket.emit("join_room", uuid);
+      }
 
       // Create an ordered array of steps based on edge connections
       const orderedSteps: Array<{ label: string; instructions: string; temperature: number }> = [];
@@ -234,13 +274,25 @@ export default function ActionButtons({
         // Set the download URL from the backend response and enable download button
         setDownload(a.evaluation.public_url);
         setIsDisabled(false);
+        
+        // Update progress to show completion
+        setProgress(100);
+        setProgressMessage("Simulation completed successfully!");
     } catch (response) {
       console.error("Error in POST request:", response);
+      setProgress(0);
+      setProgressMessage("Error occurred during simulation");
     } finally {
       // Reset processing states regardless of outcome
       setSimulationActive(false);
       setIsProcessing(false);
       setLoading(false);
+      
+      // Reset progress after a delay to show completion
+      setTimeout(() => {
+        setProgress(0);
+        setProgressMessage("");
+      }, 2000);
     }
   };
 
@@ -278,6 +330,17 @@ export default function ActionButtons({
       )}
 
       <div className="space-y-4">
+        {/* Progress Bar */}
+        {isProcessing && (
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm text-muted-foreground">
+              <span>{progressMessage}</span>
+              <span>{progress}%</span>
+            </div>
+            <Progress value={progress} className="w-full" />
+          </div>
+        )}
+        
         <div className="flex flex-wrap gap-4">
           {/* Button to submit simulation for processing */}
           <Button
