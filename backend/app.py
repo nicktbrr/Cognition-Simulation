@@ -8,6 +8,7 @@ and handles CORS for both development and production environments.
 
 from flask import Flask, Blueprint, request, jsonify
 from flask_restful import Api, Resource
+from flask_socketio import SocketIO, emit
 from dotenv import load_dotenv
 from flask_cors import CORS
 import os
@@ -44,6 +45,24 @@ else:
             "allow_headers": ["Content-Type", "Authorization"]
         }
     })
+
+# Initialize SocketIO
+socketio = SocketIO(app, cors_allowed_origins="*" if prod == 'development' else "https://cognition-simulation-e9on.vercel.app")
+
+# Socket.IO event handlers
+@socketio.on('connect')
+def handle_connect():
+    print('Client connected')
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    print('Client disconnected')
+
+@socketio.on('join_room')
+def handle_join_room(room):
+    from flask_socketio import join_room
+    join_room(room)
+    print(f'Client joined room: {room}')
 
 # Initialize API blueprint and RESTful API
 api_bp = Blueprint("api", __name__)
@@ -98,17 +117,25 @@ class Evaluation(Resource):
             uuid = request.get_json()['id']
             data = request.get_json()['data']
             supabase: Client = create_client(url, key)
-            # response = supabase.table("users").select(
-            #     "*").eq("id", uuid).execute().data
             metrics = data['metrics']
 
             print('data', data)
 
+            # Emit progress update - Starting baseline prompt generation
+            socketio.emit('update_progress', {'progress': 10, 'message': 'Generating baseline prompts...'}, room=uuid)
+
             # Generate baseline prompt and get token usage
-            df, prompt_tokens = baseline_prompt(data, key_g)
+            df, prompt_tokens = baseline_prompt(data, key_g, uuid, socketio)
+
+            # Emit progress update - Starting evaluation
+            socketio.emit('update_progress', {'progress': 50, 'message': 'Evaluating responses...'}, room=uuid)
 
             # Evaluate responses and get token usage
-            fn, eval_tokens = evaluate(df, key_g, metrics)
+            fn, eval_tokens = evaluate(df, key_g, metrics, uuid, socketio)
+            
+            # Emit progress update - Processing results
+            socketio.emit('update_progress', {'progress': 80, 'message': 'Processing results...'}, room=uuid)
+            
             df = df.replace('\n', '', regex=True)
             sim_matrix = create_sim_matrix(df)
             
@@ -133,6 +160,9 @@ class Evaluation(Resource):
                 "eval_total_token": total_eval_total_token,
             }).execute()
 
+            # Emit progress update - Uploading to storage
+            socketio.emit('update_progress', {'progress': 90, 'message': 'Uploading results...'}, room=uuid)
+
             # Upload evaluation results to Supabase storage
             bucket_name = "llm-responses"
             with open(fn, 'rb') as f:
@@ -153,12 +183,16 @@ class Evaluation(Resource):
                 'name': data['title']
             }).execute()
 
-
+            # Emit progress update - Complete
+            socketio.emit('update_progress', {'progress': 100, 'message': 'Complete!'}, room=uuid)
 
             return jsonify({"status": "success", "evaluation": sim_matrix})
         except Exception as e:
+            # Emit error progress update
+            socketio.emit('update_progress', {'progress': 0, 'message': f'Error: {str(e)}'}, room=uuid)
             # Clean up temporary file and return error
-            os.remove(fn)
+            if 'fn' in locals():
+                os.remove(fn)
             return jsonify({"status": "error", "message": str(e)})
 
 
@@ -172,7 +206,7 @@ if __name__ == "__main__":
     # Configure and run the Flask application based on environment
     prod = os.environ.get("DEV") or 'production'
     if prod == 'development':
-        app.run(debug=True, use_reloader=False)
+        socketio.run(app, debug=True, use_reloader=False, host="0.0.0.0", port=5000)
     else:
-        app.run(debug=True, host="0.0.0.0", port=int(
+        socketio.run(app, debug=True, host="0.0.0.0", port=int(
             os.environ.get("PORT", 8080)))
