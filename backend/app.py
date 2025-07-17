@@ -110,7 +110,7 @@ class Evaluation(Resource):
             df, prompt_tokens = baseline_prompt(data, key_g)
 
             # Evaluate responses and get token usage
-            fn, eval_tokens = evaluate(df, key_g, metrics)
+            fn, eval_tokens = evaluate(df, key_g, metrics, data.get('steps'))
             df = df.replace('\n', '', regex=True)
             sim_matrix = create_sim_matrix(df)
             
