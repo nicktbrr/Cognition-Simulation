@@ -85,7 +85,7 @@ def run_evaluation(uuid, data, key_g, url, key):
         }).eq("id", uuid).execute()
 
         # Evaluate responses and get token usage
-        fn, eval_tokens = evaluate(df, key_g, metrics)
+        fn, eval_tokens = evaluate(df, key_g, metrics, data['steps'])
         
         # Update progress to 60% - Evaluation completed
         supabase.table("download_progress").update({
