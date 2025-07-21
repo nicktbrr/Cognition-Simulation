@@ -135,7 +135,6 @@ export default function Home() {
       <div className="max-w-6xl mx-auto p-6 space-y-8">
 
         <main className="space-y-8">
-          <OneTapComponent />
 
           {/* Authentication banner */}
           <section className="max-w-7xl mx-auto px-6 py-16 grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
@@ -171,7 +170,9 @@ export default function Home() {
                   </Button>
                 </div>
               ) : (
-                <div className="text-gray-500">Sign in to access your dashboard</div>
+                <div className="text-gray-500">
+                  <OneTapComponent />
+                </div>
               )}
             </div>
             <div className="flex justify-center">
