@@ -9,7 +9,7 @@ import { useState, useEffect } from "react";
 import { isValidURL } from "@/app/utils/urlParser";
 import { AlertCircle } from "lucide-react";
 
-import { supabase } from "@/app/page";
+import { supabase } from "@/app/utils/supabase";
 
 // Determine environment and get GCP token
 const prod = process.env.NEXT_PUBLIC_DEV || "production";
@@ -137,10 +137,11 @@ export default function ActionButtons({
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
     let userId: string | null = null;
-    const storedUser = localStorage.getItem("googleUser");
+    const storedUser = localStorage.getItem("supabaseUser");
     if (storedUser) {
       try {
-        userId = JSON.parse(storedUser).sub;
+        const parsedUser = JSON.parse(storedUser);
+        userId = parsedUser.id;
       } catch {}
     }
     if (taskId && userId) {
@@ -287,7 +288,7 @@ export default function ActionButtons({
 
       // Get the user from local storage
       let parsedUser = null;
-      const storedUser = localStorage.getItem("googleUser")
+      const storedUser = localStorage.getItem("supabaseUser")
       if (storedUser) {
         try {
           parsedUser = JSON.parse(storedUser)
@@ -303,7 +304,7 @@ export default function ActionButtons({
         metrics: metrics,
         iters: 10,
         temperature: 0.5,
-        user_id: parsedUser.sub,
+        user_id: parsedUser.id,
         title: title,
       };
 

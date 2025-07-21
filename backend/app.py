@@ -103,25 +103,25 @@ def run_evaluation(uuid, data, key_g, url, key):
         }).eq("id", uuid).execute()
         
         # Calculate total token usage for prompts
-        total_prompt_input_token = sum(token_dict['prompt_tokens'] for token_dict in prompt_tokens)
-        total_prompt_output_token = sum(token_dict['response_tokens'] for token_dict in prompt_tokens)
-        total_prompt_total_token = sum(token_dict['total_tokens'] for token_dict in prompt_tokens)
+        # total_prompt_input_token = sum(token_dict['prompt_tokens'] for token_dict in prompt_tokens)
+        # total_prompt_output_token = sum(token_dict['response_tokens'] for token_dict in prompt_tokens)
+        # total_prompt_total_token = sum(token_dict['total_tokens'] for token_dict in prompt_tokens)
 
-        # Calculate total token usage for evaluation
-        total_eval_input_token = sum(token_dict['gemini_prompt_tokens'] for token_dict in eval_tokens)
-        total_eval_output_token = sum(token_dict['gemini_response_tokens'] for token_dict in eval_tokens)
-        total_eval_total_token = sum(token_dict['gemini_total_tokens'] for token_dict in eval_tokens)
+        # # Calculate total token usage for evaluation
+        # total_eval_input_token = sum(token_dict['gemini_prompt_tokens'] for token_dict in eval_tokens)
+        # total_eval_output_token = sum(token_dict['gemini_response_tokens'] for token_dict in eval_tokens)
+        # total_eval_total_token = sum(token_dict['gemini_total_tokens'] for token_dict in eval_tokens)
 
         # Store token usage in Supabase
-        response_tokens = supabase.table("tokens").insert({
-            "id": uuid,
-            "prompt_input_token": total_prompt_input_token,
-            "prompt_output_token": total_prompt_output_token,
-            "prompt_total_token": total_prompt_total_token,
-            "eval_input_token": total_eval_input_token,
-            "eval_output_token": total_eval_output_token,
-            "eval_total_token": total_eval_total_token,
-        }).execute()
+        # response_tokens = supabase.table("tokens").insert({
+        #     "id": uuid,
+        #     "prompt_input_token": total_prompt_input_token,
+        #     "prompt_output_token": total_prompt_output_token,
+        #     "prompt_total_token": total_prompt_total_token,
+        #     "eval_input_token": total_eval_input_token,
+        #     "eval_output_token": total_eval_output_token,
+        #     "eval_total_token": total_eval_total_token,
+        # }).execute()
 
         # Upload evaluation results to Supabase storage
         bucket_name = "llm-responses"
