@@ -37,7 +37,7 @@ class EvaluationMetrics(typing.TypedDict):
     score: list[float]
 
 
-def dataframe_to_excel(df_response, df_gpt4, df_gemini, user_steps=None):
+def dataframe_to_excel(df_response, df_gpt4, df_gemini, steps=None):
     """
     Converts evaluation results into an Excel file with multiple sheets.
     
@@ -45,7 +45,7 @@ def dataframe_to_excel(df_response, df_gpt4, df_gemini, user_steps=None):
         df_response (pd.DataFrame): Original response dataframe
         df_gpt4 (pd.DataFrame): GPT-4 evaluation results
         df_gemini (pd.DataFrame): Gemini evaluation results
-        user_steps (list): List of user-defined steps with label and instructions
+        steps (list): List of step dictionaries containing 'label' and 'instructions' keys
         
     Returns:
         str: Filename of the generated Excel file
@@ -56,11 +56,11 @@ def dataframe_to_excel(df_response, df_gpt4, df_gemini, user_steps=None):
     metric_dataframes = create_metric_dataframes(df_response, df_gpt4, df_gemini)
 
     with pd.ExcelWriter(fn, engine='openpyxl') as writer:
-        # Add user steps as the first sheet if provided
-        if user_steps:
+        # Add simulation steps as the first sheet if steps are provided
+        if steps:
             steps_df = pd.DataFrame([
                 {'label': step['label'], 'description': step['instructions']} 
-                for step in user_steps
+                for step in steps
             ])
             steps_df.to_excel(writer, sheet_name='Simulation Steps', index=False)
         
@@ -226,7 +226,7 @@ def process_row(row_idx, df_row, system_prompt, metrics_to_evaluate):
     return row_scores, None, tokens_dict
 
 
-def evaluate(df, key_g, metrics, user_steps=None):
+def evaluate(df, key_g, metrics, steps=None):
     """
     Evaluates multiple rows in parallel using threading and combines the results into a DataFrame.
     
@@ -234,7 +234,7 @@ def evaluate(df, key_g, metrics, user_steps=None):
         df (pd.DataFrame): Input dataframe containing responses to evaluate
         key_g (str): Gemini API key
         metrics (list): List of dictionaries containing metric definitions
-        user_steps (list): List of user-defined steps with label and instructions
+        steps (list): List of step dictionaries containing 'label' and 'instructions' keys
         
     Returns:
         tuple: Contains:
@@ -343,6 +343,6 @@ def evaluate(df, key_g, metrics, user_steps=None):
     results_df_gpt4 = pd.DataFrame()
 
     # Generate Excel report
-    excel_file = dataframe_to_excel(df, results_df_gpt4, results_df_gemini, user_steps)
+    excel_file = dataframe_to_excel(df, results_df_gpt4, results_df_gemini, steps)
 
     return excel_file, tokens_ls

@@ -5,11 +5,11 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { isValidURL } from "@/app/utils/urlParser";
 import { AlertCircle } from "lucide-react";
 
-import { supabase } from "@/app/page";
+import { supabase } from "@/app/utils/supabase";
 
 // Determine environment and get GCP token
 const prod = process.env.NEXT_PUBLIC_DEV || "production";
@@ -26,6 +26,18 @@ interface Step {
 interface Edge {
   source: string;
   target: string;
+}
+
+// Add progress interface
+interface ProgressData {
+  id: string;
+  user_id: string;
+  task_id: string;
+  progress: number;
+  status: 'started' | 'processing' | 'completed' | 'failed';
+  error_message?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 // Define props for the ActionButtons component
@@ -59,6 +71,90 @@ export default function ActionButtons({
   const [loading, setLoading] = useState(false);
   const [isDisabled, setIsDisabled] = useState(true);
   const [download, setDownload] = useState("");
+  const [progress, setProgress] = useState<ProgressData | null>(null);
+  const [taskId, setTaskId] = useState<string | null>(null);
+
+  // Function to get download URL from dashboard table
+  const getDownloadUrl = async (taskId: string, userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('dashboard')
+        .select('url')
+        .eq('id', taskId)
+        .eq('user_id', userId)
+        .single();
+      
+      if (data && data.url) {
+        setDownload(data.url);
+        setIsDisabled(false);
+      }
+    } catch (error) {
+      console.error("Error getting download URL:", error);
+    }
+  };
+
+  // Function to check progress
+  const checkProgress = async (taskId: string, userId: string) => {
+    try {
+      const url = prod === "development"
+        ? `http://127.0.0.1:5000/api/progress?task_id=${taskId}&user_id=${userId}`
+        : `https://cognition-backend-81313456654.us-west1.run.app/api/progress?task_id=${taskId}&user_id=${userId}`;
+
+      const response = await fetch(url, {
+        headers: {
+          ...(prod !== "development" ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.status === "success") {
+          setProgress(data.progress);
+          // If completed or failed, clear taskId to stop polling
+          if (data.progress.status === 'completed' || data.progress.status === 'failed') {
+            setTaskId(null);
+            if (data.progress.status === 'completed') {
+              setSimulationActive(false);
+              setIsProcessing(false);
+              setLoading(false);
+              // Get the download URL from the dashboard table
+              getDownloadUrl(data.progress.id, data.progress.user_id);
+            } else {
+              setSimulationActive(false);
+              setIsProcessing(false);
+              setLoading(false);
+              alert(`Simulation failed: ${data.progress.error_message || 'Unknown error'}`);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error checking progress:", error);
+    }
+  };
+
+  // Poll for progress every 2 seconds when taskId is set
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+    let userId: string | null = null;
+    const storedUser = localStorage.getItem("supabaseUser");
+    if (storedUser) {
+      try {
+        const parsedUser = JSON.parse(storedUser);
+        userId = parsedUser.id;
+      } catch {}
+    }
+    if (taskId && userId) {
+      // Immediately check once
+      checkProgress(taskId, userId);
+      interval = setInterval(() => {
+        checkProgress(taskId, userId!);
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [taskId]);
 
   /**
    * Handles downloading of the simulation result file.
@@ -124,6 +220,7 @@ export default function ActionButtons({
     setIsProcessing(true);
     setLoading(true);
     setSimulationActive(true);
+    setProgress(null);
 
     try {
       // Prepare data for Supabase
@@ -191,7 +288,7 @@ export default function ActionButtons({
 
       // Get the user from local storage
       let parsedUser = null;
-      const storedUser = localStorage.getItem("googleUser")
+      const storedUser = localStorage.getItem("supabaseUser")
       if (storedUser) {
         try {
           parsedUser = JSON.parse(storedUser)
@@ -207,40 +304,44 @@ export default function ActionButtons({
         metrics: metrics,
         iters: 10,
         temperature: 0.5,
-        user_id: parsedUser.sub,
+        user_id: parsedUser.id,
         title: title,
       };
 
+      // Define backend URL based on environment
+      const url =
+        prod === "development"
+          ? "http://127.0.0.1:5000/api/evaluate"
+          : "https://cognition-backend-81313456654.us-west1.run.app/api/evaluate";
 
-
-        // Define backend URL based on environment
-        const url =
-          prod === "development"
-            ? "http://127.0.0.1:5000/api/evaluate"
-            : "https://cognition-backend-81313456654.us-west1.run.app/api/evaluate";
-
-        // Send the simulation request to the backend API
-        const response = await fetch(url, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(prod !== "development"
-              ? { Authorization: `Bearer ${token}` }
-              : {}),
-          },
-          body: JSON.stringify({ id: uuid, data: jsonData}),
-        });
-        const a = await response.json();
-        // Set the download URL from the backend response and enable download button
-        setDownload(a.evaluation.public_url);
-        setIsDisabled(false);
-    } catch (response) {
-      console.error("Error in POST request:", response);
-    } finally {
-      // Reset processing states regardless of outcome
+      // Send the simulation request to the backend API
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(prod !== "development"
+            ? { Authorization: `Bearer ${token}` }
+            : {}),
+        },
+        body: JSON.stringify({ id: uuid, data: jsonData}),
+      });
+      
+      const result = await response.json();
+      
+      if (result.status === "started") {
+        setTaskId(result.task_id); // This will trigger polling
+        // Don't set download URL yet - it will be available when progress is completed
+        setIsDisabled(true); // Keep disabled until completion
+      } else {
+        throw new Error(result.message || 'Simulation failed to start');
+      }
+      
+    } catch (error) {
+      console.error("Error in POST request:", error);
       setSimulationActive(false);
       setIsProcessing(false);
       setLoading(false);
+      alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -261,6 +362,30 @@ export default function ActionButtons({
   return (
     <section className="space-y-4">
       <h2 className="text-xl font-bold">3. Submit and Download Data</h2>
+
+      {/* Progress indicator */}
+      {progress && (
+        <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-blue-700 font-medium">
+              {progress.status === 'started' && 'Starting simulation...'}
+              {progress.status === 'processing' && 'Processing simulation...'}
+              {progress.status === 'completed' && 'Simulation completed!'}
+              {progress.status === 'failed' && 'Simulation failed'}
+            </span>
+            <span className="text-blue-600">{progress.progress}%</span>
+          </div>
+          <div className="w-full bg-blue-200 rounded-full h-2">
+            <div 
+              className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+              style={{ width: `${progress.progress}%` }}
+            ></div>
+          </div>
+          {progress.status === 'failed' && progress.error_message && (
+            <p className="text-red-600 text-sm mt-2">{progress.error_message}</p>
+          )}
+        </div>
+      )}
 
       {/* Display a warning if any input contains a URL */}
       {(hasUrls ||
@@ -305,20 +430,18 @@ export default function ActionButtons({
           >
             {isProcessing ? "Processing..." : "Submit for Simulation"}
           </Button>
+          
           {/* Button to download simulated data */}
           <Button
             variant="secondary"
-            disabled={isDisabled ? true : false}
-            className={isDisabled ? "" : "bg-primary text-primary-foreground hover:bg-[#6a03abe6] hover:text-white"}
+            disabled={isDisabled || progress?.status !== 'completed'}
+            className={isDisabled || progress?.status !== 'completed' ? "" : "bg-primary text-primary-foreground hover:bg-[#6a03abe6] hover:text-white"}
             onClick={() => {
               handleDownload(download, "simulated_data.xlsx");
             }}
           >
             Download Simulated Data
           </Button>
-          {/* <Button variant="secondary" disabled={isDisabled ? true : false}>
-            Download Evaluations
-          </Button> */}
         </div>
         <div className="flex gap-4">
           {/* Button to reset the form */}

@@ -6,149 +6,126 @@
 
 import type React from "react"
 
-import { useState, useEffect, useCallback } from "react"
-import Script from "next/script"
+import { useState, useEffect } from "react"
 import { useRouter } from 'next/navigation'
-import { createClient } from "@supabase/supabase-js";
 import Image from "next/image"
 import { Button } from "@/components/ui/button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { LogOut, MousePointer, Check, Lock, Brain, Users, Laptop, LineChart, Shield, Server  } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
+import OneTapComponent from "./components/onetap"
+import { supabase } from "./utils/supabase"
+import type { User } from '@supabase/supabase-js'
 
-
-// Supabase client for the application.
-export const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-
-
-// Define Google credential response type
-interface CredentialResponse {
-  credential: string
-  select_by: string
+// Type declarations for Google API
+declare global {
+  interface Window {
+    google: {
+      accounts: {
+        id: {
+          initialize: (config: any) => void;
+          renderButton: (element: HTMLElement, options: any) => void;
+          disableAutoSelect: () => void;
+          revoke: (id: string, callback: () => void) => void;
+        };
+      };
+    };
+  }
 }
 
-// Google user interface to track the user who is logged in.
-interface GoogleUser {
-  name: string
-  email: string
-  picture: string
-  sub: string // Google's user ID
-}
+// Supabase client is now imported from utils/supabase.ts
+
+
+// Using Supabase User type for consistency
 
 
 export default function Home() {
   const router = useRouter()
-  const [user, setUser] = useState<GoogleUser | null>(null)
-  const [scriptLoaded, setScriptLoaded] = useState(false)
-
-  // Parse the JWT token to get the user's information.
-  const parseJwt = (token: string) => {
-    try {
-      return JSON.parse(atob(token.split(".")[1]))
-    } catch (e) {
-      return null
-    }
-  }
-
-  // Handle credential response from Google One Tap.
-  const handleCredentialResponse = useCallback((response: CredentialResponse) => {
-    const decodedToken = parseJwt(response.credential)
-
-    if (decodedToken) {
-      const { name, email, picture, sub } = decodedToken
-      setUser({ name, email, picture, sub })
-
-      // Store in localStorage for persistence.
-      localStorage.setItem("googleUser", JSON.stringify({ name, email, picture, sub }))
-      logUser()
-      // Redirect to dashboard.
-      router.push('/dashboard')
-    }
-  }, [router])
-
-  // Initialize Google One Tap.
-  const initializeGoogleOneTap = useCallback(() => {
-    if (!window.google || !scriptLoaded) return
-
-    try {
-      window.google.accounts.id.initialize({
-        client_id: process.env.NEXT_PUBLIC_OAUTH_CLIENT_ID,
-        callback: handleCredentialResponse,
-        auto_select: false,
-        cancel_on_tap_outside: true,
-      })
-
-      window.google.accounts.id.renderButton(document.getElementById("googleOneTap")!, {
-        type: "standard",
-        theme: "outline",
-        size: "large",
-        text: "signin_with",
-        shape: "rectangular",
-        logo_alignment: "left",
-        width: 250,
-      })
-    } catch (error) {
-      console.error("Error initializing Google One Tap:", error)
-    }
-  }, [handleCredentialResponse, scriptLoaded, user])
+  const [user, setUser] = useState<User | null>(null)
 
   // Handle sign out.
-  const handleSignOut = () => {
-    if (window.google && scriptLoaded) {
-      window.google.accounts.id.disableAutoSelect()
-      window.google.accounts.id.revoke(user?.sub || "", () => {
-        setUser(null)
-        localStorage.removeItem("googleUser")
-
-      })
-    } else {
+  const handleSignOut = async () => {
+    try {
+      await supabase.auth.signOut()
       setUser(null)
-      localStorage.removeItem("googleUser")
-
+      localStorage.removeItem("supabaseUser")
+    } catch (error) {
+      console.error('Error signing out:', error)
     }
   }
 
   // Check for existing user session on mount.
   useEffect(() => {
-    const storedUser = localStorage.getItem("googleUser")
+    const storedUser = localStorage.getItem("supabaseUser")
     if (storedUser) {
       try {
         const parsedUser = JSON.parse(storedUser)
         setUser(parsedUser)
-        logUser()
-        router.push('/dashboard')
+        
+        // Push user data to user_emails table if not already there
+        const pushUserToDatabase = async () => {
+          try {
+            const { error: insertError } = await supabase
+              .from('user_emails')
+              .upsert({
+                uuid: crypto.randomUUID(),
+                user_email: parsedUser.email,
+                user_id: parsedUser.id,
+                pic_url: parsedUser.identities?.[0]?.identity_data?.avatar_url || parsedUser.identities?.[0]?.identity_data?.picture || null
+              }, {
+                onConflict: 'user_email'
+              })
+            
+            if (insertError) {
+              console.error('Error inserting user data:', insertError)
+            } else {
+            }
+          } catch (insertError) {
+            console.error('Error pushing user data to database:', insertError)
+          }
+        }
+        
+        pushUserToDatabase()
       } catch (e) {
-        localStorage.removeItem("googleUser")
+        localStorage.removeItem("supabaseUser")
       }
     }
-  }, [router])
 
-  // Log the user to the database.
-  const logUser = async () => {
-    const email = JSON.parse(localStorage.getItem("googleUser") || "{}").email
-        const sid = JSON.parse(localStorage.getItem("googleUser") || "{}").sub
-        const uuid = crypto.randomUUID()
-        const { error } = await supabase
-          .from("user_emails")
-          .upsert([{ uuid: uuid, user_email: email, user_id: sid }], {
-            onConflict: 'user_email'
-          });
-        if (error) {
-          console.log("Supabase error", error);
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (session?.user) {
+          setUser(session.user)
+          localStorage.setItem('supabaseUser', JSON.stringify(session.user))
+          
+          // Push user data to user_emails table
+          try {
+            const { error: insertError } = await supabase
+              .from('user_emails')
+              .upsert({
+                uuid: crypto.randomUUID(),
+                user_email: session.user.email,
+                user_id: session.user.id,
+                pic_url: session.user.identities?.[0]?.identity_data?.avatar_url || session.user.identities?.[0]?.identity_data?.picture || null
+              }, {
+                onConflict: 'user_email'
+              })
+            
+            if (insertError) {
+              console.error('Error inserting user data:', insertError)
+            }
+          } catch (insertError) {
+            console.error('Error pushing user data to database:', insertError)
+          }
         } else {
-          console.log("Supabase success")
+          setUser(null)
+          localStorage.removeItem('supabaseUser')
         }
-  }
+      }
+    )
 
-  // Initialize Google One Tap when script is loaded.         
-  useEffect(() => {
-    if (scriptLoaded) {
-      initializeGoogleOneTap()
-    }
-  }, [scriptLoaded, initializeGoogleOneTap])
+    return () => subscription.unsubscribe()
+  }, [])
 
   // Return the home page.
   return (
@@ -158,11 +135,6 @@ export default function Home() {
       <div className="max-w-6xl mx-auto p-6 space-y-8">
 
         <main className="space-y-8">
-          <Script
-            src="https://accounts.google.com/gsi/client"
-            onLoad={() => setScriptLoaded(true)}
-            strategy="afterInteractive"
-          />
 
           {/* Authentication banner */}
           <section className="max-w-7xl mx-auto px-6 py-16 grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
@@ -175,12 +147,12 @@ export default function Home() {
               {user ? (
                 <div className="flex items-center gap-3">
                   <div className="text-right hidden sm:block">
-                    <p className="text-teal-400 font-medium">{user.name}</p>
+                    <p className="text-teal-400 font-medium">{user.identities?.[0]?.identity_data?.full_name || user.identities?.[0]?.identity_data?.name || user.email}</p>
                     <p className="text-white/70 text-sm">{user.email}</p>
                   </div>
                   <div className="h-10 w-10 rounded-full overflow-hidden border-2 border-teal-400">
                     <Image
-                      src={user.picture || "/placeholder.svg"}
+                      src={user.identities?.[0]?.identity_data?.avatar_url || user.identities?.[0]?.identity_data?.picture || "/placeholder.svg"}
                       alt="User avatar"
                       width={40}
                       height={40}
@@ -198,7 +170,9 @@ export default function Home() {
                   </Button>
                 </div>
               ) : (
-                <div id="googleOneTap"></div>
+                <div className="text-gray-500">
+                  <OneTapComponent />
+                </div>
               )}
             </div>
             <div className="flex justify-center">

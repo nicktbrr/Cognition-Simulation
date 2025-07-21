@@ -13,8 +13,9 @@ import ActionButtons from "../components/action-buttons";
 import SimulationStatusIndicator from "../components/indicator";
 import { Button } from "../components/ui/button"
 import { LogOut } from "lucide-react"
-import { useRouter } from 'next/navigation'
 import Link from "next/link";
+import { useAuth } from "../hooks/useAuth";
+import AuthLoading from "../components/auth-loading";
 
 // Step interface to track the steps of the cognitive process.
 interface Step {
@@ -38,20 +39,21 @@ interface Edge {
 }
 
 // GoogleUser interface to track the user who is logged in.
-interface GoogleUser {
-    name: string
-    email: string
-    picture: string
-    sub: string // Google's user ID
-  }
+interface UserData {
+  user_email: string;
+  user_id: string;
+  pic_url: string;
+  name?: string; // Add optional name property
+  sub?: string; // Add optional sub property for Google ID
+}
   
 
 // Dashboard page component.
 export default function Dashboard() {
+  const { user, isLoading, isAuthenticated, signOut } = useAuth();
   const [steps, setSteps] = useState<Step[]>([]);
   const [selectedMetrics, setSelectedMetrics] = useState<any[]>([]);
   const [temperature, setTemperature] = useState<number>(50);
-  const [user, setUser] = useState<GoogleUser | null>(null);
   const [title, setTitle] = useState<string>("");
   // Add state for tracking edges
   const [edges, setEdges] = useState<Edge[]>([]);
@@ -59,8 +61,7 @@ export default function Dashboard() {
   const [simulationActive, setSimulationActive] = useState<boolean>(false);
   const [simulationComplete, setSimulationComplete] = useState<boolean>(false);
   const [hasUrls, setHasUrls] = useState(false);
-  const [scriptLoaded, setScriptLoaded] = useState(false)
-  const router = useRouter()
+  const [scriptLoaded, setScriptLoaded] = useState(false);
 
   // Update steps when they change.
   const handleStepsUpdate = (updatedSteps: Step[]) => {
@@ -110,35 +111,14 @@ export default function Dashboard() {
     alert("Steps submitted! Check console for output.");
   };
 
-  // Use effect to check if the user is logged in.
-  useEffect(() => {
-    const storedUser = localStorage.getItem("googleUser")
-    if (storedUser) {
-      try {
-        const parsedUser = JSON.parse(storedUser)
-        setUser(parsedUser)
-      } catch (e) {
-        localStorage.removeItem("googleUser")
-      }
-    }
-  }, [])
+  // Show loading state while checking authentication
+  if (isLoading) {
+    return <AuthLoading message="Loading simulation..." />;
+  }
 
-  // Handle sign out.
-  const handleSignOut = async () => {
-    if (window.google && scriptLoaded) {
-      window.google.accounts.id.disableAutoSelect()
-      window.google.accounts.id.revoke(user?.sub || "", () => {
-        setUser(null)
-        localStorage.removeItem("googleUser")
-        router.push('/')
-
-      })
-    } else {
-      setUser(null)
-      localStorage.removeItem("googleUser")
-      window.location.replace('/');      
-
-    }
+  // If not authenticated, don't render anything (will redirect)
+  if (!isAuthenticated) {
+    return null;
   }
 
   return (
@@ -157,7 +137,7 @@ export default function Dashboard() {
           variant="outline"
           size="sm"
           className="border-[#6a03ab] bg-[#6a03ab] text-white hover:bg-[#6a03abe6] hover:text-white"
-          onClick={handleSignOut}
+          onClick={signOut}
         >
           <LogOut className="h-4 w-4 mr-2" />
           Sign Out
@@ -171,7 +151,7 @@ export default function Dashboard() {
           <Link href="/dashboard">Dashboard</Link>
         </Button>
       </div>
-        <Header name={user.name} />
+        <Header name={user.name || user.user_email} />
         <CollapsibleNav />
         <main className="space-y-8">
           <CognitiveProcess

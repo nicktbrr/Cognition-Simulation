@@ -8,7 +8,9 @@ import { Button } from "../components/ui/button";
 import { Download } from "lucide-react";
 import Link from "next/link";
 import { Play } from "lucide-react";
-import { supabase } from "@/app/page";
+import { supabase } from "../utils/supabase";
+import { useAuth } from "../hooks/useAuth";
+import AuthLoading from "../components/auth-loading";
 
 interface SimulationHistoryItem {
   created_at: string; // ISO string
@@ -16,16 +18,16 @@ interface SimulationHistoryItem {
   url: string;
 }
 
-interface GoogleUser {
-  name: string;
-  email: string;
-  picture: string;
-  sub: string;
+interface UserData {
+  user_email: string;
+  user_id: string;
+  pic_url: string;
 }
 
 export default function DashboardHistory() {
+  const { user, isLoading, isAuthenticated } = useAuth();
   const [history, setHistory] = useState<SimulationHistoryItem[]>([]);
-  const [user, setUser] = useState<GoogleUser | null>(null);
+  const [userData, setUserData] = useState<UserData | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const rowsPerPage = 10;
 
@@ -35,6 +37,20 @@ export default function DashboardHistory() {
       console.error("Error fetching history:", error);
     } else {
       setHistory(data);
+    }
+  }
+
+  const getUserData = async (userId: string) => {
+    const { data, error } = await supabase
+      .from("user_emails")
+      .select("user_email, user_id, pic_url")
+      .eq("user_id", userId)
+      .single();
+    
+    if (error) {
+      console.error("Error fetching user data:", error);
+    } else {
+      setUserData(data);
     }
   }
 
@@ -61,20 +77,23 @@ export default function DashboardHistory() {
   };
 
   useEffect(() => {
-    // Get user info
-    const storedUser = localStorage.getItem("googleUser");
-    if (storedUser) {
-      try {
-        const parsedUser = JSON.parse(storedUser);
-     
-        setUser(parsedUser);
-        getHistory(parsedUser.sub || '');
-      } catch (e) {
-        setUser(null);
-      }
-
+    if (user && isAuthenticated) {
+      // Fetch user data from user_emails table
+      getUserData(user.user_id);
+      // Fetch simulation history
+      getHistory(user.user_id);
     }
-  }, []);
+  }, [user, isAuthenticated]);
+
+  // Show loading state while checking authentication
+  if (isLoading) {
+    return <AuthLoading message="Loading dashboard..." />;
+  }
+
+  // If not authenticated, don't render anything (will redirect)
+  if (!isAuthenticated) {
+    return null;
+  }
 
   // Only use real history data
   let displayHistory = history;
@@ -96,9 +115,9 @@ export default function DashboardHistory() {
           <p className="text-lg text-gray-700 text-left mb-10" style={{marginBottom: "34px"}}>Welcome back! Here's a quick overview of your recent simulation files.</p>
           <div className="flex flex-row" style={{gap: "30px"}}>
               <div>
-                <img src={user?.picture || "https://imgproxy.gamma.app/resize/quality:80/resizing_type:fit/width:2000/https://cdn.gamma.app/wbxlv1atbikacw4/generated-images/Wz20NF2uCYWA2hjxzFGwh.png"} alt="Profile" className="w-50 h-50 rounded-2xl object-cover mb-8 border-4 border-white shadow" style={{height: "335px", width: "335px"}} />
-                <h2 className="text-2xl font-bold text-[#7b61ff] mb-1">{user?.name || ""}</h2>
-                <p className="text-gray-700 mb-2">{user?.email || "john.doe@example.com"}</p>
+                <img src={userData?.pic_url || "https://imgproxy.gamma.app/resize/quality:80/resizing_type:fit/width:2000/https://cdn.gamma.app/wbxlv1atbikacw4/generated-images/Wz20NF2uCYWA2hjxzFGwh.png"} alt="Profile" className="w-50 h-50 rounded-2xl object-cover mb-8 border-4 border-white shadow" style={{height: "335px", width: "335px"}} />
+                <h2 className="text-2xl font-bold text-[#7b61ff] mb-1">{userData?.user_email?.split('@')[0] || "User"}</h2>
+                <p className="text-gray-700 mb-2">{userData?.user_email || "Loading..."}</p>
               </div>
               <div style={{marginLeft: "30px", flex: 1, position: "relative", minHeight: "500px"}}>
                 <h2 className="text-2xl font-bold text-[#7b61ff] mb-1" style={{marginBottom: "17px", marginTop: "17px"}}>Your Recent Simulations</h2>
