@@ -96,13 +96,19 @@ export default function ActionButtons({
   // Function to check progress
   const checkProgress = async (taskId: string, userId: string) => {
     try {
+      // Get the user's Supabase access token
+      const { data: { session } } = await supabase.auth.getSession();
+      const accessToken = session?.access_token;
+      if (!accessToken) {
+        throw new Error("No Supabase access token found");
+      }
       const url = prod === "development"
         ? `http://127.0.0.1:5000/api/progress?task_id=${taskId}&user_id=${userId}`
         : `https://cognition-backend-81313456654.us-west1.run.app/api/progress?task_id=${taskId}&user_id=${userId}`;
 
       const response = await fetch(url, {
         headers: {
-          ...(prod !== "development" ? { Authorization: `Bearer ${token}` } : {}),
+          Authorization: `Bearer ${accessToken}`,
         },
       });
 
@@ -296,7 +302,12 @@ export default function ActionButtons({
           console.error("Error parsing user:", e)
         }
       }
-
+      // Get the user's Supabase access token
+      const { data: { session } } = await supabase.auth.getSession();
+      const accessToken = session?.access_token;
+      if (!accessToken) {
+        throw new Error("No Supabase access token found");
+      }
       // Construct the JSON payload for the simulation
       const jsonData = {
         seed: "no-seed",
@@ -307,21 +318,17 @@ export default function ActionButtons({
         user_id: parsedUser.id,
         title: title,
       };
-
       // Define backend URL based on environment
       const url =
         prod === "development"
           ? "http://127.0.0.1:5000/api/evaluate"
           : "https://cognition-backend-81313456654.us-west1.run.app/api/evaluate";
-
       // Send the simulation request to the backend API
       const response = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(prod !== "development"
-            ? { Authorization: `Bearer ${token}` }
-            : {}),
+          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({ id: uuid, data: jsonData}),
       });

@@ -35,7 +35,7 @@ if prod == 'development':
     CORS(app, resources={
         r"/api/*": {"origins": "http://localhost:3000",
                     "methods": ["GET", "POST", "OPTIONS"],
-                    "allow_headers": ["Content-Type"]}})
+                    "allow_headers": ["Content-Type", "Authorization"]}})
 else:
     # Production CORS settings - allow Vercel deployment
     CORS(app, resources={
@@ -64,13 +64,15 @@ key_g = os.environ.get('GEMINI_KEY')
 genai.configure(api_key=key_g)
 
 
-def run_evaluation(uuid, data, key_g, url, key):
+def run_evaluation(uuid, data, key_g, url, key, jwt=None):
     fn = None  # Initialize fn variable for cleanup
     try:
         supabase: Client = create_client(url, key)
+        if jwt:
+            supabase.auth.set_session(jwt, "")
         metrics = data['metrics']
         # Update progress to 10% - Starting evaluation
-        supabase.table("download_progress").update({
+        response = supabase.table("download_progress").update({
             "progress": 10,
             "status": "processing"
         }).eq("id", uuid).execute()
@@ -156,6 +158,8 @@ def run_evaluation(uuid, data, key_g, url, key):
         }).eq("id", uuid).execute()
     except Exception as e:
         supabase: Client = create_client(url, key)
+        if jwt:
+            supabase.auth.set_session(jwt, "")
         supabase.table("download_progress").update({
             "status": "failed",
             "error_message": str(e)
@@ -173,31 +177,28 @@ class Evaluation(Resource):
     """
     def post(self):
         try:
-            # Authentication check for production environment
-            if prod != 'development':
-                auth_header = request.headers.get('Authorization')
-                if not auth_header or not auth_header.startswith("Bearer "):
-                    return jsonify({"status": "error", "message": "Missing or invalid Authorization header"}), 401
-
-                # Verify the token matches the expected GCP token
-                token = auth_header.split("Bearer ")[1]
-                if token != os.environ.get("VITE_GCP_TOKEN"):
-                    return jsonify({"status": "error", "message": "Missing or invalid Authorization header"}), 401
-
+            auth_header = request.headers.get('Authorization')
+            if not auth_header or not auth_header.startswith("Bearer "):
+                print("[DEBUG] No Authorization header or invalid format")
+                jwt = None
+            else:
+                jwt = auth_header.split("Bearer ")[1]
             uuid = request.get_json()['id']
             data = request.get_json()['data']
             supabase: Client = create_client(url, key)
+            if jwt:
+                supabase.auth.set_session(jwt, "")
             # Create progress tracking entry
             task_id = f"eval_{uuid}"
-            supabase.table("download_progress").insert({
+            response = supabase.table("download_progress").insert({
                 "id": uuid,
                 "user_id": data['user_id'],
                 "task_id": task_id,
                 "progress": 0,
                 "status": "started"
             }).execute()
-            # Start background thread for evaluation
-            thread = threading.Thread(target=run_evaluation, args=(uuid, data, key_g, url, key))
+            # Start background thread for evaluation, pass jwt
+            thread = threading.Thread(target=run_evaluation, args=(uuid, data, key_g, url, key, jwt))
             thread.start()
             # Return immediately with task_id
             return jsonify({"status": "started", "task_id": task_id})
@@ -222,6 +223,11 @@ class Progress(Resource):
             JSON response containing progress information
         """
         try:
+            auth_header = request.headers.get('Authorization')
+            if not auth_header or not auth_header.startswith("Bearer "):
+                jwt = None
+            else:
+                jwt = auth_header.split("Bearer ")[1]
             task_id = request.args.get('task_id')
             user_id = request.args.get('user_id')
             
@@ -229,10 +235,10 @@ class Progress(Resource):
                 return jsonify({"status": "error", "message": "Missing task_id or user_id"}), 400
             
             supabase: Client = create_client(url, key)
+            if jwt:
+                supabase.auth.set_session(jwt, "")
             response = supabase.table("download_progress").select(
                 "*").eq("task_id", task_id).eq("user_id", user_id).execute()
-            
-            print('response', response)
             
             if response.data:
                 progress_data = response.data[0]
