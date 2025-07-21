@@ -85,7 +85,7 @@ def create_metric_dataframes(df_response, df_gpt4, df_gemini):
         dict: Dictionary of dataframes, one for each metric
     """
     # Get the first n columns from df_response (excluding the last column)
-    response_cols = df_response.columns[:-1]
+    response_cols = df_response.columns[1:]
     
     # Create a dictionary to store metric-specific dataframes
     metric_dfs = {}
@@ -121,7 +121,7 @@ def process_row(row_idx, df_row, system_prompt, metrics_to_evaluate):
         row_idx (int): Index of the row being processed
         df_row (pd.Series): Row of data to evaluate
         system_prompt (str): System prompt for the AI models
-        metrics_to_evaluate (set): Set of additional metrics to evaluate
+        metrics_to_evaluate (list): List of metric names to evaluate
         
     Returns:
         tuple: Contains:
@@ -130,16 +130,7 @@ def process_row(row_idx, df_row, system_prompt, metrics_to_evaluate):
             - dict: Token usage statistics
     """
     # Initialize score dictionaries for both models
-    row_scores = {
-        "Clarity": [],
-        "Feasibility": [],
-        "Importance": [],
-        "Novelty": [],
-        "Fairness": [],
-        "Quality": [],
-        "Usefulness": []
-    }
-    row_scores.update({m: [] for m in metrics_to_evaluate})
+    row_scores = {metric: [] for metric in metrics_to_evaluate}
 
     # Comment out GPT-4 evaluation - keeping structure for future use
     # row_scores_gpt4 = {
@@ -244,20 +235,17 @@ def evaluate(df, key_g, metrics, steps=None):
     # Configure Gemini API
     genai.configure(api_key=key_g)
     
-    # Define standard metrics and process custom metrics
-    metrics_set = {"Clarity", "Feasibility", "Importance",
-                   "Novelty", "Fairness", "Quality", "Usefulness"}
-    metric_name = set([m["name"] for m in metrics])
+    # Use the metrics passed in (they will always be provided)
+    metrics_to_evaluate = [m["name"] for m in metrics]
     metric_description = {m["name"]: m["description"] for m in metrics}
 
-    metrics_to_evaluate = metric_name - metrics_set
 
     # Build criteria strings for the system prompt
-    criteria = ""
     criteria_description = ""
-    for i, m in enumerate(metrics_to_evaluate):
-        criteria_description += f"{i+8}. {m}: {metric_description[m]}\n"
-        criteria += f"{i+8}. {m}\n"
+    criteria_list = ""
+    for i, metric in enumerate(metrics_to_evaluate):
+        criteria_description += f"{i+1}. {metric}: {metric_description[metric]}\n"
+        criteria_list += f"{i+1}. {metric}\n"
 
     # Define the system prompt for evaluation
     system_prompt = f"""
@@ -273,13 +261,6 @@ def evaluate(df, key_g, metrics, steps=None):
 
         ## Criteria
         You will evaluate the summary on the following dimensions:
-        1. Clarity: the degree to which something has fewer possible interpretations.
-        2. Feasibility: the degree to which something is solvable, attainable, viable, or achievable.
-        3. Importance: the degree to which something is valuable, useful, or meaningful.
-        4. Novelty: the degree to which something is novel, original, or distinct.
-        5. Fairness: the degree to which something is free from bias, favoritism, or injustice.
-        6. Quality: the degree to which the content is communicated more effectively.
-        7. Usefulness: the degree to which something is useful, helpful, or valuable.
         {criteria_description}
 
         ## Scoring Rubric (1-10 Scale)
@@ -305,18 +286,11 @@ def evaluate(df, key_g, metrics, steps=None):
         - Justify the score clearly and concisely based on the analysis from STEP 1.
 
         Repeat this process for each of the following criteria:
-        1. Clarity
-        2. Feasibility
-        3. Importance
-        4. Novelty
-        5. Fairness
-        6. Quality
-        7. Usefulness
-        {criteria}
+        {criteria_list}
 
         At the end, you will present a table or list with each criterion and its corresponding score.
 """
-    
+
     # Process rows in parallel using ThreadPoolExecutor
     max_workers = 2
     results_gemini = []
