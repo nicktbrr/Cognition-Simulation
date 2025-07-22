@@ -62,6 +62,9 @@ export default function Home() {
         const parsedUser = JSON.parse(storedUser)
         setUser(parsedUser)
         
+        // Redirect to dashboard if user is already logged in
+        router.push('/dashboard')
+        
         // Push user data to user_emails table if not already there
         const pushUserToDatabase = async () => {
           try {
@@ -97,6 +100,9 @@ export default function Home() {
         if (session?.user) {
           setUser(session.user)
           localStorage.setItem('supabaseUser', JSON.stringify(session.user))
+          
+          // Redirect to dashboard when user signs in
+          router.push('/dashboard')
           
           // Push user data to user_emails table
           try {
