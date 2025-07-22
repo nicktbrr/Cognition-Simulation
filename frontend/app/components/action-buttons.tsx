@@ -191,7 +191,7 @@ export default function ActionButtons({
 
   /**
    * Validates the simulation inputs before submission.
-   * Ensures all fields are filled and no URLs are present.
+   * Ensures all fields are filled, no URLs are present, and at least one metric is selected.
    * @returns {boolean} - True if inputs are valid, false otherwise.
    */
   const validateInputs = () => {
@@ -205,8 +205,16 @@ export default function ActionButtons({
       (step) => isValidURL(step.label) || isValidURL(step.instructions)
     );
 
+    // Check if at least one metric is selected
+    const hasMetrics = metrics && metrics.length > 0;
+
     if (hasStepUrls || hasUrls) {
       alert("Please remove all URLs before submitting.");
+      return false;
+    }
+
+    if (!hasMetrics) {
+      alert("Please select at least one metric before submitting.");
       return false;
     }
 
@@ -423,7 +431,9 @@ export default function ActionButtons({
               steps.some(
                 (step) =>
                   isValidURL(step.label) || isValidURL(step.instructions)
-              )
+              ) ||
+              !metrics ||
+              metrics.length === 0
             }
             title={
               hasUrls ||
@@ -432,6 +442,8 @@ export default function ActionButtons({
                   isValidURL(step.label) || isValidURL(step.instructions)
               )
                 ? "Please remove all URLs before submitting"
+                : !metrics || metrics.length === 0
+                ? "Please select at least one metric before submitting"
                 : "Submit for simulation"
             }
           >

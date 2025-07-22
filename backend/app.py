@@ -71,6 +71,7 @@ def run_evaluation(uuid, data, key_g, url, key, jwt=None):
         if jwt:
             supabase.auth.set_session(jwt, "")
         metrics = data['metrics']
+
         # Update progress to 10% - Starting evaluation
         response = supabase.table("download_progress").update({
             "progress": 10,
