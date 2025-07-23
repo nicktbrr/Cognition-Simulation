@@ -62,8 +62,7 @@ export default function Home() {
         const parsedUser = JSON.parse(storedUser)
         setUser(parsedUser)
         
-        // Redirect to dashboard if user is already logged in
-        router.push('/dashboard')
+        // Don't redirect automatically - let user choose
         
         // Push user data to user_emails table if not already there
         const pushUserToDatabase = async () => {
@@ -101,8 +100,7 @@ export default function Home() {
           setUser(session.user)
           localStorage.setItem('supabaseUser', JSON.stringify(session.user))
           
-          // Redirect to dashboard when user signs in
-          router.push('/dashboard')
+          // Don't redirect automatically - let user choose
           
           // Push user data to user_emails table
           try {
@@ -151,28 +149,19 @@ export default function Home() {
                 of social scientific experimentation today.
               </p>
               {user ? (
-                <div className="flex items-center gap-3">
-                  <div className="text-right hidden sm:block">
-                    <p className="text-teal-400 font-medium">{user.identities?.[0]?.identity_data?.full_name || user.identities?.[0]?.identity_data?.name || user.email}</p>
-                    <p className="text-white/70 text-sm">{user.email}</p>
-                  </div>
-                  <div className="h-10 w-10 rounded-full overflow-hidden border-2 border-teal-400">
-                    <Image
-                      src={user.identities?.[0]?.identity_data?.avatar_url || user.identities?.[0]?.identity_data?.picture || "/placeholder.svg"}
-                      alt="User avatar"
-                      width={40}
-                      height={40}
-                      className="object-cover"
-                    />
-                  </div>
+                <div className="flex gap-3">
                   <Button
-                    variant="outline"
-                    size="sm"
-                    className="border-teal-400 text-teal-400 hover:bg-teal-400 hover:text-indigo-950"
-                    onClick={handleSignOut}
+                    onClick={() => router.push('/dashboard')}
+                    className="bg-gradient-to-r from-[#8302AE] to-[#6a4bc4] text-white font-bold py-3 px-6 rounded-lg shadow-md hover:from-[#6a4bc4] hover:to-[#8302AE] transition-all"
                   >
-                    <LogOut className="h-4 w-4 mr-2" />
-                    Sign Out
+                    Go to Dashboard
+                  </Button>
+                  <Button
+                    onClick={() => router.push('/simulation')}
+                    variant="outline"
+                    className="border-[#8302AE] text-[#8302AE] font-bold py-3 px-6 rounded-lg hover:bg-[#8302AE] hover:text-white transition-all"
+                  >
+                    Start New Simulation
                   </Button>
                 </div>
               ) : (
