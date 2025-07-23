@@ -9,6 +9,7 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { useRouter } from 'next/navigation'
 import Image from "next/image"
+import Link from "next/link"
 import { Button } from "@/components/ui/button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { LogOut, MousePointer, Check, Lock, Brain, Users, Laptop, LineChart, Shield, Server  } from "lucide-react"
@@ -157,25 +158,21 @@ export default function Home() {
               </p>
               {user ? (
                 <div className="flex gap-3">
-                  <Button
-                    onClick={() => {
-                      // Use replace to avoid routing issues
-                      router.push('/dashboard');
-                    }}
-                    className="bg-gradient-to-r from-[#8302AE] to-[#6a4bc4] text-white font-bold py-3 px-6 rounded-lg shadow-md hover:from-[#6a4bc4] hover:to-[#8302AE] transition-all"
-                  >
-                    Go to Dashboard
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      // Use replace to avoid routing issues
-                      router.push('/simulation');
-                    }}
-                    variant="outline"
-                    className="border-[#8302AE] text-[#8302AE] font-bold py-3 px-6 rounded-lg hover:bg-[#8302AE] hover:text-white transition-all"
-                  >
-                    Start New Simulation
-                  </Button>
+                  <Link href="/dashboard">
+                    <Button
+                      className="bg-gradient-to-r from-[#8302AE] to-[#6a4bc4] text-white font-bold py-3 px-6 rounded-lg shadow-md hover:from-[#6a4bc4] hover:to-[#8302AE] transition-all"
+                    >
+                      Go to Dashboard
+                    </Button>
+                  </Link>
+                  <Link href="/simulation">
+                    <Button
+                      variant="outline"
+                      className="border-[#8302AE] text-[#8302AE] font-bold py-3 px-6 rounded-lg hover:bg-[#8302AE] hover:text-white transition-all"
+                    >
+                      Start New Simulation
+                    </Button>
+                  </Link>
                 </div>
               ) : (
                 <div className="text-gray-500">
