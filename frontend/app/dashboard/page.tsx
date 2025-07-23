@@ -83,6 +83,8 @@ export default function DashboardHistory() {
       getUserData(user.user_id);
       // Fetch simulation history
       getHistory(user.user_id);
+
+      console.log("Dashboard: Fetching data for user:");
     }
   }, [user, isAuthenticated]);
 
