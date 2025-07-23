@@ -56,21 +56,17 @@ export default function Home() {
 
   // Check for existing user session on mount.
   useEffect(() => {
-    console.log("Home page: useEffect triggered");
-    
     const checkUser = async () => {
       try {
-        console.log("Home page: Starting session check...");
         // Get the current session from Supabase
         const { data: { session }, error } = await supabase.auth.getSession()
         
         if (error) {
-          console.error('Home page: Error getting session:', error)
+          console.error('Error getting session:', error)
           return
         }
 
         if (session?.user) {
-          console.log("Home page: Session found for user");
           setUser(session.user)
           localStorage.setItem('supabaseUser', JSON.stringify(session.user))
           
@@ -89,21 +85,17 @@ export default function Home() {
                 })
               
               if (insertError) {
-                console.error('Home page: Error inserting user data:', insertError)
-              } else {
-                console.log("Home page: User data pushed to database successfully");
+                console.error('Error inserting user data:', insertError)
               }
             } catch (insertError) {
-              console.error('Home page: Error pushing user data to database:', insertError)
+              console.error('Error pushing user data to database:', insertError)
             }
           }
           
           pushUserToDatabase()
-        } else {
-          console.log("Home page: No session found");
         }
       } catch (e) {
-        console.error('Home page: Error checking session:', e)
+        console.error('Error checking session:', e)
         localStorage.removeItem("supabaseUser")
       }
     }
@@ -113,9 +105,7 @@ export default function Home() {
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log("Home page: Auth state change:", event);
         if (session?.user) {
-          console.log("Home page: Setting user from auth state change");
           setUser(session.user)
           localStorage.setItem('supabaseUser', JSON.stringify(session.user))
           
@@ -133,15 +123,12 @@ export default function Home() {
               })
             
             if (insertError) {
-              console.error('Home page: Error inserting user data:', insertError)
-            } else {
-              console.log("Home page: User data pushed to database from auth state change");
+              console.error('Error inserting user data:', insertError)
             }
           } catch (insertError) {
-            console.error('Home page: Error pushing user data to database:', insertError)
+            console.error('Error pushing user data to database:', insertError)
           }
         } else {
-          console.log("Home page: Clearing user from auth state change");
           setUser(null)
           localStorage.removeItem('supabaseUser')
         }
@@ -172,7 +159,6 @@ export default function Home() {
                 <div className="flex gap-3">
                   <Button
                     onClick={() => {
-                      console.log("Home page: Dashboard button clicked");
                       // Use replace to avoid routing issues
                       router.replace('/dashboard');
                     }}
@@ -182,7 +168,6 @@ export default function Home() {
                   </Button>
                   <Button
                     onClick={() => {
-                      console.log("Home page: Simulation button clicked");
                       // Use replace to avoid routing issues
                       router.replace('/simulation');
                     }}
