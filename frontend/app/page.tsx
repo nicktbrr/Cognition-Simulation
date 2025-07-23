@@ -160,7 +160,7 @@ export default function Home() {
                   <Button
                     onClick={() => {
                       // Use replace to avoid routing issues
-                      router.replace('/dashboard');
+                      router.push('/dashboard');
                     }}
                     className="bg-gradient-to-r from-[#8302AE] to-[#6a4bc4] text-white font-bold py-3 px-6 rounded-lg shadow-md hover:from-[#6a4bc4] hover:to-[#8302AE] transition-all"
                   >
@@ -169,7 +169,7 @@ export default function Home() {
                   <Button
                     onClick={() => {
                       // Use replace to avoid routing issues
-                      router.replace('/simulation');
+                      router.push('/simulation');
                     }}
                     variant="outline"
                     className="border-[#8302AE] text-[#8302AE] font-bold py-3 px-6 rounded-lg hover:bg-[#8302AE] hover:text-white transition-all"
