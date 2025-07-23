@@ -85,6 +85,8 @@ export default function DashboardHistory() {
       getHistory(user.user_id);
 
       console.log("Dashboard: Fetching data for user:");
+      console.log("Dashboard: user:", userData);
+      console.log("Dashboard: history:", history);
     }
   }, [user, isAuthenticated]);
 
