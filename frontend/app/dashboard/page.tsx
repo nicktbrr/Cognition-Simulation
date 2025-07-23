@@ -25,11 +25,14 @@ interface UserData {
 }
 
 export default function DashboardHistory() {
+  console.log("Dashboard: Component rendered");
   const { user, isLoading, isAuthenticated } = useAuth();
   const [history, setHistory] = useState<SimulationHistoryItem[]>([]);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const rowsPerPage = 10;
+
+  console.log("Dashboard: useAuth state:", { isLoading, isAuthenticated, hasUser: !!user });
 
   const getHistory = async (userId: string) => {
     const { data, error } = await supabase.from("dashboard").select("created_at, name, url").eq("user_id", userId);
