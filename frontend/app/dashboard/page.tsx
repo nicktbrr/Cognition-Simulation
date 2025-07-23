@@ -77,6 +77,7 @@ export default function DashboardHistory() {
   };
 
   useEffect(() => {
+    console.log("Dashboard: useEffect triggered, user:", "isAuthenticated:", isAuthenticated);
     if (user && isAuthenticated) {
       // Fetch user data from user_emails table
       getUserData(user.user_id);
