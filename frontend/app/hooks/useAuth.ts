@@ -47,6 +47,31 @@ export function useAuth(): UseAuthReturn {
 
   useEffect(() => {
     console.log("useAuth: useEffect triggered");
+    
+    // Immediate localStorage check as first priority
+    const storedUser = localStorage.getItem("supabaseUser");
+    if (storedUser) {
+      try {
+        const parsedUser = JSON.parse(storedUser);
+        console.log("useAuth: Immediate localStorage check found user:", parsedUser.email);
+        
+        const userData: UserData = {
+          user_email: parsedUser.email || '',
+          user_id: parsedUser.id,
+          pic_url: parsedUser.identities?.[0]?.identity_data?.avatar_url || parsedUser.identities?.[0]?.identity_data?.picture || '',
+          name: parsedUser.identities?.[0]?.identity_data?.full_name || parsedUser.identities?.[0]?.identity_data?.name || parsedUser.email || ''
+        };
+        
+        setUser(userData);
+        setIsAuthenticated(true);
+        setIsLoading(false);
+        console.log("useAuth: State updated immediately from localStorage");
+        return; // Exit early if we found user in localStorage
+      } catch (e) {
+        console.error("useAuth: Error parsing immediate localStorage user:", e);
+      }
+    }
+    
     const checkAuthAndGetUser = async () => {
       
       try {
@@ -65,10 +90,11 @@ export function useAuth(): UseAuthReturn {
           
           // Check localStorage as fallback
           const storedUser = localStorage.getItem("supabaseUser");
+          console.log("useAuth: Checking localStorage, found:", !!storedUser);
           if (storedUser) {
             try {
               const parsedUser = JSON.parse(storedUser);
-              console.log("useAuth: Found user in localStorage");
+              console.log("useAuth: Found user in localStorage, email:", parsedUser.email);
               
               const userData: UserData = {
                 user_email: parsedUser.email || '',
@@ -85,6 +111,8 @@ export function useAuth(): UseAuthReturn {
             } catch (e) {
               console.error("useAuth: Error parsing localStorage user:", e);
             }
+          } else {
+            console.log("useAuth: No user found in localStorage");
           }
           
           console.log("useAuth: No session or localStorage user found, waiting for auth state change...");
