@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import Header from "../components/header";
 import CollapsibleNav from "../components/collapsible-nav";
@@ -26,7 +25,6 @@ interface UserData {
 }
 
 export default function DashboardHistory() {
-  const router = useRouter();
   const { user, isLoading, isAuthenticated } = useAuth();
   const [history, setHistory] = useState<SimulationHistoryItem[]>([]);
   const [userData, setUserData] = useState<UserData | null>(null);
@@ -80,6 +78,7 @@ export default function DashboardHistory() {
   };
 
   useEffect(() => {
+    console.log("Dashboard: useEffect triggered, user:", "isAuthenticated:", isAuthenticated);
     if (user && isAuthenticated) {
       // Fetch user data from user_emails table
       getUserData(user.user_id);
@@ -87,27 +86,6 @@ export default function DashboardHistory() {
       getHistory(user.user_id);
     }
   }, [user, isAuthenticated]);
-
-  // Force refresh on navigation to ensure data is loaded
-  useEffect(() => {
-    const handleRouteChange = () => {
-      if (window.location.pathname === '/dashboard') {
-        window.location.reload();
-      }
-    };
-
-    // Listen for route changes
-    window.addEventListener('popstate', handleRouteChange);
-    
-    // Force refresh on initial load if coming from navigation
-    if (document.referrer && document.referrer.includes(window.location.origin)) {
-      window.location.reload();
-    }
-
-    return () => {
-      window.removeEventListener('popstate', handleRouteChange);
-    };
-  }, []);
 
   // Show loading state while checking authentication
   if (isLoading) {
