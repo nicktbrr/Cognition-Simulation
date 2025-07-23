@@ -56,51 +56,68 @@ export default function Home() {
 
   // Check for existing user session on mount.
   useEffect(() => {
-    const storedUser = localStorage.getItem("supabaseUser")
-    if (storedUser) {
+    console.log("Home page: useEffect triggered");
+    
+    const checkUser = async () => {
       try {
-        const parsedUser = JSON.parse(storedUser)
-        setUser(parsedUser)
+        console.log("Home page: Starting session check...");
+        // Get the current session from Supabase
+        const { data: { session }, error } = await supabase.auth.getSession()
         
-        // Don't redirect automatically - let user choose
-        
-        // Push user data to user_emails table if not already there
-        const pushUserToDatabase = async () => {
-          try {
-            const { error: insertError } = await supabase
-              .from('user_emails')
-              .upsert({
-                uuid: crypto.randomUUID(),
-                user_email: parsedUser.email,
-                user_id: parsedUser.id,
-                pic_url: parsedUser.identities?.[0]?.identity_data?.avatar_url || parsedUser.identities?.[0]?.identity_data?.picture || null
-              }, {
-                onConflict: 'user_email'
-              })
-            
-            if (insertError) {
-              console.error('Error inserting user data:', insertError)
-            } else {
-            }
-          } catch (insertError) {
-            console.error('Error pushing user data to database:', insertError)
-          }
+        if (error) {
+          console.error('Home page: Error getting session:', error)
+          return
         }
-        
-        pushUserToDatabase()
+
+        if (session?.user) {
+          console.log("Home page: Session found for user");
+          setUser(session.user)
+          localStorage.setItem('supabaseUser', JSON.stringify(session.user))
+          
+          // Push user data to user_emails table if not already there
+          const pushUserToDatabase = async () => {
+            try {
+              const { error: insertError } = await supabase
+                .from('user_emails')
+                .upsert({
+                  uuid: crypto.randomUUID(),
+                  user_email: session.user.email,
+                  user_id: session.user.id,
+                  pic_url: session.user.identities?.[0]?.identity_data?.avatar_url || session.user.identities?.[0]?.identity_data?.picture || null
+                }, {
+                  onConflict: 'user_email'
+                })
+              
+              if (insertError) {
+                console.error('Home page: Error inserting user data:', insertError)
+              } else {
+                console.log("Home page: User data pushed to database successfully");
+              }
+            } catch (insertError) {
+              console.error('Home page: Error pushing user data to database:', insertError)
+            }
+          }
+          
+          pushUserToDatabase()
+        } else {
+          console.log("Home page: No session found");
+        }
       } catch (e) {
+        console.error('Home page: Error checking session:', e)
         localStorage.removeItem("supabaseUser")
       }
     }
+    
+    checkUser()
 
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log("Home page: Auth state change:", event);
         if (session?.user) {
+          console.log("Home page: Setting user from auth state change");
           setUser(session.user)
           localStorage.setItem('supabaseUser', JSON.stringify(session.user))
-          
-          // Don't redirect automatically - let user choose
           
           // Push user data to user_emails table
           try {
@@ -116,12 +133,15 @@ export default function Home() {
               })
             
             if (insertError) {
-              console.error('Error inserting user data:', insertError)
+              console.error('Home page: Error inserting user data:', insertError)
+            } else {
+              console.log("Home page: User data pushed to database from auth state change");
             }
           } catch (insertError) {
-            console.error('Error pushing user data to database:', insertError)
+            console.error('Home page: Error pushing user data to database:', insertError)
           }
         } else {
+          console.log("Home page: Clearing user from auth state change");
           setUser(null)
           localStorage.removeItem('supabaseUser')
         }
@@ -151,13 +171,21 @@ export default function Home() {
               {user ? (
                 <div className="flex gap-3">
                   <Button
-                    onClick={() => router.push('/dashboard')}
+                    onClick={() => {
+                      console.log("Home page: Dashboard button clicked");
+                      // Use replace to avoid routing issues
+                      router.replace('/dashboard');
+                    }}
                     className="bg-gradient-to-r from-[#8302AE] to-[#6a4bc4] text-white font-bold py-3 px-6 rounded-lg shadow-md hover:from-[#6a4bc4] hover:to-[#8302AE] transition-all"
                   >
                     Go to Dashboard
                   </Button>
                   <Button
-                    onClick={() => router.push('/simulation')}
+                    onClick={() => {
+                      console.log("Home page: Simulation button clicked");
+                      // Use replace to avoid routing issues
+                      router.replace('/simulation');
+                    }}
                     variant="outline"
                     className="border-[#8302AE] text-[#8302AE] font-bold py-3 px-6 rounded-lg hover:bg-[#8302AE] hover:text-white transition-all"
                   >

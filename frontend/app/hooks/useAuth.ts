@@ -22,6 +22,8 @@ export function useAuth(): UseAuthReturn {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const router = useRouter();
 
+  console.log("useAuth: Hook initialized, current state:", { isLoading, isAuthenticated, hasUser: !!user });
+
   const signOut = async () => {
     try {
       const { error } = await supabase.auth.signOut();
@@ -44,29 +46,59 @@ export function useAuth(): UseAuthReturn {
   };
 
   useEffect(() => {
+    console.log("useAuth: useEffect triggered");
     const checkAuthAndGetUser = async () => {
       
       try {
+        console.log("useAuth: Starting session check...");
         // Get current session
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         
         if (sessionError) {
-          console.error("Error getting session:", sessionError);
+          console.error("useAuth: Error getting session:", sessionError);
           setIsLoading(false);
           return;
         }
 
         if (!session) {
-          console.log("useAuth: No session found, waiting for auth state change...");
+          console.log("useAuth: No session found, checking localStorage...");
+          
+          // Check localStorage as fallback
+          const storedUser = localStorage.getItem("supabaseUser");
+          if (storedUser) {
+            try {
+              const parsedUser = JSON.parse(storedUser);
+              console.log("useAuth: Found user in localStorage");
+              
+              const userData: UserData = {
+                user_email: parsedUser.email || '',
+                user_id: parsedUser.id,
+                pic_url: parsedUser.identities?.[0]?.identity_data?.avatar_url || parsedUser.identities?.[0]?.identity_data?.picture || '',
+                name: parsedUser.identities?.[0]?.identity_data?.full_name || parsedUser.identities?.[0]?.identity_data?.name || parsedUser.email || ''
+              };
+              
+              setUser(userData);
+              setIsAuthenticated(true);
+              setIsLoading(false);
+              console.log("useAuth: State updated from localStorage");
+              return;
+            } catch (e) {
+              console.error("useAuth: Error parsing localStorage user:", e);
+            }
+          }
+          
+          console.log("useAuth: No session or localStorage user found, waiting for auth state change...");
           // Don't redirect immediately, wait for auth state change
           return;
         }
+
+        console.log("useAuth: Session found for user");
 
         // Get current user
         const { data: { user }, error: userError } = await supabase.auth.getUser();
         
         if (userError) {
-          console.error("Error getting user:", userError);
+          console.error("useAuth: Error getting user:", userError);
           setIsLoading(false);
           return;
         }
@@ -76,6 +108,8 @@ export function useAuth(): UseAuthReturn {
           setIsLoading(false);
           return;
         }
+
+        console.log("useAuth: User authenticated, setting state...");
 
         // User is authenticated, set user data
         const userData: UserData = {
@@ -88,8 +122,9 @@ export function useAuth(): UseAuthReturn {
         setUser(userData);
         setIsAuthenticated(true);
         setIsLoading(false);
+        console.log("useAuth: State updated successfully from session check");
       } catch (error) {
-        console.error("Authentication check failed:", error);
+        console.error("useAuth: Authentication check failed:", error);
         setIsLoading(false);
       }
     };
@@ -97,8 +132,8 @@ export function useAuth(): UseAuthReturn {
     // Also listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log("useAuth: Auth state change:", event, session?.user?.email);
-        if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
+        console.log("useAuth: Auth state change:", event);
+        if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') && session?.user) {
           console.log("useAuth: User authenticated, updating state...");
           const userData: UserData = {
             user_email: session.user.email || '',
@@ -122,15 +157,23 @@ export function useAuth(): UseAuthReturn {
 
     checkAuthAndGetUser();
 
-    // Add a timeout to handle cases where auth state change doesn't happen
-    const timeoutId = setTimeout(() => {
-      console.log("useAuth: Timeout reached, checking session again...");
+    // Add multiple retries to handle timing issues
+    const retryInterval = setInterval(() => {
+      console.log("useAuth: Retrying session check...");
       checkAuthAndGetUser();
-    }, 2000);
+    }, 500);
+
+    // Clear retry after 5 seconds
+    const timeoutId = setTimeout(() => {
+      console.log("useAuth: Clearing retry interval");
+      clearInterval(retryInterval);
+      setIsLoading(false);
+    }, 5000);
 
     return () => {
       subscription.unsubscribe();
       clearTimeout(timeoutId);
+      clearInterval(retryInterval);
     };
   }, [router]);
 
