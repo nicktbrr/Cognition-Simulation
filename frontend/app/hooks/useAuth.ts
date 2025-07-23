@@ -57,8 +57,8 @@ export function useAuth(): UseAuthReturn {
         }
 
         if (!session) {
-          setIsLoading(false);
-          router.push('/');
+          console.log("useAuth: No session found, waiting for auth state change...");
+          // Don't redirect immediately, wait for auth state change
           return;
         }
 
@@ -68,13 +68,12 @@ export function useAuth(): UseAuthReturn {
         if (userError) {
           console.error("Error getting user:", userError);
           setIsLoading(false);
-          router.push('/');
           return;
         }
 
         if (!user) {
+          console.log("useAuth: No user found");
           setIsLoading(false);
-          router.push('/');
           return;
         }
 
@@ -92,11 +91,47 @@ export function useAuth(): UseAuthReturn {
       } catch (error) {
         console.error("Authentication check failed:", error);
         setIsLoading(false);
-        router.push('/');
       }
     };
 
+    // Also listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log("useAuth: Auth state change:", event, session?.user?.email);
+        if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
+          console.log("useAuth: User authenticated, updating state...");
+          const userData: UserData = {
+            user_email: session.user.email || '',
+            user_id: session.user.id,
+            pic_url: session.user.identities?.[0]?.identity_data?.avatar_url || session.user.identities?.[0]?.identity_data?.picture || '',
+            name: session.user.identities?.[0]?.identity_data?.full_name || session.user.identities?.[0]?.identity_data?.name || session.user.email || ''
+          };
+          setUser(userData);
+          setIsAuthenticated(true);
+          setIsLoading(false);
+          console.log("useAuth: State updated successfully");
+        } else if (event === 'SIGNED_OUT') {
+          console.log("useAuth: User signed out");
+          setUser(null);
+          setIsAuthenticated(false);
+          setIsLoading(false);
+          router.push('/');
+        }
+      }
+    );
+
     checkAuthAndGetUser();
+
+    // Add a timeout to handle cases where auth state change doesn't happen
+    const timeoutId = setTimeout(() => {
+      console.log("useAuth: Timeout reached, checking session again...");
+      checkAuthAndGetUser();
+    }, 2000);
+
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timeoutId);
+    };
   }, [router]);
 
   return {
