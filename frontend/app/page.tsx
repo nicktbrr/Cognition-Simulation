@@ -159,11 +159,11 @@ export default function Home() {
               {user ? (
                 <div className="flex gap-3">
                   <Link href="/dashboard">
-                    <Button
+                    <button
                       className="bg-gradient-to-r from-[#8302AE] to-[#6a4bc4] text-white font-bold py-3 px-6 rounded-lg shadow-md hover:from-[#6a4bc4] hover:to-[#8302AE] transition-all"
                     >
                       Go to Dashboard
-                    </Button>
+                    </button>
                   </Link>
                   <Link href="/simulation">
                     <Button
