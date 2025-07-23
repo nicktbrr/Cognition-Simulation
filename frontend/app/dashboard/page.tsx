@@ -104,6 +104,8 @@ export default function DashboardHistory() {
     return null;
   }
 
+
+
   // Only use real history data
   let displayHistory = history;
 
