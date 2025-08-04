@@ -215,7 +215,7 @@ export default function DashboardHistory() {
                     </button>
                   </div>
                 )}
-                <div style={{ position: "absolute", bottom: "0px" }}>
+                <div style={{ position: "absolute", bottom: "-30px" }}>
                   <Link href="/simulation">
                     <button
                       className="bg-gradient-to-r from-[#7b61ff] to-[#6a82fb] text-white font-bold py-3 px-8 rounded-full shadow-md text-lg hover:from-[#5a41c8] hover:to-[#7b61ff] transition-all"
