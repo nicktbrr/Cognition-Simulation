@@ -22,8 +22,6 @@ export function useAuth(): UseAuthReturn {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const router = useRouter();
 
-
-
   const signOut = async () => {
     try {
       const { error } = await supabase.auth.signOut();
@@ -46,102 +44,87 @@ export function useAuth(): UseAuthReturn {
   };
 
   useEffect(() => {
-    // Immediate localStorage check as first priority
-    const storedUser = localStorage.getItem("supabaseUser");
-    if (storedUser) {
-      try {
-        const parsedUser = JSON.parse(storedUser);
-        
-        const userData: UserData = {
-          user_email: parsedUser.email || '',
-          user_id: parsedUser.id,
-          pic_url: parsedUser.identities?.[0]?.identity_data?.avatar_url || parsedUser.identities?.[0]?.identity_data?.picture || '',
-          name: parsedUser.identities?.[0]?.identity_data?.full_name || parsedUser.identities?.[0]?.identity_data?.name || parsedUser.email || ''
-        };
-        
-        setUser(userData);
-        setIsAuthenticated(true);
-        setIsLoading(false);
-        return; // Exit early if we found user in localStorage
-      } catch (e) {
-        console.error("Error parsing immediate localStorage user:", e);
-      }
-    }
+    let isMounted = true;
     
-    const checkAuthAndGetUser = async () => {
+    const initializeAuth = async () => {
+      console.log('useAuth: Initializing authentication...');
       
       try {
-        // Get current session
+        // First, try to get user from localStorage immediately
+        const storedUser = localStorage.getItem("supabaseUser");
+        if (storedUser) {
+          console.log('useAuth: Found user in localStorage');
+          try {
+            const parsedUser = JSON.parse(storedUser);
+            
+            const userData: UserData = {
+              user_email: parsedUser.email || '',
+              user_id: parsedUser.id,
+              pic_url: parsedUser.identities?.[0]?.identity_data?.avatar_url || parsedUser.identities?.[0]?.identity_data?.picture || '',
+              name: parsedUser.identities?.[0]?.identity_data?.full_name || parsedUser.identities?.[0]?.identity_data?.name || parsedUser.email || ''
+            };
+            
+            if (isMounted) {
+              console.log('useAuth: Setting user from localStorage:', userData);
+              setUser(userData);
+              setIsAuthenticated(true);
+              setIsLoading(false);
+            }
+          } catch (e) {
+            console.error("Error parsing localStorage user:", e);
+          }
+        }
+
+        // Then check Supabase session
+        console.log('useAuth: Checking Supabase session...');
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         
         if (sessionError) {
           console.error("Error getting session:", sessionError);
-          setIsLoading(false);
-          return;
-        }
-
-        if (!session) {
-          // Check localStorage as fallback
-          const storedUser = localStorage.getItem("supabaseUser");
-          if (storedUser) {
-            try {
-              const parsedUser = JSON.parse(storedUser);
-              
-              const userData: UserData = {
-                user_email: parsedUser.email || '',
-                user_id: parsedUser.id,
-                pic_url: parsedUser.identities?.[0]?.identity_data?.avatar_url || parsedUser.identities?.[0]?.identity_data?.picture || '',
-                name: parsedUser.identities?.[0]?.identity_data?.full_name || parsedUser.identities?.[0]?.identity_data?.name || parsedUser.email || ''
-              };
-              
-              setUser(userData);
-              setIsAuthenticated(true);
-              setIsLoading(false);
-              return;
-            } catch (e) {
-              console.error("Error parsing localStorage user:", e);
-            }
+          if (isMounted) {
+            setIsLoading(false);
           }
+          return;
+        }
+
+        if (session?.user) {
+          console.log('useAuth: Found user in Supabase session');
+          const userData: UserData = {
+            user_email: session.user.email || '',
+            user_id: session.user.id,
+            pic_url: session.user.identities?.[0]?.identity_data?.avatar_url || session.user.identities?.[0]?.identity_data?.picture || '',
+            name: session.user.identities?.[0]?.identity_data?.full_name || session.user.identities?.[0]?.identity_data?.name || session.user.email || ''
+          };
           
-          // Don't redirect immediately, wait for auth state change
-          return;
+          if (isMounted) {
+            console.log('useAuth: Setting user from Supabase session:', userData);
+            setUser(userData);
+            setIsAuthenticated(true);
+            setIsLoading(false);
+          }
+        } else {
+          console.log('useAuth: No Supabase session found');
+          // No session found, check if we have localStorage data
+          if (!storedUser && isMounted) {
+            setIsLoading(false);
+          }
         }
-
-        // Get current user
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
-        
-        if (userError) {
-          console.error("Error getting user:", userError);
-          setIsLoading(false);
-          return;
-        }
-
-        if (!user) {
-          setIsLoading(false);
-          return;
-        }
-
-        // User is authenticated, set user data
-        const userData: UserData = {
-          user_email: user.email || '',
-          user_id: user.id,
-          pic_url: user.identities?.[0]?.identity_data?.avatar_url || user.identities?.[0]?.identity_data?.picture || '',
-          name: user.identities?.[0]?.identity_data?.full_name || user.identities?.[0]?.identity_data?.name || user.email || ''
-        };
-        
-        setUser(userData);
-        setIsAuthenticated(true);
-        setIsLoading(false);
       } catch (error) {
-        console.error("Authentication check failed:", error);
-        setIsLoading(false);
+        console.error("Authentication initialization failed:", error);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     };
 
-    // Also listen for auth state changes
+    // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log('useAuth: Auth state change event:', event);
+        if (!isMounted) return;
+        
         if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') && session?.user) {
+          console.log('useAuth: User signed in via auth state change');
           const userData: UserData = {
             user_email: session.user.email || '',
             user_id: session.user.id,
@@ -152,6 +135,7 @@ export function useAuth(): UseAuthReturn {
           setIsAuthenticated(true);
           setIsLoading(false);
         } else if (event === 'SIGNED_OUT') {
+          console.log('useAuth: User signed out');
           setUser(null);
           setIsAuthenticated(false);
           setIsLoading(false);
@@ -160,23 +144,13 @@ export function useAuth(): UseAuthReturn {
       }
     );
 
-    checkAuthAndGetUser();
+    // Initialize auth
+    initializeAuth();
 
-    // Add multiple retries to handle timing issues
-    const retryInterval = setInterval(() => {
-      checkAuthAndGetUser();
-    }, 500);
-
-    // Clear retry after 5 seconds
-    const timeoutId = setTimeout(() => {
-      clearInterval(retryInterval);
-      setIsLoading(false);
-    }, 5000);
-
+    // Cleanup function
     return () => {
+      isMounted = false;
       subscription.unsubscribe();
-      clearTimeout(timeoutId);
-      clearInterval(retryInterval);
     };
   }, [router]);
 

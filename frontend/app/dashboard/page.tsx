@@ -32,15 +32,18 @@ export default function DashboardHistory() {
   const rowsPerPage = 10;
 
   const getHistory = async (userId: string) => {
+    console.log('Dashboard: Fetching history for user:');
     const { data, error } = await supabase.from("dashboard").select("created_at, name, url").eq("user_id", userId);
     if (error) {
       console.error("Error fetching history:", error);
     } else {
+      console.log('Dashboard: History fetched successfully:');
       setHistory(data);
     }
   }
 
   const getUserData = async (userId: string) => {
+    console.log('Dashboard: Fetching user data for user:');
     const { data, error } = await supabase
       .from("user_emails")
       .select("user_email, user_id, pic_url")
@@ -50,6 +53,7 @@ export default function DashboardHistory() {
     if (error) {
       console.error("Error fetching user data:", error);
     } else {
+      console.log('Dashboard: User data fetched successfully:');
       await setUserData(data);
     }
   }
@@ -77,12 +81,15 @@ export default function DashboardHistory() {
   };
 
   useEffect(() => {
-    console.log("Dashboard: useEffect triggered, user:", "isAuthenticated:", isAuthenticated);
+    console.log("Dashboard: useEffect triggered, user:", user, "isAuthenticated:", isAuthenticated);
     if (user && isAuthenticated) {
+      console.log("Dashboard: User is authenticated, fetching data...");
       // Fetch user data from user_emails table
       getUserData(user.user_id);
       // Fetch simulation history
       getHistory(user.user_id);
+    } else {
+      console.log("Dashboard: User not authenticated or user data not available");
     }
   }, [user, isAuthenticated]);
 

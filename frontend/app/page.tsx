@@ -16,7 +16,7 @@ import { LogOut, MousePointer, Check, Lock, Brain, Users, Laptop, LineChart, Shi
 import { Card, CardContent } from "@/components/ui/card"
 import OneTapComponent from "./components/onetap"
 import { supabase } from "./utils/supabase"
-import type { User } from '@supabase/supabase-js'
+import { useAuth } from "./hooks/useAuth"
 
 // Type declarations for Google API
 declare global {
@@ -34,110 +34,42 @@ declare global {
   }
 }
 
-// Supabase client is now imported from utils/supabase.ts
-
-
-// Using Supabase User type for consistency
-
-
 export default function Home() {
   const router = useRouter()
-  const [user, setUser] = useState<User | null>(null)
+  const { user, isLoading, isAuthenticated, signOut } = useAuth()
 
   // Handle sign out.
   const handleSignOut = async () => {
-    try {
-      await supabase.auth.signOut()
-      setUser(null)
-      localStorage.removeItem("supabaseUser")
-    } catch (error) {
-      console.error('Error signing out:', error)
-    }
+    await signOut()
   }
 
-  // Check for existing user session on mount.
+  // Push user data to user_emails table when user is authenticated
   useEffect(() => {
-    const checkUser = async () => {
-      try {
-        // Get the current session from Supabase
-        const { data: { session }, error } = await supabase.auth.getSession()
-        
-        if (error) {
-          console.error('Error getting session:', error)
-          return
-        }
-
-        if (session?.user) {
-          setUser(session.user)
-          localStorage.setItem('supabaseUser', JSON.stringify(session.user))
+    const pushUserToDatabase = async () => {
+      if (user && isAuthenticated) {
+        try {
+          const { error: insertError } = await supabase
+            .from('user_emails')
+            .upsert({
+              uuid: crypto.randomUUID(),
+              user_email: user.user_email,
+              user_id: user.user_id,
+              pic_url: user.pic_url
+            }, {
+              onConflict: 'user_email'
+            })
           
-          // Push user data to user_emails table if not already there
-          const pushUserToDatabase = async () => {
-            try {
-              const { error: insertError } = await supabase
-                .from('user_emails')
-                .upsert({
-                  uuid: crypto.randomUUID(),
-                  user_email: session.user.email,
-                  user_id: session.user.id,
-                  pic_url: session.user.identities?.[0]?.identity_data?.avatar_url || session.user.identities?.[0]?.identity_data?.picture || null
-                }, {
-                  onConflict: 'user_email'
-                })
-              
-              if (insertError) {
-                console.error('Error inserting user data:', insertError)
-              }
-            } catch (insertError) {
-              console.error('Error pushing user data to database:', insertError)
-            }
+          if (insertError) {
+            console.error('Error inserting user data:', insertError)
           }
-          
-          pushUserToDatabase()
+        } catch (insertError) {
+          console.error('Error pushing user data to database:', insertError)
         }
-      } catch (e) {
-        console.error('Error checking session:', e)
-        localStorage.removeItem("supabaseUser")
       }
     }
     
-    checkUser()
-
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (session?.user) {
-          setUser(session.user)
-          localStorage.setItem('supabaseUser', JSON.stringify(session.user))
-          
-          // Push user data to user_emails table
-          try {
-            const { error: insertError } = await supabase
-              .from('user_emails')
-              .upsert({
-                uuid: crypto.randomUUID(),
-                user_email: session.user.email,
-                user_id: session.user.id,
-                pic_url: session.user.identities?.[0]?.identity_data?.avatar_url || session.user.identities?.[0]?.identity_data?.picture || null
-              }, {
-                onConflict: 'user_email'
-              })
-            
-            if (insertError) {
-              console.error('Error inserting user data:', insertError)
-            }
-          } catch (insertError) {
-            console.error('Error pushing user data to database:', insertError)
-          }
-        } else {
-          setUser(null)
-          localStorage.removeItem('supabaseUser')
-        }
-      }
-    )
-
-    return () => subscription.unsubscribe()
-  }, [])
+    pushUserToDatabase()
+  }, [user, isAuthenticated])
 
   // Return the home page.
   return (
@@ -156,7 +88,7 @@ export default function Home() {
                 Your gateway to cutting-edge cognitive simulations powered by artificial intelligence. Experience the future
                 of social scientific experimentation today.
               </p>
-              {user ? (
+              {isAuthenticated && user ? (
                 <div className="flex gap-3">
                   <Link href="/dashboard">
                     <button
