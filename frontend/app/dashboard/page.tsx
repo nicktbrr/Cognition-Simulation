@@ -51,7 +51,6 @@ export default function DashboardHistory() {
       console.error("Error fetching user data:", error);
     } else {
       await setUserData(data);
-      console.log("Dashboard: User data received:", data);
     }
   }
 
