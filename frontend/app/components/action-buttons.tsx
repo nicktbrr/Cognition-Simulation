@@ -49,6 +49,7 @@ interface ActionButtonsProps {
   setSimulationActive: (active: boolean) => void;
   hasUrls: boolean;
   title: string;
+  onProgressUpdate: (progress: ProgressData | null) => void;
 }
 
 /**
@@ -65,6 +66,7 @@ export default function ActionButtons({
   setSimulationActive,
   hasUrls,
   title,
+  onProgressUpdate,
 }: ActionButtonsProps) {
   // State for managing UI during processing
   const [isProcessing, setIsProcessing] = useState(false);
@@ -116,6 +118,7 @@ export default function ActionButtons({
         const data = await response.json();
         if (data.status === "success") {
           setProgress(data.progress);
+          onProgressUpdate(data.progress);
           // If completed or failed, clear taskId to stop polling
           if (data.progress.status === 'completed' || data.progress.status === 'failed') {
             setTaskId(null);
@@ -234,7 +237,19 @@ export default function ActionButtons({
     setIsProcessing(true);
     setLoading(true);
     setSimulationActive(true);
-    setProgress(null);
+    
+    // Create initial progress object at 0% to show immediately
+    const initialProgress: ProgressData = {
+      id: crypto.randomUUID(),
+      user_id: '',
+      task_id: '',
+      progress: 0,
+      status: 'started',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    setProgress(initialProgress);
+    onProgressUpdate(initialProgress);
 
     try {
       // Prepare data for Supabase
@@ -356,6 +371,8 @@ export default function ActionButtons({
       setSimulationActive(false);
       setIsProcessing(false);
       setLoading(false);
+      setProgress(null);
+      onProgressUpdate(null);
       alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
@@ -378,29 +395,6 @@ export default function ActionButtons({
     <section className="space-y-4">
       <h2 className="text-xl font-bold">3. Submit and Download Data</h2>
 
-      {/* Progress indicator */}
-      {progress && (
-        <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-blue-700 font-medium">
-              {progress.status === 'started' && 'Starting simulation...'}
-              {progress.status === 'processing' && 'Processing simulation...'}
-              {progress.status === 'completed' && 'Simulation completed!'}
-              {progress.status === 'failed' && 'Simulation failed'}
-            </span>
-            <span className="text-blue-600">{progress.progress}%</span>
-          </div>
-          <div className="w-full bg-blue-200 rounded-full h-2">
-            <div 
-              className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-              style={{ width: `${progress.progress}%` }}
-            ></div>
-          </div>
-          {progress.status === 'failed' && progress.error_message && (
-            <p className="text-red-600 text-sm mt-2">{progress.error_message}</p>
-          )}
-        </div>
-      )}
 
       {/* Display a warning if any input contains a URL */}
       {(hasUrls ||

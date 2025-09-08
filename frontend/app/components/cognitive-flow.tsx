@@ -12,13 +12,16 @@ import React from "react";
 import { useCallback, useEffect, useRef, useMemo, useState } from "react";
 
 // Import the necessary icons from Lucide.
-import { Trash2, GripVertical, LockIcon, Plus, AlertCircle } from "lucide-react";
+import { Trash2, GripVertical, LockIcon, Plus, AlertCircle, HelpCircle } from "lucide-react";
 
 // Import the Button component from the UI library.
 import { Button } from "@/components/ui/button";
 
 // Import the Slider component from the UI library.
 import { Slider } from "@/components/ui/slider";
+
+// Import the Tooltip components from the UI library.
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // Import the ReactFlow component from the XYFlow library.
 import {
@@ -73,10 +76,12 @@ const StepsContext = React.createContext<{
     field: keyof Step,
     value: string | number
   ) => void;
+  saveAllStates: () => void;
   disabled?: boolean;
 }>({
   steps: [],
   updateStepData: () => {},
+  saveAllStates: () => {},
   disabled: false,
 });
 // StepNode component - optimized to reduce updates
@@ -128,6 +133,36 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
     [data.stepId, updateStepData, disabled]
   );
 
+  // Listen for global save events
+  useEffect(() => {
+    const handleSaveEvent = (event: CustomEvent) => {
+      if (event.detail.stepId === data.stepId) {
+        // Save current local states if they have changed
+        if (localLabel !== (currentStep?.label ?? "")) {
+          handleUpdate("label", localLabel);
+        }
+        if (localInstructions !== (currentStep?.instructions ?? "")) {
+          handleUpdate("instructions", localInstructions);
+        }
+        if (localTemperature !== (currentStep?.temperature ?? 0)) {
+          console.log(`Saving temperature for step ${data.stepId}: ${localTemperature} (was: ${currentStep?.temperature ?? 0})`);
+          handleUpdate("temperature", localTemperature);
+        }
+      }
+    };
+
+    // Add event listener to the node container
+    const nodeElement = document.querySelector(`[data-id="${data.stepId}"]`);
+    if (nodeElement) {
+      nodeElement.addEventListener('saveNodeState', handleSaveEvent as EventListener);
+      
+      return () => {
+        nodeElement.removeEventListener('saveNodeState', handleSaveEvent as EventListener);
+      };
+    }
+  }, [data.stepId, localLabel, localInstructions, localTemperature, currentStep, handleUpdate]);
+
+
   // Is simulation active / disabled?
   const isDisabled = disabled || data.disabled;
 
@@ -157,15 +192,14 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
             <input
               type="text"
               placeholder="[Add Label]"
-              className="w-full text-sm border rounded p-2 text-primary"
+              className="w-full text-sm border rounded p-2 text-primary pr-12"
               value={localLabel}
-              maxLength={20}
+              maxLength={250}
               onChange={(e) => {
                 if (isDisabled) return;
                 const newValue = e.target.value;
                 setLocalLabel(newValue);
               }}
-              onBlur={() => handleUpdate("label", localLabel)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.currentTarget.blur();
@@ -173,6 +207,9 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
               }}
               disabled={isDisabled}
             />
+            <div className="absolute top-2 right-2 text-xs text-muted-foreground">
+              {localLabel.length}/250
+            </div>
           </div>
           <div className="relative">
             <textarea
@@ -185,7 +222,6 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
                 const newValue = e.target.value;
                 setLocalInstructions(newValue);
               }}
-              onBlur={() => handleUpdate("instructions", localInstructions)}
               disabled={isDisabled}
             />
             <div className="absolute bottom-2 right-2 text-xs text-muted-foreground">
@@ -193,7 +229,21 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
             </div>
           </div>
           <div className="space-y-1">
-            <div className="text-sm">Temperature: {localTemperature}</div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm">Temperature: {localTemperature}</span>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="max-w-xs text-xs">
+                      Controls randomness in AI responses. Lower values (0-30) produce more focused, deterministic outputs. Higher values (70-100) generate more creative, varied responses. Moderate values (30-70) balance consistency with creativity.
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
             <Slider
               defaultValue={[localTemperature]}
               max={100}
@@ -201,7 +251,6 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
               onValueChange={([value]) => {
                 if (isDisabled) return;
                 setLocalTemperature(value);
-                handleUpdate("temperature", value);
               }}
               disabled={isDisabled}
             />
@@ -498,22 +547,28 @@ function Flow({
       return [];
     }
 
-    return localSteps.map((step, index) => ({
-      id: step.id.toString(),
-      type: "stepNode",
-      position: { x: index * 600, y: 100 },
-      data: {
-        stepId: step.id,
-        label: step.label,
-        instructions: step.instructions,
-        temperature: step.temperature,
-        updateStep: updateStepData,
-        deleteStep,
-        disabled,
-      },
-      connectable: !disabled,
-      draggable: !disabled,
-    }));
+    return localSteps.map((step, index) => {
+      // Use stored position if available, otherwise use default position
+      const storedPosition = nodePositionsRef.current[step.id.toString()];
+      const defaultPosition = { x: index * 600, y: 100 };
+      
+      return {
+        id: step.id.toString(),
+        type: "stepNode",
+        position: storedPosition || defaultPosition,
+        data: {
+          stepId: step.id,
+          label: step.label,
+          instructions: step.instructions,
+          temperature: step.temperature,
+          updateStep: updateStepData,
+          deleteStep,
+          disabled,
+        },
+        connectable: !disabled,
+        draggable: !disabled,
+      };
+    });
   }, [localSteps, updateStepData, deleteStep, disabled]);
 
   // Sync derived nodes to ReactFlow state
@@ -652,14 +707,36 @@ function Flow({
     setTimeout(() => fitView({ padding: 0.2 }), 100);
   }, [fitView]);
 
+  // Global save function that saves all pending changes
+  const saveAllStates = useCallback(() => {
+    if (disabled) return;
+    
+    console.log('saveAllStates called - dispatching save events to all nodes');
+    
+    // Force save all current local states by triggering updates
+    // This will be called when the user clicks outside the flow
+    localSteps.forEach(step => {
+      // Find the node element and trigger any pending saves
+      const nodeElement = document.querySelector(`[data-id="${step.id}"]`);
+      if (nodeElement) {
+        // Trigger a custom event that nodes can listen to
+        const saveEvent = new CustomEvent('saveNodeState', { 
+          detail: { stepId: step.id } 
+        });
+        nodeElement.dispatchEvent(saveEvent);
+      }
+    });
+  }, [disabled, localSteps]);
+
   // Context value
   const stepsContextValue = useMemo(
     () => ({
       steps: localSteps,
       updateStepData,
+      saveAllStates,
       disabled,
     }),
-    [localSteps, updateStepData, disabled]
+    [localSteps, updateStepData, saveAllStates, disabled]
   );
 
   const incompleteSteps = localSteps.filter(
@@ -678,6 +755,14 @@ function Flow({
           left: isFullscreen ? 0 : "auto",
           zIndex: isFullscreen ? 50 : "auto",
           background: "white"
+        }}
+        onBlur={(e) => {
+          // Only trigger if the blur is not going to another element within the flow
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+            console.log('Flow container lost focus - saving all states');
+            // Save all states when focus leaves the flow container
+            saveAllStates();
+          }
         }}
       >
         {/* Controls */}
@@ -757,8 +842,8 @@ function Flow({
               gap: "8px",
             }}
           >
-            <LockIcon className="w-4 h-4" />
-            Flow editing is locked during simulation
+            {/* <LockIcon className="w-4 h-4" />
+            Flow editing is locked during simulation */}
           </div>
         )}
 
@@ -803,7 +888,19 @@ function Flow({
           nodesDraggable={!disabled}
           nodesConnectable={false}
           edgesReconnectable={false}
-          elementsSelectable={false}
+          elementsSelectable={true}
+          selectNodesOnDrag={false}
+          onNodeDragStart={() => {}}
+          onNodeDrag={() => {}}
+          onNodeDragStop={() => {}}
+          onPaneClick={() => {
+            // Save all states when clicking on empty pane
+            // Trigger blur on all active form elements to save their states
+            const activeElement = document.activeElement as HTMLElement;
+            if (activeElement && typeof activeElement.blur === 'function') {
+              activeElement.blur();
+            }
+          }}
         >
           <Background color="#aaa" gap={16} />
           <Controls />

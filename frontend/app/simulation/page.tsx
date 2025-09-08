@@ -10,7 +10,7 @@ import CollapsibleNav from "../components/collapsible-nav";
 import CognitiveProcess from "../components/cognitive-process";
 import EvaluationCriteria from "../components/evaluation-criteria";
 import ActionButtons from "../components/action-buttons";
-import SimulationStatusIndicator from "../components/indicator";
+import ProgressBanner from "../components/progress-banner";
 import { Button } from "../components/ui/button"
 import { LogOut } from "lucide-react"
 import Link from "next/link";
@@ -46,6 +46,18 @@ interface UserData {
   name?: string; // Add optional name property
   sub?: string; // Add optional sub property for Google ID
 }
+
+// Progress data interface
+interface ProgressData {
+  id: string;
+  user_id: string;
+  task_id: string;
+  progress: number;
+  status: 'started' | 'processing' | 'completed' | 'failed';
+  error_message?: string;
+  created_at: string;
+  updated_at: string;
+}
   
 
 // Dashboard page component.
@@ -59,9 +71,10 @@ export default function Dashboard() {
   const [edges, setEdges] = useState<Edge[]>([]);
 
   const [simulationActive, setSimulationActive] = useState<boolean>(false);
-  const [simulationComplete, setSimulationComplete] = useState<boolean>(false);
   const [hasUrls, setHasUrls] = useState(false);
   const [scriptLoaded, setScriptLoaded] = useState(false);
+  const [progress, setProgress] = useState<ProgressData | null>(null);
+  const [showProgressBanner, setShowProgressBanner] = useState(false);
 
   // Update steps when they change.
   const handleStepsUpdate = (updatedSteps: Step[]) => {
@@ -91,6 +104,18 @@ export default function Dashboard() {
   // Update title when it changes.
   const handleTitleChange = (newTitle: string) => {
     setTitle(newTitle);
+  };
+
+  // Handle progress updates from ActionButtons
+  const handleProgressUpdate = (newProgress: ProgressData | null) => {
+    setProgress(newProgress);
+    setShowProgressBanner(newProgress !== null);
+  };
+
+  // Handle closing the progress banner
+  const handleCloseProgressBanner = () => {
+    setShowProgressBanner(false);
+    setProgress(null);
   };
 
   // When the submit button is pressed, log and alert the data.
@@ -126,12 +151,12 @@ export default function Dashboard() {
     {/* If the user is logged in, display the dashboard. */}
     {user ? (
         <>
-      <SimulationStatusIndicator
-        isActive={simulationActive}
-        isSuccess={simulationComplete}
-        message={simulationComplete ? `Your ${title} simulation is complete. You may now download the simulated data.` : undefined}
+      <ProgressBanner
+        progress={progress}
+        isVisible={showProgressBanner}
+        onClose={handleCloseProgressBanner}
       />
-      <div className="max-w-6xl mx-auto p-6 space-y-8">
+      <div className={`max-w-6xl mx-auto p-6 space-y-8 ${showProgressBanner ? 'pt-28' : ''}`}>
       <div className="flex gap-2">
         <Button
           variant="outline"
@@ -172,13 +197,10 @@ export default function Dashboard() {
             steps={steps}
             metrics={selectedMetrics}
             edges={edges}
-            setSimulationActive={(active) => {
-              setSimulationActive(active);
-              if (!active) setSimulationComplete(true);
-              else setSimulationComplete(false);
-            }}
+            setSimulationActive={setSimulationActive}
             hasUrls={hasUrls}
             title={title}
+            onProgressUpdate={handleProgressUpdate}
           />
         </main>
         </div>
