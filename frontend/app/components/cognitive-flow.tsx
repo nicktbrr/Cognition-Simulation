@@ -144,6 +144,9 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
         if (localInstructions !== (currentStep?.instructions ?? "")) {
           handleUpdate("instructions", localInstructions);
         }
+        if (localTemperature !== (currentStep?.temperature ?? 0)) {
+          handleUpdate("temperature", localTemperature);
+        }
       }
     };
 
@@ -247,7 +250,6 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
               onValueChange={([value]) => {
                 if (isDisabled) return;
                 setLocalTemperature(value);
-                handleUpdate("temperature", value);
               }}
               disabled={isDisabled}
             />
