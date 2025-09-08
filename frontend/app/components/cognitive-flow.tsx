@@ -160,9 +160,9 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
             <input
               type="text"
               placeholder="[Add Label]"
-              className="w-full text-sm border rounded p-2 text-primary"
+              className="w-full text-sm border rounded p-2 text-primary pr-12"
               value={localLabel}
-              maxLength={20}
+              maxLength={250}
               onChange={(e) => {
                 if (isDisabled) return;
                 const newValue = e.target.value;
@@ -176,6 +176,9 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
               }}
               disabled={isDisabled}
             />
+            <div className="absolute top-2 right-2 text-xs text-muted-foreground">
+              {localLabel.length}/250
+            </div>
           </div>
           <div className="relative">
             <textarea
