@@ -15,6 +15,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { LogOut, MousePointer, Check, Lock, Brain, Users, Laptop, LineChart, Shield, Server  } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import OneTapComponent from "./components/onetap"
+import AzureSignInComponent from "./components/azure-signin"
 import { supabase } from "./utils/supabase"
 import { useAuth } from "./hooks/useAuth"
 
@@ -107,8 +108,14 @@ export default function Home() {
                   </Link>
                 </div>
               ) : (
-                <div className="text-gray-500">
-                  <OneTapComponent />
+                <div className="space-y-4">
+                  <div className="text-gray-500">
+                    <OneTapComponent />
+                  </div>
+                  <div className="text-center text-gray-400 text-sm">or</div>
+                  <div className="text-gray-500">
+                    <AzureSignInComponent />
+                  </div>
                 </div>
               )}
             </div>
