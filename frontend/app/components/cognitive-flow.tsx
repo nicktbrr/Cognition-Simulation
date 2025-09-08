@@ -12,13 +12,16 @@ import React from "react";
 import { useCallback, useEffect, useRef, useMemo, useState } from "react";
 
 // Import the necessary icons from Lucide.
-import { Trash2, GripVertical, LockIcon, Plus, AlertCircle } from "lucide-react";
+import { Trash2, GripVertical, LockIcon, Plus, AlertCircle, HelpCircle } from "lucide-react";
 
 // Import the Button component from the UI library.
 import { Button } from "@/components/ui/button";
 
 // Import the Slider component from the UI library.
 import { Slider } from "@/components/ui/slider";
+
+// Import the Tooltip components from the UI library.
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // Import the ReactFlow component from the XYFlow library.
 import {
@@ -193,7 +196,21 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
             </div>
           </div>
           <div className="space-y-1">
-            <div className="text-sm">Temperature: {localTemperature}</div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm">Temperature: {localTemperature}</span>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="max-w-xs text-xs">
+                      Controls randomness in AI responses. Lower values (0-30) produce more focused, deterministic outputs. Higher values (70-100) generate more creative, varied responses. Moderate values (30-70) balance consistency with creativity.
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
             <Slider
               defaultValue={[localTemperature]}
               max={100}
