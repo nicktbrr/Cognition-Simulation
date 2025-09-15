@@ -1,216 +1,205 @@
 "use client";
 
-// Dashboard page for the application.
-// It displays the main components of the application.
-// It is used in the app/dashboard/page.tsx file.
-
-import { useState, useEffect } from "react";
-import Header from "../components/header";
-import CollapsibleNav from "../components/collapsible-nav";
-import CognitiveProcess from "../components/cognitive-process";
-import EvaluationCriteria from "../components/evaluation-criteria";
-import ActionButtons from "../components/action-buttons";
-import ProgressBanner from "../components/progress-banner";
-import { Button } from "../components/ui/button"
-import { LogOut } from "lucide-react"
-import Link from "next/link";
+import React, { useEffect, useState } from "react";
+import { Save, Download, RotateCcw, RotateCw, HelpCircle, Sparkles } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { supabase } from "../utils/supabase";
 import { useAuth } from "../hooks/useAuth";
 import AuthLoading from "../components/auth-loading";
+import AppLayout from "../components/layout/AppLayout";
+import SubHeader from "../components/layout/SubHeader";
 
-// Step interface to track the steps of the cognitive process.
-interface Step {
-  id: number;
-  label: string;
-  instructions: string;
-  temperature: number;
-}
-
-// Edge interface to track connections between steps.
-// Define an Edge interface to track connections
-interface Edge {
-  id: string;
-  source: string;
-  sourceHandle?: string;
-  target: string;
-  targetHandle?: string;
-  animated?: boolean;
-  style?: any;
-  markerEnd?: any;
-}
-
-// GoogleUser interface to track the user who is logged in.
 interface UserData {
   user_email: string;
   user_id: string;
   pic_url: string;
-  name?: string; // Add optional name property
-  sub?: string; // Add optional sub property for Google ID
 }
 
-// Progress data interface
-interface ProgressData {
-  id: string;
-  user_id: string;
-  task_id: string;
-  progress: number;
-  status: 'started' | 'processing' | 'completed' | 'failed';
-  error_message?: string;
-  created_at: string;
-  updated_at: string;
-}
-  
+export default function SimulationPage() {
+  const { user, isLoading, isAuthenticated } = useAuth();
+  const [userData, setUserData] = useState<UserData | null>(null);
+  const [processDescription, setProcessDescription] = useState("");
+  const [selectedSample, setSelectedSample] = useState("");
 
-// Dashboard page component.
-export default function Dashboard() {
-  const { user, isLoading, isAuthenticated, signOut } = useAuth();
-  const [steps, setSteps] = useState<Step[]>([]);
-  const [selectedMetrics, setSelectedMetrics] = useState<any[]>([]);
-  const [temperature, setTemperature] = useState<number>(50);
-  const [title, setTitle] = useState<string>("");
-  // Add state for tracking edges
-  const [edges, setEdges] = useState<Edge[]>([]);
+  const getUserData = async (userId: string) => {
+    const { data, error } = await supabase
+      .from("user_emails")
+      .select("user_email, user_id, pic_url")
+      .eq("user_id", userId)
+      .single();
 
-  const [simulationActive, setSimulationActive] = useState<boolean>(false);
-  const [hasUrls, setHasUrls] = useState(false);
-  const [scriptLoaded, setScriptLoaded] = useState(false);
-  const [progress, setProgress] = useState<ProgressData | null>(null);
-  const [showProgressBanner, setShowProgressBanner] = useState(false);
-
-  // Update steps when they change.
-  const handleStepsUpdate = (updatedSteps: Step[]) => {
-    setSteps(updatedSteps);
+    if (error) {
+      console.error("Error fetching user data:", error);
+    } else {
+      setUserData(data);
+    }
   };
 
-  // Update selected evaluation criteria (metrics).
-  const handleMetricsUpdate = (metrics: any[]) => {
-    setSelectedMetrics(metrics);
+  const handleGenerateSteps = () => {
+    console.log("Generate Steps clicked with:", processDescription);
   };
 
-  // Update global temperature when changed.
-  const handleTemperatureChange = (newTemperature: number) => {
-    setTemperature(newTemperature);
+  const handleSaveDraft = () => {
+    console.log("Save Draft clicked");
   };
 
-  // Add handler for edge updates.
-  const handleEdgesUpdate = (updatedEdges: Edge[]) => {
-    setEdges(updatedEdges);
+  const handleSubmitSimulation = () => {
+    console.log("Submit for Simulation clicked");
   };
 
-  // Add handler for URL detection.
-  const handleUrlDetection = (detected: boolean) => {
-    setHasUrls(detected);
-  };
+  useEffect(() => {
+    if (user && isAuthenticated) {
+      getUserData(user.user_id);
+    }
+  }, [user, isAuthenticated]);
 
-  // Update title when it changes.
-  const handleTitleChange = (newTitle: string) => {
-    setTitle(newTitle);
-  };
-
-  // Handle progress updates from ActionButtons
-  const handleProgressUpdate = (newProgress: ProgressData | null) => {
-    setProgress(newProgress);
-    setShowProgressBanner(newProgress !== null);
-  };
-
-  // Handle closing the progress banner
-  const handleCloseProgressBanner = () => {
-    setShowProgressBanner(false);
-    setProgress(null);
-  };
-
-  // When the submit button is pressed, log and alert the data.
-  const handleSubmit = () => {
-    // Create a map of step connections for easier understanding.
-    const connections = edges.map((edge) => ({
-      from:
-        steps.find((step) => step.id.toString() === edge.source)?.label ||
-        edge.source,
-      to:
-        steps.find((step) => step.id.toString() === edge.target)?.label ||
-        edge.target,
-    }));
-
-    // Create the Excel filename with the title.
-    const excelFilename = `cogsim_${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.xlsx`;
-
-    alert("Steps submitted! Check console for output.");
-  };
-
-  // Show loading state while checking authentication
   if (isLoading) {
     return <AuthLoading message="Loading simulation..." />;
   }
 
-  // If not authenticated, don't render anything (will redirect)
   if (!isAuthenticated) {
     return null;
   }
 
   return (
-    <>
-    {/* If the user is logged in, display the dashboard. */}
-    {user ? (
-        <>
-      <ProgressBanner
-        progress={progress}
-        isVisible={showProgressBanner}
-        onClose={handleCloseProgressBanner}
-      />
-      <div className={`max-w-6xl mx-auto p-6 space-y-8 ${showProgressBanner ? 'pt-28' : ''}`}>
-      <div className="flex gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          className="border-[#6a03ab] bg-[#6a03ab] text-white hover:bg-[#6a03abe6] hover:text-white"
-          onClick={signOut}
-        >
-          <LogOut className="h-4 w-4 mr-2" />
-          Sign Out
-        </Button>
-        <Button
-          asChild
-          variant="outline"
-          size="sm"
-          className="border-[#6a03ab] bg-[#6a03ab] text-white hover:bg-[#6a03abe6] hover:text-white"
-        >
-          <Link href="/dashboard">Dashboard</Link>
-        </Button>
-      </div>
-        <Header name={user.name || user.user_email} />
-        <CollapsibleNav />
-        <main className="space-y-8">
-          <CognitiveProcess
-            onStepsChange={handleStepsUpdate}
-            onTemperatureChange={handleTemperatureChange}
-            edges={edges}
-            onEdgesChange={handleEdgesUpdate}
-            simulationActive={simulationActive}
-            onTitleChange={handleTitleChange}
-          />
-          <EvaluationCriteria
-            onMetricsChange={handleMetricsUpdate}
-            simulationActive={simulationActive}
-            onUrlDetected={handleUrlDetection}
-          />
-          <ActionButtons
-            onSubmit={handleSubmit}
-            steps={steps}
-            metrics={selectedMetrics}
-            edges={edges}
-            setSimulationActive={setSimulationActive}
-            hasUrls={hasUrls}
-            title={title}
-            onProgressUpdate={handleProgressUpdate}
-          />
-        </main>
+    <AppLayout 
+      currentPage="simulation" 
+      headerTitle="Simulation Whiteboard"
+      userData={userData}
+    >
+      <SubHeader
+        title="Simulation Whiteboard"
+        description="Design and visualize your simulation flow"
+      >
+        <div className="flex items-center gap-3">
+          <Button 
+            onClick={handleSaveDraft}
+            variant="outline"
+            className="flex items-center gap-2"
+          >
+            <Save className="w-4 h-4" />
+            Save Draft
+          </Button>
+          <Button 
+            onClick={handleSubmitSimulation}
+            className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2"
+          >
+            <Download className="w-4 h-4" />
+            Submit for Simulation
+          </Button>
         </div>
-        </>
-    ) : (
-      // If the user is not logged in, display a message to sign in.
-      <div>
-        <h1>Please sign in to continue</h1>
+      </SubHeader>
+
+      <div className="flex h-full">
+        {/* Left Sidebar - Tools */}
+        <div className="w-56 bg-white border-r border-gray-200 p-4 space-y-6">
+          {/* Tools Section */}
+          <div>
+            <h3 className="text-sm font-semibold text-blue-600 mb-3">Tools</h3>
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <div className="w-20 h-8 bg-blue-500 rounded flex items-center justify-center text-white text-xs font-medium">
+                  Step
+                </div>
+                <div className="w-20 h-8 bg-gray-200 rounded flex items-center justify-center text-gray-700 text-xs">
+                  Connection
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Colors Section */}
+          <div>
+            <h3 className="text-sm font-semibold text-gray-700 mb-3">Colors</h3>
+            <div className="grid grid-cols-4 gap-2">
+              <div className="w-6 h-6 bg-blue-500 rounded cursor-pointer"></div>
+              <div className="w-6 h-6 bg-red-500 rounded cursor-pointer"></div>
+              <div className="w-6 h-6 bg-green-500 rounded cursor-pointer"></div>
+              <div className="w-6 h-6 bg-yellow-500 rounded cursor-pointer"></div>
+              <div className="w-6 h-6 bg-purple-500 rounded cursor-pointer"></div>
+              <div className="w-6 h-6 bg-pink-500 rounded cursor-pointer"></div>
+              <div className="w-6 h-6 bg-gray-500 rounded cursor-pointer"></div>
+              <div className="w-6 h-6 bg-black rounded cursor-pointer"></div>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="space-y-2">
+            <Button variant="outline" className="w-full text-xs">
+              Clear All
+            </Button>
+            <div className="flex gap-1">
+              <Button variant="outline" size="sm" className="flex-1 p-1">
+                <RotateCcw className="w-3 h-3" />
+              </Button>
+              <Button variant="outline" size="sm" className="flex-1 p-1">
+                <RotateCw className="w-3 h-3" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Pick Sample Section */}
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <h3 className="text-sm font-semibold text-gray-700">Pick your sample</h3>
+              <HelpCircle className="w-3 h-3 text-gray-400" />
+            </div>
+            <select 
+              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded text-sm"
+              value={selectedSample}
+              onChange={(e) => setSelectedSample(e.target.value)}
+            >
+              <option value="">Select a sample</option>
+              <option value="sample1">Sample 1</option>
+              <option value="sample2">Sample 2</option>
+              <option value="sample3">Sample 3</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Main Content Area */}
+        <div className="flex-1 flex flex-col">
+          {/* Process Description Section */}
+          <div className="bg-gray-50 p-6 border-b border-gray-200">
+            <div className="max-w-4xl">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                Enter a description of your process
+              </h3>
+              <div className="flex gap-4 items-end">
+                <div className="flex-1">
+                  <textarea
+                    placeholder="Describe the process you want to simulate..."
+                    value={processDescription}
+                    onChange={(e) => setProcessDescription(e.target.value)}
+                    className="w-full h-24 px-4 py-3 bg-white border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <Button 
+                  onClick={handleGenerateSteps}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 h-auto flex items-center gap-2"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Generate Steps
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Whiteboard Canvas Area */}
+          <div className="flex-1 bg-white relative overflow-hidden">
+            <div className="absolute inset-0 bg-gray-50">
+              {/* This would be the canvas/drawing area */}
+              <div className="flex items-center justify-center h-full text-gray-400">
+                <div className="text-center">
+                  <div className="text-6xl mb-4">🎨</div>
+                  <p className="text-lg">Design your simulation flow</p>
+                  <p className="text-sm mt-2">Use the tools on the left to create steps and connections</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-    )}
-    </>
+    </AppLayout>
   );
 }

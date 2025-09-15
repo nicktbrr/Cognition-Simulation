@@ -1,22 +1,17 @@
-// Header component for the dashboard page.
-// It displays a welcome message and a description of the platform.
-// It also displays the name of the user who is logged in.
-// It is used in the dashboard page.
+// Temporary header component for simulation page
+// TODO: Refactor simulation page to use AppLayout structure
 
-export default function Header({ name }: { name: string }) {
+import React from "react";
+
+export default function Header() {
   return (
-    <header className="text-center space-y-4">
-      <h1 className="text-4xl font-bold">Welcome {name}!</h1>
-      <h1 className="text-4xl font-bold">Simulating Human Cognition with AI</h1>
-      <p className="text-muted-foreground max-w-4xl mx-auto">
-        This platform offers an interactive tool for researchers to design their own cognitive processes and collect
-        performance metrics. Below, you can (1) add sequence of inputs and outputs, (2) simulate the process with an
-        LLM, and (3) download the raw data and metrics to assess quality, accuracy, and effectiveness. With subtle
-        variations in design, researchers can conduct simulated experiments of cognitive processes, allowing for
-        repeatable experiments that others can test and build upon. Together, we can advance a new science on human
-        cognition.
-      </p>
-    </header>
-  )
+    <div className="bg-white border-b border-gray-200 px-8 py-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Cognitive Simulation</h1>
+          <p className="text-gray-600 mt-1">Build and configure your cognitive simulation models</p>
+        </div>
+      </div>
+    </div>
+  );
 }
-
