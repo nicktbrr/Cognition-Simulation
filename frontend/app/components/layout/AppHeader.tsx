@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { ChevronDown, User, Settings, LogOut } from "lucide-react";
-import { supabase } from "../../utils/supabase";
+import { useAuth } from "../../hooks/useAuth";
 
 interface UserData {
   user_email: string;
@@ -17,12 +17,10 @@ interface AppHeaderProps {
 
 export default function AppHeader({ title, userData }: AppHeaderProps) {
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const { signOut } = useAuth();
 
   const handleSignOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      console.error("Error signing out:", error);
-    }
+    await signOut();
   };
 
   // Close dropdown when clicking outside
