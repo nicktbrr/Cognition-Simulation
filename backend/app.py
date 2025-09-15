@@ -18,6 +18,7 @@ from utils.cosine_sim import *
 from utils.prompts import *
 from utils.evaluate import *
 import threading
+import uuid
 
 
 # Load environment variables from .env file
@@ -59,51 +60,57 @@ key: str = os.environ.get("VITE_SUPABASE_KEY")
 env_path = Path('.') / '.env'
 load_dotenv(dotenv_path=env_path)
 
+# Function to create a Supabase client with optional JWT authentication
+def get_supabase_client(jwt=None):
+    """
+    Create a Supabase client instance with optional JWT authentication.
+    This ensures each request gets its own client to avoid concurrency issues.
+    """
+    client = create_client(url, key)
+    if jwt:
+        client.auth.set_session(jwt, "")
+    return client
+
 # Configure Google Gemini API
 key_g = os.environ.get('GEMINI_KEY')
 genai.configure(api_key=key_g)
 
 
-def run_evaluation(uuid, data, key_g, url, key, jwt=None):
+def run_evaluation(uuid, data, key_g, jwt=None):
     fn = None  # Initialize fn variable for cleanup
     try:
-        supabase: Client = create_client(url, key)
-        if jwt:
-            supabase.auth.set_session(jwt, "")
+        # Create a new Supabase client for this request
+        supabase = get_supabase_client(jwt)
         metrics = data['metrics']
 
         # Update progress to 10% - Starting evaluation
-        response = supabase.table("download_progress").update({
+        response = supabase.table("experiments").update({
             "progress": 10,
-            "status": "processing"
-        }).eq("id", uuid).execute()
+        }).eq("experiment_id", uuid).execute()
 
         # Generate baseline prompt and get token usage
         df, prompt_tokens = baseline_prompt(data, key_g)
 
         # Update progress to 30% - Baseline prompt generated
-        supabase.table("download_progress").update({
+        supabase.table("experiments").update({
             "progress": 30,
-            "status": "processing"
-        }).eq("id", uuid).execute()
+        }).eq("experiment_id", uuid).execute()
 
         # Evaluate responses and get token usage
         fn, eval_tokens = evaluate(df, key_g, metrics, data['steps'])
         
         # Update progress to 60% - Evaluation completed
-        supabase.table("download_progress").update({
+        supabase.table("experiments").update({
             "progress": 60,
-            "status": "processing"
-        }).eq("id", uuid).execute()
+        }).eq("experiment_id", uuid).execute()
 
         df = df.replace('\n', '', regex=True)
         sim_matrix = create_sim_matrix(df)
         
         # Update progress to 80% - Similarity matrix created
-        supabase.table("download_progress").update({
+        supabase.table("experiments").update({
             "progress": 80,
-            "status": "processing"
-        }).eq("id", uuid).execute()
+        }).eq("experiment_id", uuid).execute()
         
         # Calculate total token usage for prompts
         # total_prompt_input_token = sum(token_dict['prompt_tokens'] for token_dict in prompt_tokens)
@@ -139,10 +146,9 @@ def run_evaluation(uuid, data, key_g, url, key, jwt=None):
         sim_matrix['public_url'] = public_url
 
         # Update progress to 90% - File uploaded
-        supabase.table("download_progress").update({
+        supabase.table("experiments").update({
             "progress": 90,
-            "status": "processing"
-        }).eq("id", uuid).execute()
+        }).eq("experiment_id", uuid).execute()
 
         response = supabase.table("dashboard").insert({
             "id": uuid,
@@ -153,18 +159,17 @@ def run_evaluation(uuid, data, key_g, url, key, jwt=None):
         }).execute()
 
         # Update progress to 100% - Completed
-        supabase.table("download_progress").update({
+        supabase.table("experiments").update({
             "progress": 100,
-            "status": "completed"
-        }).eq("id", uuid).execute()
+            "status": "Completed"
+        }).eq("experiment_id", uuid).execute()
     except Exception as e:
-        supabase: Client = create_client(url, key)
-        if jwt:
-            supabase.auth.set_session(jwt, "")
-        supabase.table("download_progress").update({
-            "status": "failed",
+        # Create a new Supabase client for error handling
+        supabase = get_supabase_client(jwt)
+        supabase.table("experiments").update({
+            "status": "Failed",
             "error_message": str(e)
-        }).eq("id", uuid).execute()
+        }).eq("experiment_id", uuid).execute()
         # Clean up temporary file
         try:
             if fn and os.path.exists(fn):
@@ -184,25 +189,31 @@ class Evaluation(Resource):
                 jwt = None
             else:
                 jwt = auth_header.split("Bearer ")[1]
-            uuid = request.get_json()['id']
-            data = request.get_json()['data']
-            supabase: Client = create_client(url, key)
-            if jwt:
-                supabase.auth.set_session(jwt, "")
-            # Create progress tracking entry
-            task_id = f"eval_{uuid}"
-            response = supabase.table("download_progress").insert({
-                "id": uuid,
-                "user_id": data['user_id'],
-                "task_id": task_id,
-                "progress": 0,
-                "status": "started"
+
+            experiment_uuid = str(uuid.uuid4())
+            experiment_data = request.get_json()['data']
+            sim_name = experiment_data['title']
+            sample_name = "test_sample"
+            status = "Running"
+
+            print("experiment_uuid", experiment_uuid)
+
+            # Create a new Supabase client for this request
+            supabase = get_supabase_client(jwt)
+            response = supabase.table("experiments").insert({
+                "experiment_id": experiment_uuid,
+                "simulation_name": sim_name,
+                "sample_name": sample_name,
+                "status": status,
+                "experiment_data": experiment_data
+
             }).execute()
+
             # Start background thread for evaluation, pass jwt
-            thread = threading.Thread(target=run_evaluation, args=(uuid, data, key_g, url, key, jwt))
+            thread = threading.Thread(target=run_evaluation, args=(experiment_uuid, experiment_data, key_g, jwt))
             thread.start()
-            # Return immediately with task_id
-            return jsonify({"status": "started", "task_id": task_id})
+            # Return immediately with experiment_id
+            return jsonify({"status": "started", "experiment_id": experiment_uuid})
         except Exception as e:
             return jsonify({"status": "error", "message": str(e)})
 
@@ -231,15 +242,19 @@ class Progress(Resource):
                 jwt = auth_header.split("Bearer ")[1]
             task_id = request.args.get('task_id')
             user_id = request.args.get('user_id')
+
+            print("task_id", task_id)
+            print("user_id", user_id)
             
             if not task_id or not user_id:
                 return jsonify({"status": "error", "message": "Missing task_id or user_id"}), 400
             
-            supabase: Client = create_client(url, key)
-            if jwt:
-                supabase.auth.set_session(jwt, "")
-            response = supabase.table("download_progress").select(
-                "*").eq("task_id", task_id).eq("user_id", user_id).execute()
+            # Create a new Supabase client for this request
+            supabase = get_supabase_client(jwt)
+            response = supabase.table("experiments").select(
+                "*").eq("experiment_id", task_id).execute()
+
+            print(response)
             
             if response.data:
                 progress_data = response.data[0]
