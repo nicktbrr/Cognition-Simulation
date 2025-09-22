@@ -292,7 +292,7 @@ def evaluate(df, key_g, metrics, steps=None):
 """
 
     # Process rows in parallel using ThreadPoolExecutor
-    max_workers = 2
+    max_workers = 4
     results_gemini = []
     results_gpt4 = []
     tokens_ls = []
