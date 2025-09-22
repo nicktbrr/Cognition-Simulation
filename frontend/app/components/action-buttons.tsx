@@ -31,13 +31,10 @@ interface Edge {
 // Add progress interface
 interface ProgressData {
   id: string;
-  user_id: string;
   task_id: string;
   progress: number;
-  status: 'started' | 'processing' | 'completed' | 'failed';
+  status: 'Running' | 'Completed' | 'Failed';
   error_message?: string;
-  created_at: string;
-  updated_at: string;
 }
 
 // Define props for the ActionButtons component
@@ -241,12 +238,9 @@ export default function ActionButtons({
     // Create initial progress object at 0% to show immediately
     const initialProgress: ProgressData = {
       id: crypto.randomUUID(),
-      user_id: '',
       task_id: '',
       progress: 0,
-      status: 'started',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      status: 'Running',
     };
     setProgress(initialProgress);
     onProgressUpdate(initialProgress);
@@ -359,7 +353,7 @@ export default function ActionButtons({
       const result = await response.json();
       
       if (result.status === "started") {
-        setTaskId(result.task_id); // This will trigger polling
+        setTaskId(result.experiment_id); // This will trigger polling
         // Don't set download URL yet - it will be available when progress is completed
         setIsDisabled(true); // Keep disabled until completion
       } else {
