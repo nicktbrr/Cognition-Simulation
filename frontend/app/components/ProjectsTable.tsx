@@ -139,7 +139,7 @@ export default function ProjectsTable({ projects, onDownload }: ProjectsTablePro
               <React.Fragment key={index}>
                 <tr className="hover:bg-gray-50">
                   <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-between">
                       <button 
                         onClick={() => toggleRowExpansion(index)}
                         className="flex items-center gap-2 text-left"
@@ -159,6 +159,7 @@ export default function ProjectsTable({ projects, onDownload }: ProjectsTablePro
                         isOpen={projectDropdowns.has(index)}
                         onToggle={() => toggleProjectDropdown(index)}
                         position={index >= sortedProjects.length - 2 ? 'top' : 'bottom'}
+                        onRename={() => console.log('Rename', project.name)}
                         onReplicate={() => console.log('Replicate', project.name)}
                         onModify={() => console.log('Modify', project.name)}
                       />

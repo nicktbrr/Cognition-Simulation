@@ -39,20 +39,25 @@ export default function Modal({ isOpen, onClose, title, children }: ModalProps) 
       />
       
       {/* Modal */}
-      <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+      <div className="relative bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        {/* Header with Close Button */}
+        <div className="flex items-start justify-between p-6 pb-4">
+          <div className="flex-1">
+            <h2 className="text-2xl font-semibold text-blue-600 mb-2">{title}</h2>
+            <p className="text-gray-600 text-sm">
+              Define a performance measure for your simulation project.
+            </p>
+          </div>
           <button
             onClick={onClose}
-            className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+            className="ml-4 p-1 hover:bg-gray-100 rounded-full transition-colors flex-shrink-0"
           >
             <X className="w-5 h-5 text-gray-500" />
           </button>
         </div>
         
         {/* Content */}
-        <div className="p-6">
+        <div className="px-6 pb-6">
           {children}
         </div>
       </div>
