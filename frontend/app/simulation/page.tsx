@@ -267,7 +267,7 @@ export default function SimulationPage() {
   return (
     <AppLayout 
       currentPage="simulation" 
-      headerTitle="Simulation Whiteboard"
+      headerTitle="Dashboard"
       userData={userData}
     >
       <SubHeader
