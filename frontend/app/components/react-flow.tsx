@@ -16,6 +16,8 @@ import {
   MarkerType,
   ReactFlowInstance,
   getOutgoers,
+  useReactFlow,
+  ReactFlowProvider,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { Button } from '@/components/ui/button'
@@ -27,16 +29,19 @@ const nodeTypes = {
   custom: CustomNode as any,
 }
 
+const flowKey = 'simulation-flow';
+
 interface ReactFlowAppProps {
   onFlowDataChange?: (nodes: Node[], edges: Edge[]) => void;
 }
 
-export default function ReactFlowApp({ onFlowDataChange }: ReactFlowAppProps) {
+function ReactFlowComponent({ onFlowDataChange }: ReactFlowAppProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
   const reactFlowInstance = useRef<ReactFlowInstance<Node, Edge> | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
+  const { setViewport } = useReactFlow()
 
   // Handle container resize
   useEffect(() => {
@@ -67,6 +72,47 @@ export default function ReactFlowApp({ onFlowDataChange }: ReactFlowAppProps) {
       onFlowDataChange(nodes, edges)
     }
   }, [nodes, edges, onFlowDataChange])
+
+  // Auto-save flow state to localStorage whenever nodes or edges change
+  useEffect(() => {
+    if (nodes.length > 0 || edges.length > 0) {
+      saveFlowToStorage()
+    }
+  }, [nodes, edges])
+
+  // Load flow state from localStorage on component mount
+  useEffect(() => {
+    loadFlowFromStorage()
+  }, [])
+
+  // Save flow state to localStorage
+  const saveFlowToStorage = useCallback(() => {
+    if (reactFlowInstance.current) {
+      const flow = reactFlowInstance.current.toObject()
+      localStorage.setItem(flowKey, JSON.stringify(flow))
+    }
+  }, [])
+
+  // Load flow state from localStorage
+  const loadFlowFromStorage = useCallback(() => {
+    const restoreFlow = async () => {
+      try {
+        const flowData = localStorage.getItem(flowKey)
+        if (flowData) {
+          const flow = JSON.parse(flowData)
+          if (flow) {
+            const { x = 0, y = 0, zoom = 1 } = flow.viewport || {}
+            setNodes(flow.nodes || [])
+            setEdges(flow.edges || [])
+            setViewport({ x, y, zoom })
+          }
+        }
+      } catch (error) {
+        console.error('Error loading flow from storage:', error)
+      }
+    }
+    restoreFlow()
+  }, [setNodes, setEdges, setViewport])
 
   const isValidConnection = useCallback(
     (connection: Connection | Edge) => {
@@ -278,5 +324,13 @@ export default function ReactFlowApp({ onFlowDataChange }: ReactFlowAppProps) {
         />
       </ReactFlow>
     </div>
+  )
+}
+
+export default function ReactFlowApp({ onFlowDataChange }: ReactFlowAppProps) {
+  return (
+    <ReactFlowProvider>
+      <ReactFlowComponent onFlowDataChange={onFlowDataChange} />
+    </ReactFlowProvider>
   )
 }
