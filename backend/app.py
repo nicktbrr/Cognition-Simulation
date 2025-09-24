@@ -189,20 +189,22 @@ class Evaluation(Resource):
             supabase: Client = create_client(url, key)
             if jwt:
                 supabase.auth.set_session(jwt, "")
+            print(f"[DEBUG] {request.get_json()}")
+            return jsonify({"status": "success", "message": "Simulation submitted successfully"})
             # Create progress tracking entry
-            task_id = f"eval_{uuid}"
-            response = supabase.table("download_progress").insert({
-                "id": uuid,
-                "user_id": data['user_id'],
-                "task_id": task_id,
-                "progress": 0,
-                "status": "started"
-            }).execute()
-            # Start background thread for evaluation, pass jwt
-            thread = threading.Thread(target=run_evaluation, args=(uuid, data, key_g, url, key, jwt))
-            thread.start()
-            # Return immediately with task_id
-            return jsonify({"status": "started", "task_id": task_id})
+            # task_id = f"eval_{uuid}"
+            # response = supabase.table("download_progress").insert({
+            #     "id": uuid,
+            #     "user_id": data['user_id'],
+            #     "task_id": task_id,
+            #     "progress": 0,
+            #     "status": "started"
+            # }).execute()
+            # # Start background thread for evaluation, pass jwt
+            # thread = threading.Thread(target=run_evaluation, args=(uuid, data, key_g, url, key, jwt))
+            # thread.start()
+            # # Return immediately with task_id
+            # return jsonify({"status": "started", "task_id": task_id})
         except Exception as e:
             return jsonify({"status": "error", "message": str(e)})
 
