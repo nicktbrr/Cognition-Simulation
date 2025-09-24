@@ -65,7 +65,6 @@ export function useAuth(): UseAuthReturn {
             };
             
             if (isMounted) {
-              console.log('useAuth: Setting user from localStorage:', userData);
               setUser(userData);
               setIsAuthenticated(true);
               setIsLoading(false);
@@ -97,7 +96,6 @@ export function useAuth(): UseAuthReturn {
           };
           
           if (isMounted) {
-            console.log('useAuth: Setting user from Supabase session:', userData);
             setUser(userData);
             setIsAuthenticated(true);
             setIsLoading(false);
@@ -120,7 +118,6 @@ export function useAuth(): UseAuthReturn {
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('useAuth: Auth state change event:', event);
         if (!isMounted) return;
         
         if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') && session?.user) {

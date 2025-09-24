@@ -8,6 +8,8 @@ import { useAuth } from "../hooks/useAuth";
 import AuthLoading from "../components/auth-loading";
 import AppLayout from "../components/layout/AppLayout";
 import SubHeader from "../components/layout/SubHeader";
+import ReactFlowApp from "../components/react-flow";
+import { Node, Edge } from "@xyflow/react";
 
 interface UserData {
   user_email: string;
@@ -20,6 +22,8 @@ export default function SimulationPage() {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [processDescription, setProcessDescription] = useState("");
   const [selectedSample, setSelectedSample] = useState("");
+  const [flowNodes, setFlowNodes] = useState<Node[]>([]);
+  const [flowEdges, setFlowEdges] = useState<Edge[]>([]);
 
   const getUserData = async (userId: string) => {
     const { data, error } = await supabase
@@ -43,8 +47,207 @@ export default function SimulationPage() {
     console.log("Save Draft clicked");
   };
 
-  const handleSubmitSimulation = () => {
+  const convertFlowNodesToSteps = (nodes: Node[], edges: Edge[]) => {
+    const orderedSteps: Array<{ label: string; instructions: string; temperature: number }> = [];
+    
+    if (nodes.length === 0) return orderedSteps;
+    
+    // Find the starting node (no incoming edges)
+    const targetNodes = new Set(edges.map(edge => edge.target));
+    const startingNodes = nodes.filter(node => !targetNodes.has(node.id));
+    
+    if (startingNodes.length === 0) {
+      // If no clear starting node, just use the first node
+      const firstNode = nodes[0];
+      orderedSteps.push({
+        label: (firstNode.data?.title as string) || `Step ${firstNode.id}`,
+        instructions: (firstNode.data?.description as string) || '',
+        temperature: (firstNode.data?.sliderValue as number) ? (firstNode.data.sliderValue as number) / 100 : 0.5
+      });
+    } else {
+      // Traverse from the starting node
+      const visited = new Set<string>();
+      const traverse = (nodeId: string) => {
+        if (visited.has(nodeId)) return;
+        visited.add(nodeId);
+        
+        const node = nodes.find(n => n.id === nodeId);
+        if (node) {
+          orderedSteps.push({
+            label: (node.data?.title as string) || `Step ${node.id}`,
+            instructions: (node.data?.description as string) || '',
+            temperature: (node.data?.sliderValue as number) ? (node.data.sliderValue as number) / 100 : 0.5
+          });
+          
+          // Find outgoing edges and traverse them
+          const outgoingEdges = edges.filter(edge => edge.source === nodeId);
+          for (const edge of outgoingEdges) {
+            traverse(edge.target);
+          }
+        }
+      };
+      
+      traverse(startingNodes[0].id);
+    }
+    
+    return orderedSteps;
+  };
+
+  const validateFlow = () => {
+    const errors: string[] = [];
+    
+    // Check if there are any nodes
+    if (flowNodes.length === 0) {
+      errors.push("Please add at least one node to your flow");
+      return { isValid: false, errors };
+    }
+    
+    // 1. Check that all nodes have title and description
+    const nodesWithoutTitle = flowNodes.filter(node => !node.data?.title || (node.data.title as string).trim() === '');
+    const nodesWithoutDescription = flowNodes.filter(node => !node.data?.description || (node.data.description as string).trim() === '');
+    
+    if (nodesWithoutTitle.length > 0) {
+      errors.push(`Node(s) are missing titles`);
+    }
+    
+    if (nodesWithoutDescription.length > 0) {
+      errors.push(`Node(s) are missing descriptions`);
+    }
+    
+    // 2. Check connectivity - find starting node and ensure all nodes are connected
+    if (flowNodes.length > 1) {
+      // Find nodes with no incoming edges (potential starting nodes)
+      const nodeIds = new Set(flowNodes.map(node => node.id));
+      const targetNodes = new Set(flowEdges.map(edge => edge.target));
+      const startingNodes = flowNodes.filter(node => !targetNodes.has(node.id));
+      
+      if (startingNodes.length === 0) {
+        errors.push("No starting node found - all nodes have incoming connections");
+      } else if (startingNodes.length > 1) {
+        errors.push(`Multiple starting nodes found. There should be only one starting node.`);
+      } else {
+        // Traverse from starting node to check connectivity
+        const visited = new Set<string>();
+        const queue = [startingNodes[0].id];
+        
+        while (queue.length > 0) {
+          const currentNodeId = queue.shift()!;
+          if (visited.has(currentNodeId)) continue;
+          
+          visited.add(currentNodeId);
+          
+          // Find all outgoing edges from current node
+          const outgoingEdges = flowEdges.filter(edge => edge.source === currentNodeId);
+          for (const edge of outgoingEdges) {
+            if (!visited.has(edge.target)) {
+              queue.push(edge.target);
+            }
+          }
+        }
+        
+        // Check if all nodes were visited
+        const unvisitedNodes = flowNodes.filter(node => !visited.has(node.id));
+        if (unvisitedNodes.length > 0) {
+          errors.push(`Disconnected nodes found. All nodes must be connected to the flow.`);
+        }
+      }
+    }
+    
+    return {
+      isValid: errors.length === 0,
+      errors
+    };
+  };
+
+  const handleSubmitSimulation = async () => {
     console.log("Submit for Simulation clicked");
+    console.log("Flow Nodes:", flowNodes);
+    console.log("Flow Edges:", flowEdges);
+    console.log("Process Description:", processDescription);
+    console.log("Selected Sample:", selectedSample);
+    
+    // Validate the flow
+    const validation = validateFlow();
+    
+    if (!validation.isValid) {
+      alert("Validation failed:\n" + validation.errors.join('\n'));
+      return;
+    }
+    
+    // If validation passes, proceed with submission
+    console.log("Validation passed! Proceeding with simulation submission...");
+    
+    try {
+      // Get the user from local storage
+      let parsedUser = null;
+      const storedUser = localStorage.getItem("supabaseUser");
+      if (storedUser) {
+        try {
+          parsedUser = JSON.parse(storedUser);
+        } catch (e) {
+          console.error("Error parsing user:", e);
+        }
+      }
+      
+      // Get the user's Supabase access token
+      const { data: { session } } = await supabase.auth.getSession();
+      const accessToken = session?.access_token;
+      if (!accessToken) {
+        throw new Error("No Supabase access token found");
+      }
+      
+      // Convert React Flow nodes to the expected format
+      const orderedSteps = convertFlowNodesToSteps(flowNodes, flowEdges);
+      
+      // Construct the JSON payload for the simulation
+      const jsonData = {
+        seed: "no-seed",
+        steps: orderedSteps,
+        metrics: [], // TODO: Add metrics selection if needed
+        iters: 10,
+        temperature: 0.5,
+        user_id: parsedUser.id,
+        title: processDescription || "Simulation Flow",
+      };
+      
+      // Define backend URL based on environment
+      const prod = process.env.NEXT_PUBLIC_DEV || "production";
+      const url =
+        prod === "development"
+          ? "http://127.0.0.1:5000/api/evaluate"
+          : "https://cognition-backend-81313456654.us-west1.run.app/api/evaluate";
+      
+      // Generate UUID for the simulation
+      const uuid = crypto.randomUUID();
+      
+      // Send the simulation request to the backend API
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ id: uuid, data: jsonData }),
+      });
+      
+      const result = await response.json();
+      
+      if (result.status === "started") {
+        console.log("Simulation started successfully with task ID:", result.task_id);
+        alert("Simulation submitted successfully! Task ID: " + result.task_id);
+      } else {
+        throw new Error(result.message || 'Simulation failed to start');
+      }
+      
+    } catch (error) {
+      console.error("Error in simulation submission:", error);
+      alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const handleFlowDataChange = (nodes: Node[], edges: Edge[]) => {
+    setFlowNodes(nodes);
+    setFlowEdges(edges);
   };
 
   useEffect(() => {
@@ -186,16 +389,9 @@ export default function SimulationPage() {
           </div>
 
           {/* Whiteboard Canvas Area */}
-          <div className="flex-1 bg-white relative overflow-hidden">
-            <div className="absolute inset-0 bg-gray-50">
-              {/* This would be the canvas/drawing area */}
-              <div className="flex items-center justify-center h-full text-gray-400">
-                <div className="text-center">
-                  <div className="text-6xl mb-4">🎨</div>
-                  <p className="text-lg">Design your simulation flow</p>
-                  <p className="text-sm mt-2">Use the tools on the left to create steps and connections</p>
-                </div>
-              </div>
+          <div className="flex-1 relative overflow-hidden p-6">
+            <div className="absolute inset-6">
+              <ReactFlowApp onFlowDataChange={handleFlowDataChange} />
             </div>
           </div>
         </div>
