@@ -187,7 +187,29 @@ def baseline_prompt(prompt, key_g):
 
     # Extract labels from the steps array
     steps = prompt['steps']
-    cols = [step['label'] for step in steps]
+
+    print("steps", steps)
+    repeated_steps = {}
+    cols = []
+    
+    # First pass: count occurrences of each label
+    for step in steps:
+        label = step['label']
+        repeated_steps[label] = repeated_steps.get(label, 0) + 1
+    
+    # Second pass: create unique labels and update steps
+    label_counts = {}
+    for i, step in enumerate(steps):
+        original_label = step['label']
+        if repeated_steps[original_label] > 1:
+            # This label appears multiple times, need to make it unique
+            label_counts[original_label] = label_counts.get(original_label, 0) + 1
+            unique_label = f"{original_label}_{label_counts[original_label]}"
+            step['label'] = unique_label
+            cols.append(unique_label)
+        else:
+            # This label appears only once, keep as is
+            cols.append(original_label)
 
     # Add seed column if specified
     if seed != "no-seed":
@@ -195,6 +217,8 @@ def baseline_prompt(prompt, key_g):
 
     # Initialize DataFrame
     df = pd.DataFrame(columns=cols)
+
+    print("df", df)
 
     # Create rows based on iteration count
     for i in range(iterations):
