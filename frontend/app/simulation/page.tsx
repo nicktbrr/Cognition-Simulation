@@ -324,7 +324,7 @@ export default function SimulationPage() {
                 { color: '#8b5cf6', name: 'purple' },
                 { color: '#ec4899', name: 'pink' },
                 { color: '#6b7280', name: 'gray' },
-                { color: '#000000', name: 'black' },
+                { color: '#ffffff', name: 'remove', isRemove: true },
               ].map((colorOption) => (
                 <div
                   key={colorOption.color}
@@ -332,14 +332,18 @@ export default function SimulationPage() {
                     setSelectedColor(colorOption.color);
                     console.log(`Selected color: ${colorOption.name} (${colorOption.color})`);
                   }}
-                  className={`w-6 h-6 rounded cursor-pointer border-2 ${
+                  className={`w-6 h-6 rounded cursor-pointer border-2 flex items-center justify-center ${
                     selectedColor === colorOption.color 
                       ? 'border-gray-400 ring-2 ring-gray-300' 
                       : 'border-gray-200 hover:border-gray-300'
                   }`}
                   style={{ backgroundColor: colorOption.color }}
-                  title={`Select ${colorOption.name}`}
-                />
+                  title={colorOption.isRemove ? 'Remove color' : `Select ${colorOption.name}`}
+                >
+                  {colorOption.isRemove && (
+                    <div className="text-red-500 font-bold text-sm leading-none">×</div>
+                  )}
+                </div>
               ))}
             </div>
           </div>

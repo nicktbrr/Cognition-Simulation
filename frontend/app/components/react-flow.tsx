@@ -322,13 +322,6 @@ function ReactFlowComponent({ onFlowDataChange, selectedColor = '#3b82f6' }: Rea
             boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)'
           }}
         />
-        <Background 
-          variant={BackgroundVariant.Dots} 
-          gap={80} 
-          size={10} 
-          color="black"
-          className="opacity-15"
-        />
       </ReactFlow>
     </div>
   )
