@@ -392,18 +392,31 @@ export default function SimulationPage() {
       
       // Generate UUID for the simulation
       const uuid = crypto.randomUUID();
+
+      // TODO: Add this for production
       
       // Send the simulation request to the backend API
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({ id: uuid, data: jsonData }),
-      });
+      // const response = await fetch(url, {
+      //   method: "POST",
+      //   headers: {
+      //     "Content-Type": "application/json",
+      //     Authorization: `Bearer ${accessToken}`,
+      //   },
+      //   body: JSON.stringify({ id: uuid, data: jsonData }),
+      // });
+
+      // TODO: Remove this for production
+      const response = {
+        status: "started",
+        task_id: uuid,
+        message: "Simulation submitted successfully",
+      }
+
+      const result = response;
+
+      // TODO: Add this for production
       
-      const result = await response.json();
+      // const result = await response.json();
       
       if (result.status === "started") {
         console.log("Simulation started successfully with task ID:", result.task_id);
