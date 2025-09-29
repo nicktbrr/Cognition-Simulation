@@ -50,11 +50,10 @@ Required environment variables:
 The application is deployed on Vercel. The deployment is automatically triggered by pushes to the main branch of the GitHub repository.
 
 ## Dependencies
-
 Key dependencies include:
 - Next.js 14.2.5
 - React 18
 - Tailwind CSS 3.4.1
-- Supabase.js
+- Supabase.js in
 - React Flow
 - PapaParse for CSV parsing
