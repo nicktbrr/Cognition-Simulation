@@ -196,7 +196,7 @@ export default function DashboardHistory() {
   useEffect(() => {
     if (user && isAuthenticated) {
       getUserData(user.user_id);
-      getHistory(user.user_id);
+      // getHistory(user.user_id);
       getProjects(user.user_id);
     }
   }, [user, isAuthenticated]);
