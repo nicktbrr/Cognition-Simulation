@@ -8,16 +8,21 @@ import { Textarea } from "@/components/ui/textarea"
 import { Slider } from "../ui/slider"
 import { Trash2 } from "lucide-react"
 import CustomHandle from "./handle"
+import Multiselect from "../ui/multiselect"
 
 export interface CustomNodeData {
   title: string
   description: string
   sliderValue: number
   numDescriptionsChars: number
+  selectedMeasures: string[]
+  measures: Array<{ id: string; title: string; description: string }>
+  loadingMeasures: boolean
   onDelete: (id: string) => void
   onTitleChange: (id: string, title: string) => void
   onDescriptionChange: (id: string, description: string) => void
   onSliderChange: (id: string, value: number) => void
+  onMeasuresChange: (id: string, selectedMeasures: string[]) => void
 }
 
 const CustomNode = memo(({ id, data }: NodeProps) => {
@@ -86,6 +91,19 @@ const CustomNode = memo(({ id, data }: NodeProps) => {
             max={100}
             min={1}
             step={1}
+            className="w-full"
+          />
+        </div>
+
+        {/* Measures Selection */}
+        <div>
+          <label className="text-sm font-medium text-muted-foreground mb-1 block">Measures</label>
+          <Multiselect
+            options={(data as any).measures || []}
+            selectedValues={(data as any).selectedMeasures || []}
+            onSelectionChange={(selectedMeasures) => (data as any).onMeasuresChange(id, selectedMeasures)}
+            placeholder="Select measures..."
+            loading={(data as any).loadingMeasures || false}
             className="w-full"
           />
         </div>

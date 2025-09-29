@@ -31,12 +31,22 @@ const nodeTypes = {
 
 const flowKey = 'simulation-flow';
 
+interface Measure {
+  id: string;
+  title: string;
+  description: string;
+  range: string;
+  desiredValues: Array<{ value: number; label: string }>;
+}
+
 interface ReactFlowAppProps {
   onFlowDataChange?: (nodes: Node[], edges: Edge[]) => void;
   selectedColor?: string;
+  measures?: Measure[];
+  loadingMeasures?: boolean;
 }
 
-function ReactFlowComponent({ onFlowDataChange, selectedColor = '#3b82f6' }: ReactFlowAppProps) {
+function ReactFlowComponent({ onFlowDataChange, selectedColor = '#3b82f6', measures = [], loadingMeasures = false }: ReactFlowAppProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
@@ -191,6 +201,14 @@ function ReactFlowComponent({ onFlowDataChange, selectedColor = '#3b82f6' }: Rea
     )
   }, [setNodes])
 
+  const handleMeasuresChange = useCallback((nodeId: string, selectedMeasures: string[]) => {
+    setNodes((nds: Node[]) =>
+      nds.map((node: Node) =>
+        node.id === nodeId ? { ...node, data: { ...node.data, selectedMeasures } } : node
+      )
+    )
+  }, [setNodes])
+
   // Generate the next sequential node ID
   const getNextNodeId = useCallback((currentNodes: Node[]) => {
     // Extract all node IDs and find the highest number
@@ -246,24 +264,32 @@ function ReactFlowComponent({ onFlowDataChange, selectedColor = '#3b82f6' }: Rea
         description: '',
         sliderValue: 50,
         numDescriptionsChars: 500,
+        selectedMeasures: [],
+        measures: measures,
+        loadingMeasures: loadingMeasures,
         onDelete: handleNodeDelete,
         onTitleChange: handleTitleChange,
         onDescriptionChange: handleDescriptionChange,
         onSliderChange: handleSliderChange,
+        onMeasuresChange: handleMeasuresChange,
       },
     }
     setNodes((nds: Node[]) => [...nds, newNode])
-  }, [setNodes, handleNodeDelete, handleTitleChange, handleDescriptionChange, handleSliderChange, dimensions, nodes, getNextNodeId])
+  }, [setNodes, handleNodeDelete, handleTitleChange, handleDescriptionChange, handleSliderChange, handleMeasuresChange, dimensions, nodes, getNextNodeId, measures, loadingMeasures])
 
   // Update node data with handlers and highlighting
   const nodesWithHandlers = nodes.map((node: Node) => ({
     ...node,
     data: {
       ...node.data,
+      measures: measures,
+      loadingMeasures: loadingMeasures,
+      selectedMeasures: node.data?.selectedMeasures || [],
       onDelete: handleNodeDelete,
       onTitleChange: handleTitleChange,
       onDescriptionChange: handleDescriptionChange,
       onSliderChange: handleSliderChange,
+      onMeasuresChange: handleMeasuresChange,
     },
     style: {
       ...node.style,
@@ -327,10 +353,15 @@ function ReactFlowComponent({ onFlowDataChange, selectedColor = '#3b82f6' }: Rea
   )
 }
 
-export default function ReactFlowApp({ onFlowDataChange, selectedColor }: ReactFlowAppProps) {
+export default function ReactFlowApp({ onFlowDataChange, selectedColor, measures, loadingMeasures }: ReactFlowAppProps) {
   return (
     <ReactFlowProvider>
-      <ReactFlowComponent onFlowDataChange={onFlowDataChange} selectedColor={selectedColor} />
+      <ReactFlowComponent 
+        onFlowDataChange={onFlowDataChange} 
+        selectedColor={selectedColor} 
+        measures={measures}
+        loadingMeasures={loadingMeasures}
+      />
     </ReactFlowProvider>
   )
 }

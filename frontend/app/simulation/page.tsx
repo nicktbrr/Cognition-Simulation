@@ -126,6 +126,19 @@ interface UserData {
   pic_url: string;
 }
 
+interface DesiredValue {
+  value: number;
+  label: string;
+}
+
+interface Measure {
+  id: string;
+  title: string;
+  description: string;
+  range: string;
+  desiredValues: DesiredValue[];
+}
+
 export default function SimulationPage() {
   const { user, isLoading, isAuthenticated } = useAuth();
   const [userData, setUserData] = useState<UserData | null>(null);
@@ -134,6 +147,8 @@ export default function SimulationPage() {
   const [flowNodes, setFlowNodes] = useState<Node[]>([]);
   const [flowEdges, setFlowEdges] = useState<Edge[]>([]);
   const [selectedColor, setSelectedColor] = useState<string>('#3b82f6');
+  const [measures, setMeasures] = useState<Measure[]>([]);
+  const [loadingMeasures, setLoadingMeasures] = useState(false);
 
   const getUserData = async (userId: string) => {
     const { data, error } = await supabase
@@ -149,6 +164,38 @@ export default function SimulationPage() {
     }
   };
 
+  const getMeasures = async (userId: string) => {
+    setLoadingMeasures(true);
+    try {
+      const { data, error } = await supabase
+        .from("measures")
+        .select("*")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching measures:", error);
+        setMeasures([]);
+        return;
+      }
+
+      const formattedMeasures: Measure[] = data.map((measure: any) => ({
+        id: measure.id,
+        title: measure.title,
+        description: measure.definition,
+        range: `${measure.min} - ${measure.max}`,
+        desiredValues: measure.desired_values || []
+      }));
+
+      setMeasures(formattedMeasures);
+    } catch (error) {
+      console.error("Error processing measures data:", error);
+      setMeasures([]);
+    } finally {
+      setLoadingMeasures(false);
+    }
+  };
+
   const handleGenerateSteps = () => {
     console.log("Generate Steps clicked with:", processDescription);
   };
@@ -158,7 +205,12 @@ export default function SimulationPage() {
   };
 
   const convertFlowNodesToSteps = (nodes: Node[], edges: Edge[]) => {
-    const orderedSteps: Array<{ label: string; instructions: string; temperature: number }> = [];
+    const orderedSteps: Array<{ 
+      label: string; 
+      instructions: string; 
+      temperature: number;
+      measures: Measure[];
+    }> = [];
     
     if (nodes.length === 0) return orderedSteps;
     
@@ -169,10 +221,14 @@ export default function SimulationPage() {
     if (startingNodes.length === 0) {
       // If no clear starting node, just use the first node
       const firstNode = nodes[0];
+      const selectedMeasureIds = (firstNode.data?.selectedMeasures as string[]) || [];
+      const selectedMeasures = measures.filter(measure => selectedMeasureIds.includes(measure.id));
+      
       orderedSteps.push({
         label: (firstNode.data?.title as string) || `Step ${firstNode.id}`,
         instructions: (firstNode.data?.description as string) || '',
-        temperature: (firstNode.data?.sliderValue as number) ? (firstNode.data.sliderValue as number) / 100 : 0.5
+        temperature: (firstNode.data?.sliderValue as number) ? (firstNode.data.sliderValue as number) / 100 : 0.5,
+        measures: selectedMeasures
       });
     } else {
       // Traverse from the starting node
@@ -183,10 +239,14 @@ export default function SimulationPage() {
         
         const node = nodes.find(n => n.id === nodeId);
         if (node) {
+          const selectedMeasureIds = (node.data?.selectedMeasures as string[]) || [];
+          const selectedMeasures = measures.filter(measure => selectedMeasureIds.includes(measure.id));
+          
           orderedSteps.push({
             label: (node.data?.title as string) || `Step ${node.id}`,
             instructions: (node.data?.description as string) || '',
-            temperature: (node.data?.sliderValue as number) ? (node.data.sliderValue as number) / 100 : 0.5
+            temperature: (node.data?.sliderValue as number) ? (node.data.sliderValue as number) / 100 : 0.5,
+            measures: selectedMeasures
           });
           
           // Find outgoing edges and traverse them
@@ -309,16 +369,19 @@ export default function SimulationPage() {
       // Convert React Flow nodes to the expected format
       const orderedSteps = convertFlowNodesToSteps(flowNodes, flowEdges);
       
+      console.log("Ordered Steps with Measures:", orderedSteps);
+      
       // Construct the JSON payload for the simulation
       const jsonData = {
         seed: "no-seed",
         steps: orderedSteps,
-        metrics: [], // TODO: Add metrics selection if needed
         iters: 10,
         temperature: 0.5,
         user_id: parsedUser.id,
         title: processDescription || "Simulation Flow",
       };
+      
+      console.log("Complete JSON payload being sent to backend:", jsonData);
       
       // Define backend URL based on environment
       const prod = process.env.NEXT_PUBLIC_DEV || "production";
@@ -363,6 +426,7 @@ export default function SimulationPage() {
   useEffect(() => {
     if (user && isAuthenticated) {
       getUserData(user.user_id);
+      getMeasures(user.user_id);
     }
   }, [user, isAuthenticated]);
 
@@ -524,7 +588,12 @@ export default function SimulationPage() {
           {/* Whiteboard Canvas Area */}
           <div className="flex-1 relative overflow-hidden p-6">
             <div className="absolute inset-6">
-              <ReactFlowApp onFlowDataChange={handleFlowDataChange} selectedColor={selectedColor} />
+              <ReactFlowApp 
+                onFlowDataChange={handleFlowDataChange} 
+                selectedColor={selectedColor} 
+                measures={measures}
+                loadingMeasures={loadingMeasures}
+              />
             </div>
           </div>
         </div>
