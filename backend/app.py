@@ -83,18 +83,36 @@ def run_evaluation(uuid, data, key_g, jwt=None):
         supabase = get_supabase_client(jwt)
         metrics = data['metrics']
 
+        response = supabase.table("experiments").insert({
+            "experiment_id": uuid,
+            "progress": 0,
+            "status": "Started",
+            "sample_name": "test",
+            "user_id": data['user_id'],
+            "simulation_name": data['title'],
+            "experiment_data": data,
+        }).execute()
+
+
+
         # Update progress to 10% - Starting evaluation
         response = supabase.table("experiments").update({
             "progress": 10,
         }).eq("experiment_id", uuid).execute()
 
+        print("progress 10")
+
         # Generate baseline prompt and get token usage
         df, prompt_tokens = baseline_prompt(data, key_g)
+
+        print("progress 10.5")
 
         # Update progress to 30% - Baseline prompt generated
         supabase.table("experiments").update({
             "progress": 30,
         }).eq("experiment_id", uuid).execute()
+
+        print("progress 30")
 
         # Evaluate responses and get token usage
         fn, eval_tokens = evaluate(df, key_g, metrics, data['steps'])
@@ -150,13 +168,13 @@ def run_evaluation(uuid, data, key_g, jwt=None):
             "progress": 90,
         }).eq("experiment_id", uuid).execute()
 
-        response = supabase.table("dashboard").insert({
-            "id": uuid,
-            "data": data,
-            "url": public_url,
-            'user_id': data['user_id'],
-            'name': data['title']
-        }).execute()
+        # response = supabase.table("dashboard").insert({
+        #     "id": uuid,
+        #     "data": data,
+        #     "url": public_url,
+        #     'user_id': data['user_id'],
+        #     'name': data['title']
+        # }).execute()
 
         # Update progress to 100% - Completed
         supabase.table("experiments").update({
@@ -164,11 +182,11 @@ def run_evaluation(uuid, data, key_g, jwt=None):
             "status": "Completed"
         }).eq("experiment_id", uuid).execute()
     except Exception as e:
+        print("error", e)
         # Create a new Supabase client for error handling
         supabase = get_supabase_client(jwt)
         supabase.table("experiments").update({
             "status": "Failed",
-            "error_message": str(e)
         }).eq("experiment_id", uuid).execute()
         # Clean up temporary file
         try:
@@ -195,21 +213,21 @@ class Evaluation(Resource):
             if jwt:
                 supabase.auth.set_session(jwt, "")
             print(f"[DEBUG] {request.get_json()}")
-            return jsonify({"status": "success", "message": "Simulation submitted successfully"})
+            # return jsonify({"status": "success", "message": "Simulation submitted successfully"})
             # Create progress tracking entry
-            # task_id = f"eval_{uuid}"
-            # response = supabase.table("download_progress").insert({
-            #     "id": uuid,
-            #     "user_id": data['user_id'],
-            #     "task_id": task_id,
-            #     "progress": 0,
-            #     "status": "started"
-            # }).execute()
-            # # Start background thread for evaluation, pass jwt
-            # thread = threading.Thread(target=run_evaluation, args=(uuid, data, key_g, url, key, jwt))
-            # thread.start()
-            # # Return immediately with task_id
-            # return jsonify({"status": "started", "task_id": task_id})
+            task_id = f"eval_{uuid}"
+            response = supabase.table("download_progress").insert({
+                "id": uuid,
+                "user_id": data['user_id'],
+                "task_id": task_id,
+                "progress": 0,
+                "status": "started"
+            }).execute()
+            # Start background thread for evaluation, pass jwt
+            thread = threading.Thread(target=run_evaluation, args=(uuid, data, key_g, jwt))
+            thread.start()
+            # Return immediately with task_id
+            return jsonify({"status": "started", "task_id": task_id})
         except Exception as e:
             return jsonify({"status": "error", "message": str(e)})
 
