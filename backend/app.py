@@ -168,13 +168,9 @@ def run_evaluation(uuid, data, key_g, jwt=None):
             "progress": 90,
         }).eq("experiment_id", uuid).execute()
 
-        # response = supabase.table("dashboard").insert({
-        #     "id": uuid,
-        #     "data": data,
-        #     "url": public_url,
-        #     'user_id': data['user_id'],
-        #     'name': data['title']
-        # }).execute()
+        response = supabase.table("experiments").update({
+            "url": public_url,
+        }).eq("experiment_id", uuid).execute()
 
         # Update progress to 100% - Completed
         supabase.table("experiments").update({
@@ -215,11 +211,10 @@ class Evaluation(Resource):
             print(f"[DEBUG] {request.get_json()}")
             # return jsonify({"status": "success", "message": "Simulation submitted successfully"})
             # Create progress tracking entry
-            task_id = f"eval_{uuid}"
-            response = supabase.table("download_progress").insert({
-                "id": uuid,
+            task_id = uuid
+            response = supabase.table("experiments").insert({
                 "user_id": data['user_id'],
-                "task_id": task_id,
+                "experiment_id": task_id,
                 "progress": 0,
                 "status": "started"
             }).execute()
