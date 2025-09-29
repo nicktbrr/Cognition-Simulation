@@ -33,9 +33,10 @@ const flowKey = 'simulation-flow';
 
 interface ReactFlowAppProps {
   onFlowDataChange?: (nodes: Node[], edges: Edge[]) => void;
+  selectedColor?: string;
 }
 
-function ReactFlowComponent({ onFlowDataChange }: ReactFlowAppProps) {
+function ReactFlowComponent({ onFlowDataChange, selectedColor = '#3b82f6' }: ReactFlowAppProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
@@ -145,7 +146,17 @@ function ReactFlowComponent({ onFlowDataChange }: ReactFlowAppProps) {
 
   const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
     setSelectedNodeId(node.id)
-  }, [])
+    console.log(`Node ${node.id} clicked and highlighted with color: ${selectedColor}`)
+    
+    // Update the node data to include the selected color
+    setNodes((nds) =>
+      nds.map((n) =>
+        n.id === node.id 
+          ? { ...n, data: { ...n.data, selectedColor } }
+          : n
+      )
+    )
+  }, [selectedColor, setNodes])
 
   const onPaneClick = useCallback(() => {
     setSelectedNodeId(null)
@@ -256,8 +267,8 @@ function ReactFlowComponent({ onFlowDataChange }: ReactFlowAppProps) {
     },
     style: {
       ...node.style,
-      border: selectedNodeId === node.id ? '3px solid #3b82f6' : '1px solid #e5e7eb',
-      boxShadow: selectedNodeId === node.id ? '0 0 0 3px rgba(59, 130, 246, 0.3)' : '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+      border: selectedNodeId === node.id ? `3px solid ${selectedColor}` : '1px solid #e5e7eb',
+      boxShadow: selectedNodeId === node.id ? `0 0 0 3px ${selectedColor}40` : '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
     },
   }))
 
@@ -273,6 +284,7 @@ function ReactFlowComponent({ onFlowDataChange }: ReactFlowAppProps) {
           Add Node
         </Button>
       </div>
+
       
       <ReactFlow
         nodes={nodesWithHandlers}
@@ -322,10 +334,10 @@ function ReactFlowComponent({ onFlowDataChange }: ReactFlowAppProps) {
   )
 }
 
-export default function ReactFlowApp({ onFlowDataChange }: ReactFlowAppProps) {
+export default function ReactFlowApp({ onFlowDataChange, selectedColor }: ReactFlowAppProps) {
   return (
     <ReactFlowProvider>
-      <ReactFlowComponent onFlowDataChange={onFlowDataChange} />
+      <ReactFlowComponent onFlowDataChange={onFlowDataChange} selectedColor={selectedColor} />
     </ReactFlowProvider>
   )
 }

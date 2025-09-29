@@ -24,6 +24,7 @@ export default function SimulationPage() {
   const [selectedSample, setSelectedSample] = useState("");
   const [flowNodes, setFlowNodes] = useState<Node[]>([]);
   const [flowEdges, setFlowEdges] = useState<Edge[]>([]);
+  const [selectedColor, setSelectedColor] = useState<string>('#3b82f6');
 
   const getUserData = async (userId: string) => {
     const { data, error } = await supabase
@@ -315,14 +316,31 @@ export default function SimulationPage() {
           <div>
             <h3 className="text-sm font-semibold text-gray-700 mb-3">Colors</h3>
             <div className="grid grid-cols-4 gap-2">
-              <div className="w-6 h-6 bg-blue-500 rounded cursor-pointer"></div>
-              <div className="w-6 h-6 bg-red-500 rounded cursor-pointer"></div>
-              <div className="w-6 h-6 bg-green-500 rounded cursor-pointer"></div>
-              <div className="w-6 h-6 bg-yellow-500 rounded cursor-pointer"></div>
-              <div className="w-6 h-6 bg-purple-500 rounded cursor-pointer"></div>
-              <div className="w-6 h-6 bg-pink-500 rounded cursor-pointer"></div>
-              <div className="w-6 h-6 bg-gray-500 rounded cursor-pointer"></div>
-              <div className="w-6 h-6 bg-black rounded cursor-pointer"></div>
+              {[
+                { color: '#3b82f6', name: 'blue' },
+                { color: '#ef4444', name: 'red' },
+                { color: '#10b981', name: 'green' },
+                { color: '#eab308', name: 'yellow' },
+                { color: '#8b5cf6', name: 'purple' },
+                { color: '#ec4899', name: 'pink' },
+                { color: '#6b7280', name: 'gray' },
+                { color: '#000000', name: 'black' },
+              ].map((colorOption) => (
+                <div
+                  key={colorOption.color}
+                  onClick={() => {
+                    setSelectedColor(colorOption.color);
+                    console.log(`Selected color: ${colorOption.name} (${colorOption.color})`);
+                  }}
+                  className={`w-6 h-6 rounded cursor-pointer border-2 ${
+                    selectedColor === colorOption.color 
+                      ? 'border-gray-400 ring-2 ring-gray-300' 
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                  style={{ backgroundColor: colorOption.color }}
+                  title={`Select ${colorOption.name}`}
+                />
+              ))}
             </div>
           </div>
 
@@ -391,7 +409,7 @@ export default function SimulationPage() {
           {/* Whiteboard Canvas Area */}
           <div className="flex-1 relative overflow-hidden p-6">
             <div className="absolute inset-6">
-              <ReactFlowApp onFlowDataChange={handleFlowDataChange} />
+              <ReactFlowApp onFlowDataChange={handleFlowDataChange} selectedColor={selectedColor} />
             </div>
           </div>
         </div>

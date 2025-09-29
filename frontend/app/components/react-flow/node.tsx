@@ -21,6 +21,11 @@ export interface CustomNodeData {
 }
 
 const CustomNode = memo(({ id, data }: NodeProps) => {
+  // Console log the selected color for this specific node
+  if ((data as any).selectedColor) {
+    console.log(`Node ${id} has selected color:`, (data as any).selectedColor);
+  }
+  
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-4 min-w-[250px] shadow-sm">
       <CustomHandle type="source" position={Position.Right} connectionCount={1} />
