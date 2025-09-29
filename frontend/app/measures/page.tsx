@@ -33,57 +33,15 @@ interface Measure {
   desiredValues: DesiredValue[];
 }
 
-// Mock data for demonstration
-const mockMeasures: Measure[] = [
-  {
-    id: "1",
-    title: "Customer Satisfaction",
-    description: "Measure overall customer satisfaction through post-interaction surveys",
-    range: "1.0 - 5.0",
-    desiredValues: [
-      { value: 4.5, label: "Excellent" },
-      { value: 3.5, label: "Good" },
-      { value: 2.5, label: "Acceptable" }
-    ]
-  },
-  {
-    id: "2",
-    title: "Response Time",
-    description: "Average time to respond to customer inquiries across all channels",
-    range: "0 - 24",
-    desiredValues: [
-      { value: 2, label: "Immediate" },
-      { value: 8, label: "Same Day" }
-    ]
-  },
-  {
-    id: "3",
-    title: "Conversion Rate",
-    description: "Percentage of visitors who complete desired actions",
-    range: "0 - 100",
-    desiredValues: [
-      { value: 15, label: "Target" },
-      { value: 25, label: "Stretch Goal" }
-    ]
-  },
-  {
-    id: "4",
-    title: "User Engagement",
-    description: "Average session duration and page views per visit",
-    range: "0 - 60",
-    desiredValues: [
-      { value: 30, label: "High Engagement" }
-    ]
-  }
-];
 
 export default function MeasuresPage() {
   const { user, isLoading, isAuthenticated } = useAuth();
   const [userData, setUserData] = useState<UserData | null>(null);
-  const [measures, setMeasures] = useState<Measure[]>(mockMeasures);
+  const [measures, setMeasures] = useState<Measure[]>([]);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const [loadingMeasures, setLoadingMeasures] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const getUserData = async (userId: string) => {
@@ -100,12 +58,79 @@ export default function MeasuresPage() {
     }
   };
 
-  const handleAddMeasure = (newMeasure: Omit<Measure, 'id'>) => {
-    const measure: Measure = {
-      id: Date.now().toString(),
-      ...newMeasure
-    };
-    setMeasures([...measures, measure]);
+  const getMeasures = async (userId: string) => {
+    setLoadingMeasures(true);
+    try {
+      const { data, error } = await supabase
+        .from("measures")
+        .select("*")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching measures:", error);
+        setMeasures([]);
+        return;
+      }
+
+      const formattedMeasures: Measure[] = data.map((measure: any) => ({
+        id: measure.id,
+        title: measure.title,
+        description: measure.definition,
+        range: `${measure.min} - ${measure.max}`,
+        desiredValues: measure.desired_values || []
+      }));
+
+      setMeasures(formattedMeasures);
+    } catch (error) {
+      console.error("Error processing measures data:", error);
+      setMeasures([]);
+    } finally {
+      setLoadingMeasures(false);
+    }
+  };
+
+  const handleAddMeasure = async (newMeasure: Omit<Measure, 'id'>) => {
+    if (!user) {
+      console.error("No user found");
+      return;
+    }
+
+    try {
+      // Parse the range to get min and max values
+      const [min, max] = newMeasure.range.split(' - ').map(val => parseFloat(val.trim()));
+
+      const { data, error } = await supabase
+        .from("measures")
+        .insert({
+          user_id: user.user_id,
+          title: newMeasure.title,
+          definition: newMeasure.description,
+          min: min,
+          max: max,
+          desired_values: newMeasure.desiredValues
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Error creating measure:", error);
+        return;
+      }
+
+      // Add the new measure to the local state
+      const measure: Measure = {
+        id: data.id,
+        title: data.title,
+        description: data.definition,
+        range: `${data.min} - ${data.max}`,
+        desiredValues: data.desired_values || []
+      };
+      
+      setMeasures([measure, ...measures]);
+    } catch (error) {
+      console.error("Error in handleAddMeasure:", error);
+    }
   };
 
   const toggleRowExpansion = (measureId: string) => {
@@ -142,27 +167,80 @@ export default function MeasuresPage() {
     setOpenDropdown(null);
   };
 
-  const handleDuplicateMeasure = (id: string) => {
-    const measureToDuplicate = measures.find(m => m.id === id);
-    if (measureToDuplicate) {
-      const duplicatedMeasure = {
-        ...measureToDuplicate,
-        id: Date.now().toString(),
-        title: `${measureToDuplicate.title} (Copy)`
-      };
-      setMeasures([...measures, duplicatedMeasure]);
+  const handleDuplicateMeasure = async (id: string) => {
+    if (!user) {
+      console.error("No user found");
+      return;
     }
-    setOpenDropdown(null);
+
+    const measureToDuplicate = measures.find(m => m.id === id);
+    if (!measureToDuplicate) {
+      console.error("Measure not found");
+      return;
+    }
+
+    try {
+      // Parse the range to get min and max values
+      const [min, max] = measureToDuplicate.range.split(' - ').map(val => parseFloat(val.trim()));
+
+      const { data, error } = await supabase
+        .from("measures")
+        .insert({
+          user_id: user.user_id,
+          title: `${measureToDuplicate.title} (Copy)`,
+          definition: measureToDuplicate.description,
+          min: min,
+          max: max,
+          desired_values: measureToDuplicate.desiredValues
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Error duplicating measure:", error);
+        return;
+      }
+
+      // Add the duplicated measure to the local state
+      const duplicatedMeasure: Measure = {
+        id: data.id,
+        title: data.title,
+        description: data.definition,
+        range: `${data.min} - ${data.max}`,
+        desiredValues: data.desired_values || []
+      };
+      
+      setMeasures([duplicatedMeasure, ...measures]);
+      setOpenDropdown(null);
+    } catch (error) {
+      console.error("Error in handleDuplicateMeasure:", error);
+    }
   };
 
-  const handleDeleteMeasure = (id: string) => {
-    setMeasures(measures.filter(m => m.id !== id));
-    setOpenDropdown(null);
+  const handleDeleteMeasure = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from("measures")
+        .delete()
+        .eq("id", id);
+
+      if (error) {
+        console.error("Error deleting measure:", error);
+        return;
+      }
+
+      // Remove from local state
+      setMeasures(measures.filter(m => m.id !== id));
+      setOpenDropdown(null);
+    } catch (error) {
+      console.error("Error in handleDeleteMeasure:", error);
+    }
   };
 
   useEffect(() => {
     if (user && isAuthenticated) {
       getUserData(user.user_id);
+      getMeasures(user.user_id);
     }
   }, [user, isAuthenticated]);
 
@@ -205,17 +283,22 @@ export default function MeasuresPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-12"></TableHead>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Definition</TableHead>
-                  <TableHead>Range</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {measures.map((measure) => (
+            {loadingMeasures ? (
+              <div className="flex items-center justify-center h-32">
+                <div className="text-gray-500">Loading measures...</div>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12"></TableHead>
+                    <TableHead>Title</TableHead>
+                    <TableHead>Definition</TableHead>
+                    <TableHead>Range</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {measures.map((measure) => (
                   <React.Fragment key={measure.id}>
                     <TableRow className="group hover:bg-accent/50 transition-fast">
                       <TableCell>
@@ -301,9 +384,10 @@ export default function MeasuresPage() {
                       </TableRow>
                     )}
                   </React.Fragment>
-                ))}
-              </TableBody>
-            </Table>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
       </div>
