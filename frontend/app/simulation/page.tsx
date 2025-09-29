@@ -11,6 +11,115 @@ import SubHeader from "../components/layout/SubHeader";
 import ReactFlowApp from "../components/react-flow";
 import { Node, Edge } from "@xyflow/react";
 
+type Sample = {
+  id: number;
+  label: string;
+  desc: string;
+};
+
+export const samples: Sample[] = [
+  {
+    id: 1,
+    label: "Sample 1",
+    desc: "A young Black woman working in healthcare in the South. High school educated, compassionate, and community-focused."
+  },
+  {
+    id: 2,
+    label: "Sample 2",
+    desc: "A Hispanic teenage girl working retail while attending high school in a Spanish-speaking household. Balances family responsibilities with big dreams for the future."
+  },
+  {
+    id: 3,
+    label: "Sample 3",
+    desc: "An Asian female medical doctor in her late 50s living in New England. Fluent in English and driven by a lifelong commitment to care."
+  },
+  {
+    id: 4,
+    label: "Sample 4",
+    desc: "A Native male manufacturing supervisor in his late 60s from a remote part of Alaska. Has some college education and carries deep cultural and technical knowledge."
+  },
+  {
+    id: 5,
+    label: "Sample 5",
+    desc: "A retired white male lawyer in his late 60s, living in the Southwest. Values justice, debate, and a strong sense of civic duty."
+  },
+  {
+    id: 6,
+    label: "Sample 6",
+    desc: "A young foreign-born woman with a Master's in psychology who works with people with disabilities. Spanish-speaking and empathetic by nature."
+  },
+  {
+    id: 7,
+    label: "Sample 7",
+    desc: "An elderly white woman with a high school diploma working in a religious setting in the Midwest. Grounded in faith and community."
+  },
+  {
+    id: 8,
+    label: "Sample 8",
+    desc: "A white male plumber in his 50s, with a high school diploma and strong ties to his rural community. Practical and proud of his trade."
+  },
+  {
+    id: 9,
+    label: "Sample 9",
+    desc: "A white male in construction with a bachelor's degree and a pioneering spirit, living in the northern Rockies. Enjoys building both structures and relationships."
+  },
+  {
+    id: 10,
+    label: "Sample 10",
+    desc: "A retired Asian female architect in her 60s, Hawaiian by residence, fluent in Tagalog. Creative, cultured, and design-driven."
+  },
+  {
+    id: 11,
+    label: "Sample 11",
+    desc: "A middle-aged foreign-born social worker, Spanish-speaking, living in Florida. Grounded in empathy and focused on immigrant family well-being."
+  },
+  {
+    id: 12,
+    label: "Sample 12",
+    desc: "A white male farmer in his 50s with a high school diploma, deeply rooted in North Dakota. Values tradition, land, and independence."
+  },
+  {
+    id: 13,
+    label: "Sample 13",
+    desc: "A young Black female teacher in the South with a bachelor's degree. Passionate about equity and education."
+  },
+  {
+    id: 14,
+    label: "Sample 14",
+    desc: "A middle-aged white male engineer in manufacturing with a Slavic background. High school educated and detail-oriented."
+  },
+  {
+    id: 15,
+    label: "Sample 15",
+    desc: "A young Asian female artist with a bachelor's degree, living in Hawaii. Creative, introspective, and culturally diverse."
+  },
+  {
+    id: 16,
+    label: "Sample 16",
+    desc: "A Hispanic teenage male soccer coach currently unemployed and living in Puerto Rico. Speaks Spanish and thrives on teamwork and youth mentorship."
+  },
+  {
+    id: 17,
+    label: "Sample 17",
+    desc: "A white male sales representative in his 20s with a high school diploma, based in the Midwest. Energetic, persuasive, and always on the move."
+  },
+  {
+    id: 18,
+    label: "Sample 18",
+    desc: "A Black female HR manager in Texas, fluent in French and holding a bachelor's degree. Values structure, diplomacy, and inclusion in the workplace."
+  },
+  {
+    id: 19,
+    label: "Sample 19",
+    desc: "A white male in his early 30s with a high school diploma working in manufacturing in the rural Midwest. Speaks English and values hands-on experience over formal education."
+  },
+  {
+    id: 20,
+    label: "Sample 20",
+    desc: "A Chinese male accountant in his 40s living in the Pacific Northwest. Holds a bachelor's degree and approaches life with precision and discipline."
+  }
+];
+
 interface UserData {
   user_email: string;
   user_id: string;
@@ -351,11 +460,13 @@ export default function SimulationPage() {
               className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded text-sm"
               value={selectedSample}
               onChange={(e) => setSelectedSample(e.target.value)}
-            >
-              <option value="">Select a sample</option>
-              <option value="sample1">Sample 1</option>
-              <option value="sample2">Sample 2</option>
-              <option value="sample3">Sample 3</option>
+              >
+             <option value="">Select a sample</option>
+                {samples.map((s) => (
+                  <option key={s.id} value={s.id}>
+                  {s.label}
+                </option>
+                ))}
             </select>
           </div>
         </div>
