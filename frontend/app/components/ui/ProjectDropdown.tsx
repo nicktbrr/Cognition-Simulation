@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { MoreHorizontal, Edit, Copy } from "lucide-react";
+import { MoreVertical, Edit, Copy } from "lucide-react";
 
 interface ProjectDropdownProps {
   isOpen: boolean;
@@ -29,7 +29,7 @@ export default function ProjectDropdown({
         }}
         className="p-1 hover:bg-gray-100 rounded"
       >
-        <MoreHorizontal className="w-4 h-4 text-gray-500" />
+        <MoreVertical className="w-4 h-4 text-gray-500" />
       </button>
       
       {isOpen && (
@@ -38,7 +38,11 @@ export default function ProjectDropdown({
         }`}>
           <div className="py-1">
             <button 
-              onClick={onRename}
+              onClick={(e) => {
+                e.stopPropagation();
+                console.log('Rename button clicked in dropdown');
+                onRename?.();
+              }}
               className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
             >
               <Edit className="h-4 w-4" />

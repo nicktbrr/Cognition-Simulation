@@ -12,6 +12,8 @@ import SimulationSteps from "./ui/SimulationSteps";
 interface Download {
   date: string;
   id: number;
+  url?: string;
+  filename?: string;
 }
 
 interface SimulationStep {
@@ -26,18 +28,22 @@ interface Project {
   status: string;
   downloads: Download[];
   steps: SimulationStep[];
+  id?: number;
 }
 
 interface ProjectsTableProps {
   projects: Project[];
   onDownload: (url: string, filename: string) => void;
+  onRename: (projectId: number, newName: string) => Promise<boolean>;
 }
 
-export default function ProjectsTable({ projects, onDownload }: ProjectsTableProps) {
+export default function ProjectsTable({ projects, onDownload, onRename }: ProjectsTableProps) {
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [projectDropdowns, setProjectDropdowns] = useState<Set<number>>(new Set());
   const [sortConfig, setSortConfig] = useState<{key: string, direction: 'asc' | 'desc'} | null>(null);
   const [sortedProjects, setSortedProjects] = useState(projects);
+  const [editingProject, setEditingProject] = useState<number | null>(null);
+  const [editName, setEditName] = useState("");
 
   // Update sortedProjects when projects prop changes
   React.useEffect(() => {
@@ -84,6 +90,36 @@ export default function ProjectsTable({ projects, onDownload }: ProjectsTablePro
       return 0;
     });
     setSortedProjects(sorted);
+  };
+
+  const handleStartRename = (index: number, currentName: string) => {
+    console.log('Starting rename for index:', index, 'name:', currentName);
+    setEditingProject(index);
+    setEditName(currentName);
+    setProjectDropdowns(new Set());
+  };
+
+  const handleSaveRename = async (projectId: number) => {
+    if (editName.trim() && projectId) {
+      const success = await onRename(projectId, editName.trim());
+      if (success) {
+        setEditingProject(null);
+        setEditName("");
+      }
+    }
+  };
+
+  const handleCancelRename = () => {
+    setEditingProject(null);
+    setEditName("");
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent, projectId: number) => {
+    if (e.key === 'Enter') {
+      handleSaveRename(projectId);
+    } else if (e.key === 'Escape') {
+      handleCancelRename();
+    }
   };
 
   // Close dropdowns when clicking outside
@@ -140,26 +176,44 @@ export default function ProjectsTable({ projects, onDownload }: ProjectsTablePro
                 <tr className="hover:bg-gray-50">
                   <td className="px-6 py-4">
                     <div className="flex items-center justify-between">
-                      <button 
-                        onClick={() => toggleRowExpansion(index)}
-                        className="flex items-center gap-2 text-left"
-                      >
-                        <div 
-                          className={`w-8 h-8 flex items-center justify-center transition-transform ${expandedRows.has(index) ? 'rotate-180' : ''}`}
-                          style={{
-                            borderRadius: 'calc(var(--radius) - 2px)'
-                          }}
-                        >
-                          <ChevronDown className="w-4 h-4" />
+                      {/* Debug: editingProject={editingProject}, index={index} */}
+                      {editingProject === index ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 flex items-center justify-center">
+                            <ChevronDown className="w-4 h-4" />
+                          </div>
+                          <input
+                            type="text"
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            onKeyDown={(e) => handleKeyPress(e, project.id!)}
+                            onBlur={() => handleSaveRename(project.id!)}
+                            className="font-medium text-gray-900 bg-white border border-blue-500 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            autoFocus
+                          />
                         </div>
-                        <span className="font-medium text-gray-900">{project.name}</span>
-                      </button>
+                      ) : (
+                        <button 
+                          onClick={() => toggleRowExpansion(index)}
+                          className="flex items-center gap-2 text-left"
+                        >
+                          <div 
+                            className={`w-8 h-8 flex items-center justify-center transition-transform ${expandedRows.has(index) ? 'rotate-180' : ''}`}
+                            style={{
+                              borderRadius: 'calc(var(--radius) - 2px)'
+                            }}
+                          >
+                            <ChevronDown className="w-4 h-4" />
+                          </div>
+                          <span className="font-medium text-gray-900">{project.name}</span>
+                        </button>
+                      )}
                       
                       <ProjectDropdown
                         isOpen={projectDropdowns.has(index)}
                         onToggle={() => toggleProjectDropdown(index)}
                         position={index >= sortedProjects.length - 2 ? 'top' : 'bottom'}
-                        onRename={() => console.log('Rename', project.name)}
+                        onRename={() => handleStartRename(index, project.name)}
                         onReplicate={() => console.log('Replicate', project.name)}
                         onModify={() => console.log('Modify', project.name)}
                       />
@@ -179,7 +233,7 @@ export default function ProjectsTable({ projects, onDownload }: ProjectsTablePro
                         <DownloadButton 
                           key={download.id}
                           date={download.date}
-                          onClick={() => onDownload(`${project.name}_${download.date}.xlsx`, project.name)}
+                          onClick={() => onDownload(download.url || '', download.filename || project.name)}
                         />
                       ))}
                     </div>
