@@ -38,33 +38,13 @@ interface ReactFlowAppProps {
 function ReactFlowComponent({ onFlowDataChange }: ReactFlowAppProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const reactFlowInstance = useRef<ReactFlowInstance<Node, Edge> | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
   const { setViewport } = useReactFlow()
 
-  // Handle container resize
-  useEffect(() => {
-    const updateDimensions = () => {
-      if (containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect()
-        setDimensions({
-          width: rect.width,
-          height: rect.height,
-        })
-        console.log('ReactFlow dimensions:', dimensions)
-      }
-    }
-
-    // Set initial dimensions
-    updateDimensions()
-
-    // Add resize listener
-    window.addEventListener('resize', updateDimensions)
-
-    // Cleanup
-    return () => window.removeEventListener('resize', updateDimensions)
-  }, [])
+  
 
   // Notify parent component when flow data changes
   useEffect(() => {
@@ -163,6 +143,14 @@ function ReactFlowComponent({ onFlowDataChange }: ReactFlowAppProps) {
     [setEdges]
   )
 
+  const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
+    setSelectedNodeId(node.id)
+  }, [])
+
+  const onPaneClick = useCallback(() => {
+    setSelectedNodeId(null)
+  }, [])
+
   const handleNodeDelete = useCallback((nodeId: string) => {
     setNodes((nds: Node[]) => nds.filter((node: Node) => node.id !== nodeId))
     setEdges((eds: Edge[]) => eds.filter((edge: Edge) => edge.source !== nodeId && edge.target !== nodeId))
@@ -256,7 +244,7 @@ function ReactFlowComponent({ onFlowDataChange }: ReactFlowAppProps) {
     setNodes((nds: Node[]) => [...nds, newNode])
   }, [setNodes, handleNodeDelete, handleTitleChange, handleDescriptionChange, handleSliderChange, dimensions, nodes, getNextNodeId])
 
-  // Update node data with handlers
+  // Update node data with handlers and highlighting
   const nodesWithHandlers = nodes.map((node: Node) => ({
     ...node,
     data: {
@@ -265,6 +253,11 @@ function ReactFlowComponent({ onFlowDataChange }: ReactFlowAppProps) {
       onTitleChange: handleTitleChange,
       onDescriptionChange: handleDescriptionChange,
       onSliderChange: handleSliderChange,
+    },
+    style: {
+      ...node.style,
+      border: selectedNodeId === node.id ? '3px solid #3b82f6' : '1px solid #e5e7eb',
+      boxShadow: selectedNodeId === node.id ? '0 0 0 3px rgba(59, 130, 246, 0.3)' : '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
     },
   }))
 
@@ -287,6 +280,8 @@ function ReactFlowComponent({ onFlowDataChange }: ReactFlowAppProps) {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        onNodeClick={onNodeClick}
+        onPaneClick={onPaneClick}
         isValidConnection={isValidConnection}
         nodeTypes={nodeTypes}
         fitView
