@@ -298,17 +298,17 @@ export default function SimulationPage() {
         <div className="w-56 bg-white border-r border-gray-200 p-4 space-y-6">
           {/* Tools Section */}
           <div>
-            <h3 className="text-sm font-semibold text-blue-600 mb-3">Tools</h3>
+            {/* <h3 className="text-sm font-semibold text-blue-600 mb-3">Tools</h3>
             <div className="space-y-2">
-              <div className="flex gap-2">
+              {/* <div className="flex gap-2">
                 <div className="w-20 h-8 bg-blue-500 rounded flex items-center justify-center text-white text-xs font-medium">
                   Step
                 </div>
                 <div className="w-20 h-8 bg-gray-200 rounded flex items-center justify-center text-gray-700 text-xs">
                   Connection
                 </div>
-              </div>
-            </div>
+              </div> 
+            </div> */}
           </div>
 
           {/* Colors Section */}
