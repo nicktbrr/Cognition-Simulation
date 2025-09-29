@@ -197,11 +197,11 @@ export default function SimulationPage() {
   };
 
   const handleGenerateSteps = () => {
-    console.log("Generate Steps clicked with:", processDescription);
+    // TODO: Implement generate steps functionality
   };
 
   const handleSaveDraft = () => {
-    console.log("Save Draft clicked");
+    // TODO: Implement save draft functionality
   };
 
   const convertFlowNodesToSteps = (nodes: Node[], edges: Edge[]) => {
@@ -330,11 +330,6 @@ export default function SimulationPage() {
   };
 
   const handleSubmitSimulation = async () => {
-    console.log("Submit for Simulation clicked");
-    console.log("Flow Nodes:", flowNodes);
-    console.log("Flow Edges:", flowEdges);
-    console.log("Process Description:", processDescription);
-    console.log("Selected Sample:", selectedSample);
     
     // Validate the flow
     const validation = validateFlow();
@@ -345,7 +340,6 @@ export default function SimulationPage() {
     }
     
     // If validation passes, proceed with submission
-    console.log("Validation passed! Proceeding with simulation submission...");
     
     try {
       // Get the user from local storage
@@ -369,8 +363,6 @@ export default function SimulationPage() {
       // Convert React Flow nodes to the expected format
       const orderedSteps = convertFlowNodesToSteps(flowNodes, flowEdges);
       
-      console.log("Ordered Steps with Measures:", orderedSteps);
-      
       // Construct the JSON payload for the simulation
       const jsonData = {
         seed: "no-seed",
@@ -380,8 +372,6 @@ export default function SimulationPage() {
         user_id: parsedUser.id,
         title: processDescription || "Simulation Flow",
       };
-      
-      console.log("Complete JSON payload being sent to backend:", jsonData);
       
       // Define backend URL based on environment
       const prod = process.env.NEXT_PUBLIC_DEV || "production";
@@ -419,14 +409,12 @@ export default function SimulationPage() {
       // const result = await response.json();
       
       if (result.status === "started") {
-        console.log("Simulation started successfully with task ID:", result.task_id);
         alert("Simulation submitted successfully! Task ID: " + result.task_id);
       } else {
         throw new Error(result.message || 'Simulation failed to start');
       }
       
     } catch (error) {
-      console.error("Error in simulation submission:", error);
       alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
@@ -516,7 +504,6 @@ export default function SimulationPage() {
                   key={colorOption.color}
                   onClick={() => {
                     setSelectedColor(colorOption.color);
-                    console.log(`Selected color: ${colorOption.name} (${colorOption.color})`);
                   }}
                   className={`w-6 h-6 rounded cursor-pointer border-2 flex items-center justify-center ${
                     selectedColor === colorOption.color 

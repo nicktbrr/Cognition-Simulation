@@ -156,7 +156,6 @@ function ReactFlowComponent({ onFlowDataChange, selectedColor = '#3b82f6', measu
 
   const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
     setSelectedNodeId(node.id)
-    console.log(`Node ${node.id} clicked and highlighted with color: ${selectedColor}`)
     
     // Update the node data to include the selected color
     setNodes((nds) =>

@@ -26,11 +26,6 @@ export interface CustomNodeData {
 }
 
 const CustomNode = memo(({ id, data }: NodeProps) => {
-  // Console log the selected color for this specific node
-  if ((data as any).selectedColor) {
-    console.log(`Node ${id} has selected color:`, (data as any).selectedColor);
-  }
-  
   // Get the selected color or default to white
   const selectedColor = (data as any).selectedColor || '#ffffff';
   
