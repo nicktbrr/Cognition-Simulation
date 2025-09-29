@@ -83,15 +83,7 @@ def run_evaluation(uuid, data, key_g, jwt=None):
         supabase = get_supabase_client(jwt)
         metrics = data['metrics']
 
-        response = supabase.table("experiments").insert({
-            "experiment_id": uuid,
-            "progress": 0,
-            "status": "Started",
-            "sample_name": "test",
-            "user_id": data['user_id'],
-            "simulation_name": data['title'],
-            "experiment_data": data,
-        }).execute()
+       
 
 
 
@@ -213,10 +205,13 @@ class Evaluation(Resource):
             # Create progress tracking entry
             task_id = uuid
             response = supabase.table("experiments").insert({
-                "user_id": data['user_id'],
-                "experiment_id": task_id,
+                "experiment_id": uuid,
                 "progress": 0,
-                "status": "started"
+                "status": "Started",
+                "sample_name": "test",
+                "user_id": data['user_id'],
+                "simulation_name": data['title'],
+                "experiment_data": data,
             }).execute()
             # Start background thread for evaluation, pass jwt
             thread = threading.Thread(target=run_evaluation, args=(uuid, data, key_g, jwt))
