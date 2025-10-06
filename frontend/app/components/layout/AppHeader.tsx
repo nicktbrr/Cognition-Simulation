@@ -18,15 +18,23 @@ interface AppHeaderProps {
 export default function AppHeader({ title, userData }: AppHeaderProps) {
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const { signOut } = useAuth();
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
 
   const handleSignOut = async () => {
-    await signOut();
+    console.log('handleSignOut called');
+    try {
+      await signOut();
+      console.log('signOut completed');
+    } catch (error) {
+      alert("Error signing out. Please try again.");
+      console.error("Sign out error:", error);
+    }
   };
 
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (profileDropdownOpen) {
+      if (profileDropdownOpen && dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setProfileDropdownOpen(false);
       }
     };
@@ -59,7 +67,7 @@ export default function AppHeader({ title, userData }: AppHeaderProps) {
         </div>
         
         {/* User Profile Dropdown */}
-        <div className="relative">
+        <div className="relative" ref={dropdownRef}>
           <button 
             onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
             className="flex items-center gap-3 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 rounded-lg"
@@ -104,7 +112,10 @@ export default function AppHeader({ title, userData }: AppHeaderProps) {
                 </button>
                 <hr className="my-1 border-gray-200" />
                 <button 
-                  onClick={handleSignOut}
+                  onClick={(e) => {
+                    console.log('Sign out button clicked');
+                    handleSignOut();
+                  }}
                   className="flex items-center gap-3 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
                 >
                   <LogOut className="w-4 h-4" />

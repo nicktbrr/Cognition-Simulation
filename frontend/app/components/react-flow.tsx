@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useCallback, useState, useRef, useEffect } from 'react'
+import React, { useCallback, useState, useRef, useEffect, useImperativeHandle, forwardRef } from 'react'
 import {
   ReactFlow,
   Node,
@@ -46,7 +46,11 @@ interface ReactFlowAppProps {
   loadingMeasures?: boolean;
 }
 
-function ReactFlowComponent({ onFlowDataChange, selectedColor = '#3b82f6', measures = [], loadingMeasures = false }: ReactFlowAppProps) {
+export interface ReactFlowRef {
+  clearFlow: () => void;
+}
+
+const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlowDataChange, selectedColor = '#3b82f6', measures = [], loadingMeasures = false }, ref) => {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
@@ -76,6 +80,17 @@ function ReactFlowComponent({ onFlowDataChange, selectedColor = '#3b82f6', measu
     loadFlowFromStorage()
   }, [])
 
+  // Expose clear function to parent component
+  useImperativeHandle(ref, () => ({
+    clearFlow: () => {
+      setNodes([])
+      setEdges([])
+      setSelectedNodeId(null)
+      setViewport({ x: 0, y: 0, zoom: 1 })
+      localStorage.removeItem(flowKey)
+    }
+  }), [setNodes, setEdges, setViewport])
+
   // Save flow state to localStorage
   const saveFlowToStorage = useCallback(() => {
     if (reactFlowInstance.current) {
@@ -104,6 +119,7 @@ function ReactFlowComponent({ onFlowDataChange, selectedColor = '#3b82f6', measu
     }
     restoreFlow()
   }, [setNodes, setEdges, setViewport])
+
 
   const isValidConnection = useCallback(
     (connection: Connection | Edge) => {
@@ -350,12 +366,15 @@ function ReactFlowComponent({ onFlowDataChange, selectedColor = '#3b82f6', measu
       </ReactFlow>
     </div>
   )
-}
+})
 
-export default function ReactFlowApp({ onFlowDataChange, selectedColor, measures, loadingMeasures }: ReactFlowAppProps) {
+ReactFlowComponent.displayName = 'ReactFlowComponent'
+
+const ReactFlowApp = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlowDataChange, selectedColor, measures, loadingMeasures }, ref) => {
   return (
     <ReactFlowProvider>
       <ReactFlowComponent 
+        ref={ref}
         onFlowDataChange={onFlowDataChange} 
         selectedColor={selectedColor} 
         measures={measures}
@@ -363,4 +382,8 @@ export default function ReactFlowApp({ onFlowDataChange, selectedColor, measures
       />
     </ReactFlowProvider>
   )
-}
+})
+
+ReactFlowApp.displayName = 'ReactFlowApp'
+
+export default ReactFlowApp

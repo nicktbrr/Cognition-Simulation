@@ -28,21 +28,22 @@ interface Project {
   status: string;
   downloads: Download[];
   steps: SimulationStep[];
-  id?: number;
+  id?: string;
 }
 
 interface ProjectsTableProps {
   projects: Project[];
   onDownload: (url: string, filename: string) => void;
-  onRename: (projectId: number, newName: string) => Promise<boolean>;
+  onRename: (projectId: string, newName: string) => Promise<boolean>;
+  onDelete?: (projectId: string) => Promise<boolean>;
 }
 
-export default function ProjectsTable({ projects, onDownload, onRename }: ProjectsTableProps) {
-  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
-  const [projectDropdowns, setProjectDropdowns] = useState<Set<number>>(new Set());
+export default function ProjectsTable({ projects, onDownload, onRename, onDelete }: ProjectsTableProps) {
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [projectDropdowns, setProjectDropdowns] = useState<Set<string>>(new Set());
   const [sortConfig, setSortConfig] = useState<{key: string, direction: 'asc' | 'desc'} | null>(null);
   const [sortedProjects, setSortedProjects] = useState(projects);
-  const [editingProject, setEditingProject] = useState<number | null>(null);
+  const [editingProject, setEditingProject] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
 
   // Update sortedProjects when projects prop changes
@@ -50,22 +51,22 @@ export default function ProjectsTable({ projects, onDownload, onRename }: Projec
     setSortedProjects(projects);
   }, [projects]);
 
-  const toggleRowExpansion = (index: number) => {
+  const toggleRowExpansion = (projectId: string) => {
     const newExpandedRows = new Set(expandedRows);
-    if (expandedRows.has(index)) {
-      newExpandedRows.delete(index);
+    if (expandedRows.has(projectId)) {
+      newExpandedRows.delete(projectId);
     } else {
-      newExpandedRows.add(index);
+      newExpandedRows.add(projectId);
     }
     setExpandedRows(newExpandedRows);
   };
 
-  const toggleProjectDropdown = (index: number) => {
+  const toggleProjectDropdown = (projectId: string) => {
     const newProjectDropdowns = new Set(projectDropdowns);
-    if (projectDropdowns.has(index)) {
-      newProjectDropdowns.delete(index);
+    if (projectDropdowns.has(projectId)) {
+      newProjectDropdowns.delete(projectId);
     } else {
-      newProjectDropdowns.add(index);
+      newProjectDropdowns.add(projectId);
     }
     setProjectDropdowns(newProjectDropdowns);
   };
@@ -92,14 +93,14 @@ export default function ProjectsTable({ projects, onDownload, onRename }: Projec
     setSortedProjects(sorted);
   };
 
-  const handleStartRename = (index: number, currentName: string) => {
-    console.log('Starting rename for index:', index, 'name:', currentName);
-    setEditingProject(index);
+  const handleStartRename = (projectId: string, currentName: string) => {
+    console.log('Starting rename for projectId:', projectId, 'name:', currentName);
+    setEditingProject(projectId);
     setEditName(currentName);
     setProjectDropdowns(new Set());
   };
 
-  const handleSaveRename = async (projectId: number) => {
+  const handleSaveRename = async (projectId: string) => {
     if (editName.trim() && projectId) {
       const success = await onRename(projectId, editName.trim());
       if (success) {
@@ -114,7 +115,7 @@ export default function ProjectsTable({ projects, onDownload, onRename }: Projec
     setEditName("");
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent, projectId: number) => {
+  const handleKeyPress = (e: React.KeyboardEvent, projectId: string) => {
     if (e.key === 'Enter') {
       handleSaveRename(projectId);
     } else if (e.key === 'Escape') {
@@ -177,7 +178,7 @@ export default function ProjectsTable({ projects, onDownload, onRename }: Projec
                   <td className="px-6 py-4">
                     <div className="flex items-center justify-between">
                       {/* Debug: editingProject={editingProject}, index={index} */}
-                      {editingProject === index ? (
+                      {editingProject === project.id ? (
                         <div className="flex items-center gap-2">
                           <div className="w-8 h-8 flex items-center justify-center">
                             <ChevronDown className="w-4 h-4" />
@@ -194,11 +195,11 @@ export default function ProjectsTable({ projects, onDownload, onRename }: Projec
                         </div>
                       ) : (
                         <button 
-                          onClick={() => toggleRowExpansion(index)}
+                          onClick={() => toggleRowExpansion(project.id!)}
                           className="flex items-center gap-2 text-left"
                         >
                           <div 
-                            className={`w-8 h-8 flex items-center justify-center transition-transform ${expandedRows.has(index) ? 'rotate-180' : ''}`}
+                            className={`w-8 h-8 flex items-center justify-center transition-transform ${expandedRows.has(project.id!) ? 'rotate-180' : ''}`}
                             style={{
                               borderRadius: 'calc(var(--radius) - 2px)'
                             }}
@@ -210,12 +211,13 @@ export default function ProjectsTable({ projects, onDownload, onRename }: Projec
                       )}
                       
                       <ProjectDropdown
-                        isOpen={projectDropdowns.has(index)}
-                        onToggle={() => toggleProjectDropdown(index)}
+                        isOpen={projectDropdowns.has(project.id!)}
+                        onToggle={() => toggleProjectDropdown(project.id!)}
                         position={index >= sortedProjects.length - 2 ? 'top' : 'bottom'}
-                        onRename={() => handleStartRename(index, project.name)}
+                        onRename={() => handleStartRename(project.id!, project.name)}
                         onReplicate={() => console.log('Replicate', project.name)}
                         onModify={() => console.log('Modify', project.name)}
+                        onDelete={() => onDelete?.(project.id!)}
                       />
                     </div>
                   </td>
@@ -241,10 +243,10 @@ export default function ProjectsTable({ projects, onDownload, onRename }: Projec
                   <td className="px-6 py-4"></td>
                 </tr>
                 
-                {expandedRows.has(index) && (
+                {expandedRows.has(project.id!) && (
                   <tr>
                     <td colSpan={5} className="px-6 py-4 bg-gray-50">
-                      <div className="flex gap-6">
+                      <div className="flex gap-6" style={{marginLeft: '40px'}}>
                         <SimulationSteps steps={project.steps} />
                       </div>
                     </td>
