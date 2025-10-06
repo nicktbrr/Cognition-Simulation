@@ -81,11 +81,19 @@ def run_evaluation(uuid, data, key_g, jwt=None):
     try:
         # Create a new Supabase client for this request
         supabase = get_supabase_client(jwt)
-        metrics = data['metrics']
-
-       
-
-
+        
+        # Use steps directly - no need for separate metrics
+        print(f"[DEBUG] Data keys: {list(data.keys())}")
+        print(f"[DEBUG] Has steps: {'steps' in data}")
+        
+        if 'steps' in data and data['steps']:
+            print(f"[DEBUG] Number of steps: {len(data['steps'])}")
+            print(f"[DEBUG] Steps: {data['steps']}")
+        else:
+            print("[DEBUG] No steps found")
+            data['steps'] = []
+        
+        print(f"[DEBUG] Using steps directly for evaluation")
 
         # Update progress to 10% - Starting evaluation
         response = supabase.table("experiments").update({
@@ -107,7 +115,12 @@ def run_evaluation(uuid, data, key_g, jwt=None):
         print("progress 30")
 
         # Evaluate responses and get token usage
-        fn, eval_tokens = evaluate(df, key_g, metrics, data['steps'])
+        steps = data.get('steps', [])
+
+        # Evaluate responses and get token usage
+        fn, eval_tokens = evaluate(df, key_g, steps)
+
+        print("HERE")
         
         # Update progress to 60% - Evaluation completed
         supabase.table("experiments").update({
