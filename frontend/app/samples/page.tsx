@@ -2,13 +2,14 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronRight, Plus } from "lucide-react";
+import { ChevronRight, Plus, Users } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { supabase } from "../utils/supabase";
 import { useAuth } from "../hooks/useAuth";
 import AuthLoading from "../components/auth-loading";
 import AppLayout from "../components/layout/AppLayout";
 import NewSampleModal from "../components/NewSampleModal";
+import Spinner from "../components/ui/spinner";
 
 interface UserData {
   user_email: string;
@@ -23,6 +24,11 @@ interface Sample {
   attributes: number;
   expanded?: boolean;
   selectedAttributes?: string[];
+  attributeCategories?: {
+    name: string;
+    attributeType: string;
+    values: string[];
+  }[];
 }
 
 interface Attribute {
@@ -34,7 +40,7 @@ interface Attribute {
 export default function SamplesPage() {
   const { user, isLoading, isAuthenticated } = useAuth();
   const [userData, setUserData] = useState<UserData | null>(null);
-  const [isNewSampleModalOpen, setIsNewSampleModalOpen] = useState(false);
+  const [contentLoaded, setContentLoaded] = useState(false);
   const [samples, setSamples] = useState<Sample[]>([
     {
       id: 1,
@@ -42,17 +48,35 @@ export default function SamplesPage() {
       createdDate: "12/31/2024",
       attributes: 2,
       expanded: false,
-      selectedAttributes: ["Age", "Gender"]
+      attributeCategories: [
+        {
+          name: "Demographics",
+          attributeType: "Age",
+          values: ["18-24", "25-34"]
+        },
+        {
+          name: "Geography",
+          attributeType: "Region",
+          values: ["North America"]
+        }
+      ]
     },
     {
       id: 2,
-      name: "Sample 2", 
+      name: "Sample 2",
       createdDate: "1/1/2025",
       attributes: 1,
       expanded: false,
-      selectedAttributes: ["Education Level"]
+      attributeCategories: [
+        {
+          name: "Education",
+          attributeType: "Degree Level",
+          values: ["Bachelor's Degree"]
+        }
+      ]
     }
   ]);
+  const [isNewSampleModalOpen, setIsNewSampleModalOpen] = useState(false);
 
   const getUserData = async (userId: string) => {
     const { data, error } = await supabase
@@ -66,6 +90,7 @@ export default function SamplesPage() {
     } else {
       setUserData(data);
     }
+    setContentLoaded(true);
   };
 
   useEffect(() => {
@@ -83,13 +108,30 @@ export default function SamplesPage() {
   };
 
   const handleNewSample = (selectedAttributes: Attribute[]) => {
+    // Group attributes by category
+    const groupedAttributes = selectedAttributes.reduce((acc, attr) => {
+      if (!acc[attr.category]) {
+        acc[attr.category] = [];
+      }
+      acc[attr.category].push(attr.label);
+      return acc;
+    }, {} as Record<string, string[]>);
+
+    // Convert to category format
+    const attributeCategories = Object.entries(groupedAttributes).map(([category, values]) => ({
+      name: category,
+      attributeType: values[0]?.split(' - ')[0] || category, // Extract attribute type from label
+      values: values
+    }));
+
     const newSample: Sample = {
       id: samples.length + 1,
       name: `Sample ${samples.length + 1}`,
       createdDate: new Date().toLocaleDateString(),
       attributes: selectedAttributes.length,
       expanded: false,
-      selectedAttributes: selectedAttributes.map(attr => attr.label)
+      selectedAttributes: selectedAttributes.map(attr => attr.label),
+      attributeCategories
     };
     
     setSamples([newSample, ...samples]);
@@ -153,40 +195,77 @@ export default function SamplesPage() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {samples.map((sample) => (
-                  <React.Fragment key={sample.id}>
-                    <tr className="hover:bg-gray-50 cursor-pointer" onClick={() => toggleSampleExpansion(sample.id)}>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <ChevronRight 
-                            className={`w-4 h-4 text-gray-400 mr-2 transition-transform ${sample.expanded ? 'rotate-90' : ''}`} 
-                          />
-                          <span className="text-sm font-medium text-gray-900">{sample.name}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {sample.createdDate}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {sample.attributes} attribute{sample.attributes !== 1 ? 's' : ''}
-                      </td>
-                    </tr>
-                    {sample.expanded && (
-                      <tr>
-                        <td colSpan={3} className="px-6 py-4 bg-gray-50">
-                          <div className="text-sm text-gray-600">
-                            <p className="font-medium text-gray-900 mb-2">Sample Attributes:</p>
-                            <ul className="list-disc list-inside space-y-1">
-                              {sample.selectedAttributes?.map((attribute, index) => (
-                                <li key={index}>{attribute}</li>
-                              ))}
-                            </ul>
+                {samples.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="px-6 py-12 text-center">
+                      <div className="flex flex-col items-center">
+                        <Users className="w-12 h-12 text-gray-400 mb-4" />
+                        <h3 className="text-lg font-medium text-gray-900 mb-2">No samples yet</h3>
+                        <p className="text-gray-500 mb-4">Create your first sample to get started</p>
+                        <Button 
+                          onClick={() => setIsNewSampleModalOpen(true)}
+                          className="bg-blue-600 hover:bg-blue-700 text-white"
+                        >
+                          <Plus className="w-4 h-4 mr-2" />
+                          Create Sample
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  samples.map((sample) => (
+                    <React.Fragment key={sample.id}>
+                      <tr className="hover:bg-gray-50 cursor-pointer" onClick={() => toggleSampleExpansion(sample.id)}>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <ChevronRight 
+                              className={`w-4 h-4 text-gray-400 mr-2 transition-transform ${sample.expanded ? 'rotate-90' : ''}`} 
+                            />
+                            <span className="text-sm font-medium text-gray-900">{sample.name}</span>
+                            <div className="ml-auto">
+                              <button className="text-gray-400 hover:text-gray-600">
+                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                  <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                                </svg>
+                              </button>
+                            </div>
                           </div>
                         </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {sample.createdDate}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {sample.attributes} attribute{sample.attributes !== 1 ? 's' : ''}
+                        </td>
                       </tr>
-                    )}
-                  </React.Fragment>
-                ))}
+                      {sample.expanded && (
+                        <tr>
+                          <td colSpan={3} className="px-6 py-4 bg-gray-50">
+                            <div className="text-sm text-gray-600">
+                              <p className="font-medium text-[#6366f1] mb-3">Selected Attributes:</p>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {sample.attributeCategories?.map((category, categoryIndex) => (
+                                  <div key={categoryIndex} className="bg-white rounded-lg border border-gray-200 p-4">
+                                    <h4 className="font-semibold text-gray-900 mb-2">{category.name}</h4>
+                                    <div className="text-[#6366f1] text-sm mb-2">{category.attributeType}</div>
+                                    <ul className="space-y-1">
+                                      {category.values.map((value, valueIndex) => (
+                                        <li key={valueIndex} className="text-gray-700 text-sm flex items-center">
+                                          <span className="w-1 h-1 bg-gray-400 rounded-full mr-2"></span>
+                                          {value}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

@@ -11,6 +11,7 @@ import { Button } from "../components/ui/button";
 import AppLayout from "../components/layout/AppLayout";
 import SubHeader from "../components/layout/SubHeader";
 import ProjectsTable from "../components/ProjectsTable";
+import Spinner from "../components/ui/spinner";
 
 interface SimulationHistoryItem {
   created_at: string;
@@ -60,6 +61,7 @@ export default function DashboardHistory() {
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
+  const [contentLoaded, setContentLoaded] = useState(false);
 
   const getHistory = async (userId: string) => {
     const { data, error } = await supabase.from("dashboard").select("created_at, name, url").eq("user_id", userId);
@@ -138,6 +140,7 @@ export default function DashboardHistory() {
       setProjects([]);
     } finally {
       setLoadingProjects(false);
+      setContentLoaded(true);
     }
   };
 
@@ -276,17 +279,20 @@ export default function DashboardHistory() {
       <div className="flex-1 p-8 bg-gray-100">
         {loadingProjects ? (
           <div className="flex items-center justify-center h-64">
-            <div className="text-gray-500">Loading projects...</div>
+            <div className="flex items-center gap-3 text-gray-500">
+              <Spinner size="md" />
+              <span>Loading projects...</span>
+            </div>
           </div>
         ) : (
-          <>
+          <div className={`transition-opacity duration-500 ${contentLoaded ? 'opacity-100' : 'opacity-0'}`}>
             <ProjectsTable 
               projects={projects}
               onDownload={handleDownload}
               onRename={handleRename}
               onDelete={handleDelete}
             />
-          </>
+          </div>
         )}
       </div>
 

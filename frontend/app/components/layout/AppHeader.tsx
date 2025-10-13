@@ -21,10 +21,8 @@ export default function AppHeader({ title, userData }: AppHeaderProps) {
   const dropdownRef = React.useRef<HTMLDivElement>(null);
 
   const handleSignOut = async () => {
-    console.log('handleSignOut called');
     try {
       await signOut();
-      console.log('signOut completed');
     } catch (error) {
       alert("Error signing out. Please try again.");
       console.error("Sign out error:", error);
@@ -34,12 +32,16 @@ export default function AppHeader({ title, userData }: AppHeaderProps) {
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (profileDropdownOpen && dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      const target = event.target as Element;
+      const dropdownContainer = document.querySelector('[data-dropdown-container]');
+      
+      if (profileDropdownOpen && dropdownContainer && !dropdownContainer.contains(target)) {
         setProfileDropdownOpen(false);
       }
     };
 
     if (profileDropdownOpen) {
+      console.log("Profile dropdown open");
       document.addEventListener('mousedown', handleClickOutside);
     }
 
@@ -67,7 +69,7 @@ export default function AppHeader({ title, userData }: AppHeaderProps) {
         </div>
         
         {/* User Profile Dropdown */}
-        <div className="relative" ref={dropdownRef}>
+        <div className="relative" data-dropdown-container>
           <button 
             onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
             className="flex items-center gap-3 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 rounded-lg"
@@ -82,17 +84,17 @@ export default function AppHeader({ title, userData }: AppHeaderProps) {
                 />
               ) : (
                 <span>
-                  {(userData?.user_email?.split('@')[0]?.charAt(0) || 'S').toUpperCase()}
+                  {(userData?.user_email?.split('@')[0]?.charAt(0) || 'U').toUpperCase()}
                 </span>
               )}
             </div>
             
             <div className="text-right">
               <div className="font-medium text-gray-900">
-                {userData?.user_email?.split('@')[0] || 'Dr. Sarah Chen'}
+                {userData?.user_email?.split('@')[0] || 'User'}
               </div>
               <div className="text-sm text-gray-500">
-                {userData?.user_email || 'sarah.chen@simulab.com'}
+                {userData?.user_email || 'Loading...'}
               </div>
             </div>
             

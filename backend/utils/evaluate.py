@@ -10,7 +10,7 @@ import json
 from pydantic import BaseModel
 import concurrent.futures
 import os
-import openai
+# import openai
 from datetime import datetime
 
 class EvaluationMetricsGPT4(BaseModel):
@@ -178,25 +178,25 @@ Please evaluate this response against the measures defined for this step, using 
             
             # Create system prompt with only relevant measures for this step
             system_prompt = f"""# Instruction
-You are an expert evaluator. Your task is to evaluate the quality of AI-generated responses based on specific simulation steps and their associated measures.
+You are an expert evaluator. Your task is to evaluate the quality of responses based on specific simulation steps and their associated measures.
 
 You will be provided with:
 1. The simulation step instructions
-2. The AI-generated response for that step
+2. The response for that step
 3. Specific measures and their reference points for evaluation
 
-Your task is to evaluate how well the AI response aligns with the step requirements and meets the specified measures.
+Your task is to evaluate how well theresponse aligns with the step requirements and meets the specified measures.
 
 # Measures used for evaluation
 {measures}
 
 ## Scoring Rubric
-For each measure, use the specified range (or 1-5 if no range provided) to score the response.
+For each measure, use the specified range to score the response.
 
 ## Evaluation Steps
 For each measure, follow these steps:
 
-STEP 1: Analyze the AI response against the step instructions and measure requirements.
+STEP 1: Analyze the response against the step instructions and measure requirements.
 - Consider how well the response follows the step instructions
 - Evaluate alignment with the measure's description and reference points
 - Identify strengths and weaknesses
@@ -304,7 +304,7 @@ def evaluate(df, key_g, steps=None):
     # No need to build system prompt here - it will be built per column in process_row
 
     # Process rows in parallel using ThreadPoolExecutor
-    max_workers = 4
+    max_workers = 2
     results_gemini = []
     results_gpt4 = []
     tokens_ls = []
@@ -325,11 +325,8 @@ def evaluate(df, key_g, steps=None):
 
     # Convert results to DataFrames
 
-    print(f"[DEBUG EVALUATE] Results Gemini: {results_gemini}")
     results_df_gemini = pd.DataFrame(results_gemini)
     # Create empty DataFrame for GPT-4 since evaluation is commented out
-
-    print(f"[DEBUG EVALUATE] Results Gemini: {results_df_gemini}")
 
     # Generate Excel report
     excel_file = dataframe_to_excel(df, results_df_gemini, steps)
