@@ -14,7 +14,7 @@ import os
 from supabase import create_client, Client
 from pathlib import Path
 import google.generativeai as genai
-from utils.cosine_sim import *
+# from utils.cosine_sim import *
 from utils.prompts import *
 from utils.evaluate import *
 import threading
@@ -81,38 +81,18 @@ def run_evaluation(uuid, data, key_g, jwt=None):
     try:
         # Create a new Supabase client for this request
         supabase = get_supabase_client(jwt)
-        
-        # Use steps directly - no need for separate metrics
-        print(f"[DEBUG] Data keys: {list(data.keys())}")
-        print(f"[DEBUG] Has steps: {'steps' in data}")
-        
-        if 'steps' in data and data['steps']:
-            print(f"[DEBUG] Number of steps: {len(data['steps'])}")
-            print(f"[DEBUG] Steps: {data['steps']}")
-        else:
-            print("[DEBUG] No steps found")
-            data['steps'] = []
-        
-        print(f"[DEBUG] Using steps directly for evaluation")
-
         # Update progress to 10% - Starting evaluation
         response = supabase.table("experiments").update({
             "progress": 10,
         }).eq("experiment_id", uuid).execute()
 
-        print("progress 10")
-
         # Generate baseline prompt and get token usage
         df, prompt_tokens = baseline_prompt(data, key_g)
-
-        print("progress 10.5")
 
         # Update progress to 30% - Baseline prompt generated
         supabase.table("experiments").update({
             "progress": 30,
         }).eq("experiment_id", uuid).execute()
-
-        print("progress 30")
 
         # Evaluate responses and get token usage
         steps = data.get('steps', [])
@@ -120,15 +100,13 @@ def run_evaluation(uuid, data, key_g, jwt=None):
         # Evaluate responses and get token usage
         fn, eval_tokens = evaluate(df, key_g, steps)
 
-        print("HERE")
-        
         # Update progress to 60% - Evaluation completed
         supabase.table("experiments").update({
             "progress": 60,
         }).eq("experiment_id", uuid).execute()
 
         df = df.replace('\n', '', regex=True)
-        sim_matrix = create_sim_matrix(df)
+        # sim_matrix = create_sim_matrix(df)
         
         # Update progress to 80% - Similarity matrix created
         supabase.table("experiments").update({
@@ -166,7 +144,7 @@ def run_evaluation(uuid, data, key_g, jwt=None):
         os.remove(fn)
         public_url = supabase.storage.from_(bucket_name).get_public_url(
             f'llm/{fn}')
-        sim_matrix['public_url'] = public_url
+        # sim_matrix['public_url'] = public_url
 
         # Update progress to 90% - File uploaded
         supabase.table("experiments").update({
@@ -213,7 +191,6 @@ class Evaluation(Resource):
             supabase: Client = create_client(url, key)
             if jwt:
                 supabase.auth.set_session(jwt, "")
-            print(f"[DEBUG] {request.get_json()}")
             # return jsonify({"status": "success", "message": "Simulation submitted successfully"})
             # Create progress tracking entry
             task_id = uuid
@@ -260,9 +237,6 @@ class Progress(Resource):
             task_id = request.args.get('task_id')
             user_id = request.args.get('user_id')
 
-            print("task_id", task_id)
-            print("user_id", user_id)
-            
             if not task_id or not user_id:
                 return jsonify({"status": "error", "message": "Missing task_id or user_id"}), 400
             
@@ -270,8 +244,6 @@ class Progress(Resource):
             supabase = get_supabase_client(jwt)
             response = supabase.table("experiments").select(
                 "*").eq("experiment_id", task_id).execute()
-
-            print(response)
             
             if response.data:
                 progress_data = response.data[0]
