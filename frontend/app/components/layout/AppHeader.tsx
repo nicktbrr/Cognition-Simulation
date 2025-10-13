@@ -20,18 +20,23 @@ export default function AppHeader({ title, userData }: AppHeaderProps) {
   const { signOut } = useAuth();
 
   const handleSignOut = async () => {
+    console.log("Signing out");
     await signOut();
   };
 
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (profileDropdownOpen) {
+      const target = event.target as Element;
+      const dropdownContainer = document.querySelector('[data-dropdown-container]');
+      
+      if (profileDropdownOpen && dropdownContainer && !dropdownContainer.contains(target)) {
         setProfileDropdownOpen(false);
       }
     };
 
     if (profileDropdownOpen) {
+      console.log("Profile dropdown open");
       document.addEventListener('mousedown', handleClickOutside);
     }
 
@@ -59,7 +64,7 @@ export default function AppHeader({ title, userData }: AppHeaderProps) {
         </div>
         
         {/* User Profile Dropdown */}
-        <div className="relative">
+        <div className="relative" data-dropdown-container>
           <button 
             onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
             className="flex items-center gap-3 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 rounded-lg"
