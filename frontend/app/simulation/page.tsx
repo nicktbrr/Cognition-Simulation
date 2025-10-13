@@ -10,6 +10,7 @@ import AppLayout from "../components/layout/AppLayout";
 import SubHeader from "../components/layout/SubHeader";
 import ReactFlowApp, { ReactFlowRef } from "../components/react-flow";
 import { Node, Edge } from "@xyflow/react";
+import Spinner from "../components/ui/spinner";
 
 type Sample = {
   id: number;
@@ -150,6 +151,7 @@ export default function SimulationPage() {
   const [selectedColor, setSelectedColor] = useState<string>('#3b82f6');
   const [measures, setMeasures] = useState<Measure[]>([]);
   const [loadingMeasures, setLoadingMeasures] = useState(false);
+  const [contentLoaded, setContentLoaded] = useState(false);
   const reactFlowRef = useRef<ReactFlowRef>(null);
 
   const getUserData = async (userId: string) => {
@@ -195,6 +197,7 @@ export default function SimulationPage() {
       setMeasures([]);
     } finally {
       setLoadingMeasures(false);
+      setContentLoaded(true);
     }
   };
 
@@ -486,8 +489,17 @@ export default function SimulationPage() {
       </SubHeader>
 
       <div className="flex h-full">
-        {/* Left Sidebar - Tools */}
-        <div className="w-56 bg-white border-r border-gray-200 p-4 space-y-6">
+        {!contentLoaded ? (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="flex items-center gap-3 text-gray-500">
+              <Spinner size="lg" />
+              <span>Loading simulation tools...</span>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Left Sidebar - Tools */}
+            <div className={`w-56 bg-white border-r border-gray-200 p-4 space-y-6 transition-opacity duration-500 ${contentLoaded ? 'opacity-100' : 'opacity-0'}`}>
           {/* Tools Section */}
           <div>
             {/* <h3 className="text-sm font-semibold text-blue-600 mb-3">Tools</h3>
@@ -633,19 +645,21 @@ export default function SimulationPage() {
             </div>
           </div>
 
-          {/* Whiteboard Canvas Area */}
-          <div className="flex-1 relative overflow-hidden p-6">
-            <div className="absolute inset-6">
-              <ReactFlowApp 
-                ref={reactFlowRef}
-                onFlowDataChange={handleFlowDataChange} 
-                selectedColor={selectedColor} 
-                measures={measures}
-                loadingMeasures={loadingMeasures}
-              />
+            {/* Whiteboard Canvas Area */}
+            <div className="flex-1 relative overflow-hidden p-6">
+              <div className="absolute inset-6">
+                <ReactFlowApp 
+                  ref={reactFlowRef}
+                  onFlowDataChange={handleFlowDataChange} 
+                  selectedColor={selectedColor} 
+                  measures={measures}
+                  loadingMeasures={loadingMeasures}
+                />
+              </div>
             </div>
           </div>
-        </div>
+          </>
+        )}
       </div>
     </AppLayout>
   );

@@ -14,6 +14,7 @@ import AuthLoading from "../components/auth-loading";
 import AppLayout from "../components/layout/AppLayout";
 import SubHeader from "../components/layout/SubHeader";
 import AddMeasureModal from "../components/AddMeasureModal";
+import Spinner from "../components/ui/spinner";
 
 interface UserData {
   user_email: string;
@@ -46,6 +47,7 @@ export default function MeasuresPage() {
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0 });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [measureToDelete, setMeasureToDelete] = useState<string | null>(null);
+  const [contentLoaded, setContentLoaded] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
@@ -92,6 +94,7 @@ export default function MeasuresPage() {
       setMeasures([]);
     } finally {
       setLoadingMeasures(false);
+      setContentLoaded(true);
     }
   };
 
@@ -314,10 +317,14 @@ export default function MeasuresPage() {
           <CardContent>
             {loadingMeasures ? (
               <div className="flex items-center justify-center h-32">
-                <div className="text-gray-500">Loading measures...</div>
+                <div className="flex items-center gap-3 text-gray-500">
+                  <Spinner size="md" />
+                  <span>Loading measures...</span>
+                </div>
               </div>
             ) : (
-              <Table>
+              <div className={`transition-opacity duration-500 ${contentLoaded ? 'opacity-100' : 'opacity-0'}`}>
+                <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-12"></TableHead>
@@ -390,6 +397,7 @@ export default function MeasuresPage() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             )}
           </CardContent>
         </Card>

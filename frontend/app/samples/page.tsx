@@ -8,6 +8,7 @@ import { supabase } from "../utils/supabase";
 import { useAuth } from "../hooks/useAuth";
 import AuthLoading from "../components/auth-loading";
 import AppLayout from "../components/layout/AppLayout";
+import Spinner from "../components/ui/spinner";
 
 interface UserData {
   user_email: string;
@@ -18,6 +19,7 @@ interface UserData {
 export default function SamplesPage() {
   const { user, isLoading, isAuthenticated } = useAuth();
   const [userData, setUserData] = useState<UserData | null>(null);
+  const [contentLoaded, setContentLoaded] = useState(false);
 
   const getUserData = async (userId: string) => {
     const { data, error } = await supabase
@@ -31,6 +33,7 @@ export default function SamplesPage() {
     } else {
       setUserData(data);
     }
+    setContentLoaded(true);
   };
 
   useEffect(() => {
@@ -73,45 +76,56 @@ export default function SamplesPage() {
 
       {/* Content */}
       <div className="flex-1 p-8">
-        <div className="bg-white rounded-lg border border-gray-200 p-8">
-          <div className="text-center">
-            <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <h2 className="text-2xl font-semibold text-gray-900 mb-2">Samples Coming Soon</h2>
-            <p className="text-gray-600 mb-6 max-w-md mx-auto">
-              This section will provide tools for managing datasets, participant samples, 
-              and data configurations for your cognitive simulation research.
-            </p>
-            <div className="space-y-4 text-left max-w-2xl mx-auto">
-              <h3 className="text-lg font-semibold text-gray-900">Planned Features:</h3>
-              <ul className="space-y-2 text-gray-600">
-                <li className="flex items-start gap-2">
-                  <span className="w-2 h-2 bg-blue-600 rounded-full mt-2"></span>
-                  Dataset upload and management
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="w-2 h-2 bg-blue-600 rounded-full mt-2"></span>
-                  Sample size calculations and power analysis
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="w-2 h-2 bg-blue-600 rounded-full mt-2"></span>
-                  Data preprocessing and cleaning tools
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="w-2 h-2 bg-blue-600 rounded-full mt-2"></span>
-                  Participant demographics and sampling strategies
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="w-2 h-2 bg-blue-600 rounded-full mt-2"></span>
-                  Data validation and quality checks
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="w-2 h-2 bg-blue-600 rounded-full mt-2"></span>
-                  Integration with external data sources
-                </li>
-              </ul>
+        {!contentLoaded ? (
+          <div className="flex items-center justify-center h-64">
+            <div className="flex items-center gap-3 text-gray-500">
+              <Spinner size="md" />
+              <span>Loading samples...</span>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className={`transition-opacity duration-500 ${contentLoaded ? 'opacity-100' : 'opacity-0'}`}>
+            <div className="bg-white rounded-lg border border-gray-200 p-8">
+              <div className="text-center">
+                <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <h2 className="text-2xl font-semibold text-gray-900 mb-2">Samples Coming Soon</h2>
+                <p className="text-gray-600 mb-6 max-w-md mx-auto">
+                  This section will provide tools for managing datasets, participant samples, 
+                  and data configurations for your cognitive simulation research.
+                </p>
+                <div className="space-y-4 text-left max-w-2xl mx-auto">
+                  <h3 className="text-lg font-semibold text-gray-900">Planned Features:</h3>
+                  <ul className="space-y-2 text-gray-600">
+                    <li className="flex items-start gap-2">
+                      <span className="w-2 h-2 bg-blue-600 rounded-full mt-2"></span>
+                      Dataset upload and management
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="w-2 h-2 bg-blue-600 rounded-full mt-2"></span>
+                      Sample size calculations and power analysis
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="w-2 h-2 bg-blue-600 rounded-full mt-2"></span>
+                      Data preprocessing and cleaning tools
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="w-2 h-2 bg-blue-600 rounded-full mt-2"></span>
+                      Participant demographics and sampling strategies
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="w-2 h-2 bg-blue-600 rounded-full mt-2"></span>
+                      Data validation and quality checks
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="w-2 h-2 bg-blue-600 rounded-full mt-2"></span>
+                      Integration with external data sources
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </AppLayout>
   );
