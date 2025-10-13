@@ -47,13 +47,11 @@ export function useAuth(): UseAuthReturn {
     let isMounted = true;
     
     const initializeAuth = async () => {
-      console.log('useAuth: Initializing authentication...');
       
       try {
         // First, try to get user from localStorage immediately
         const storedUser = localStorage.getItem("supabaseUser");
         if (storedUser) {
-          console.log('useAuth: Found user in localStorage');
           try {
             const parsedUser = JSON.parse(storedUser);
             
@@ -73,9 +71,6 @@ export function useAuth(): UseAuthReturn {
             console.error("Error parsing localStorage user:", e);
           }
         }
-
-        // Then check Supabase session
-        console.log('useAuth: Checking Supabase session...');
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         
         if (sessionError) {
@@ -87,7 +82,6 @@ export function useAuth(): UseAuthReturn {
         }
 
         if (session?.user) {
-          console.log('useAuth: Found user in Supabase session');
           const userData: UserData = {
             user_email: session.user.email || '',
             user_id: session.user.id,
@@ -101,8 +95,6 @@ export function useAuth(): UseAuthReturn {
             setIsLoading(false);
           }
         } else {
-          console.log('useAuth: No Supabase session found');
-          // No session found, check if we have localStorage data
           if (!storedUser && isMounted) {
             setIsLoading(false);
           }
@@ -121,7 +113,6 @@ export function useAuth(): UseAuthReturn {
         if (!isMounted) return;
         
         if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') && session?.user) {
-          console.log('useAuth: User signed in via auth state change');
           const userData: UserData = {
             user_email: session.user.email || '',
             user_id: session.user.id,
@@ -132,7 +123,6 @@ export function useAuth(): UseAuthReturn {
           setIsAuthenticated(true);
           setIsLoading(false);
         } else if (event === 'SIGNED_OUT') {
-          console.log('useAuth: User signed out');
           setUser(null);
           setIsAuthenticated(false);
           setIsLoading(false);

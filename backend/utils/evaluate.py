@@ -304,7 +304,7 @@ def evaluate(df, key_g, steps=None):
     # No need to build system prompt here - it will be built per column in process_row
 
     # Process rows in parallel using ThreadPoolExecutor
-    max_workers = 4
+    max_workers = 2
     results_gemini = []
     results_gpt4 = []
     tokens_ls = []

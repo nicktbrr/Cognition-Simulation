@@ -409,7 +409,6 @@ export default function SimulationPage() {
       const result = await response.json();
       
       if (result.status === "started") {
-        console.log("Simulation submitted successfully! Task ID:", result.task_id);
         alert("Simulation submitted successfully! Task ID: " + result.task_id);
       } else {
         throw new Error(result.message || 'Simulation failed to start');

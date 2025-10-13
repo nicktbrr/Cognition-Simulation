@@ -84,12 +84,20 @@ export default function Multiselect({
                 className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-md"
               >
                 {option.title}
-                <button
+                <span
                   onClick={(e) => handleRemoveOption(option.id, e)}
-                  className="hover:bg-blue-200 rounded-full p-0.5"
+                  className="hover:bg-blue-200 rounded-full p-0.5 cursor-pointer inline-flex items-center justify-center"
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      handleRemoveOption(option.id, e as any)
+                    }
+                  }}
                 >
                   <X className="w-3 h-3" />
-                </button>
+                </span>
               </span>
             ))
           )}
