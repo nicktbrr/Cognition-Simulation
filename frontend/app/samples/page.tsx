@@ -2,12 +2,13 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { Users, ArrowLeft } from "lucide-react";
+import { ChevronRight, Plus } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { supabase } from "../utils/supabase";
 import { useAuth } from "../hooks/useAuth";
 import AuthLoading from "../components/auth-loading";
 import AppLayout from "../components/layout/AppLayout";
+import NewSampleModal from "../components/NewSampleModal";
 
 interface UserData {
   user_email: string;
@@ -15,9 +16,43 @@ interface UserData {
   pic_url: string;
 }
 
+interface Sample {
+  id: number;
+  name: string;
+  createdDate: string;
+  attributes: number;
+  expanded?: boolean;
+  selectedAttributes?: string[];
+}
+
+interface Attribute {
+  id: string;
+  label: string;
+  category: string;
+}
+
 export default function SamplesPage() {
   const { user, isLoading, isAuthenticated } = useAuth();
   const [userData, setUserData] = useState<UserData | null>(null);
+  const [isNewSampleModalOpen, setIsNewSampleModalOpen] = useState(false);
+  const [samples, setSamples] = useState<Sample[]>([
+    {
+      id: 1,
+      name: "Sample 1",
+      createdDate: "12/31/2024",
+      attributes: 2,
+      expanded: false,
+      selectedAttributes: ["Age", "Gender"]
+    },
+    {
+      id: 2,
+      name: "Sample 2", 
+      createdDate: "1/1/2025",
+      attributes: 1,
+      expanded: false,
+      selectedAttributes: ["Education Level"]
+    }
+  ]);
 
   const getUserData = async (userId: string) => {
     const { data, error } = await supabase
@@ -39,6 +74,27 @@ export default function SamplesPage() {
     }
   }, [user, isAuthenticated]);
 
+  const toggleSampleExpansion = (sampleId: number) => {
+    setSamples(samples.map(sample => 
+      sample.id === sampleId 
+        ? { ...sample, expanded: !sample.expanded }
+        : sample
+    ));
+  };
+
+  const handleNewSample = (selectedAttributes: Attribute[]) => {
+    const newSample: Sample = {
+      id: samples.length + 1,
+      name: `Sample ${samples.length + 1}`,
+      createdDate: new Date().toLocaleDateString(),
+      attributes: selectedAttributes.length,
+      expanded: false,
+      selectedAttributes: selectedAttributes.map(attr => attr.label)
+    };
+    
+    setSamples([newSample, ...samples]);
+  };
+
   // Show loading state while checking authentication
   if (isLoading) {
     return <AuthLoading message="Loading samples..." />;
@@ -56,63 +112,93 @@ export default function SamplesPage() {
       userData={userData}
     >
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-8 py-6">
+      <div className="px-8 py-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Samples</h1>
-            <p className="text-gray-600 mt-1">Manage datasets and sample configurations for your research</p>
+            <h1 className="text-3xl font-bold" style={{ 
+              fontFamily: 'Barlow, sans-serif',
+              background: 'linear-gradient(135deg, rgb(57, 106, 241) 10%, rgb(166, 101, 246) 90%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text'
+            }}>Samples</h1>
           </div>
-          <Link href="/dashboard">
-            <Button variant="outline" className="flex items-center gap-2">
-              <ArrowLeft className="w-4 h-4" />
-              Back to Dashboard
-            </Button>
-          </Link>
+          <Button 
+            onClick={() => setIsNewSampleModalOpen(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            New Sample
+          </Button>
         </div>
       </div>
 
       {/* Content */}
-      <div className="flex-1 p-8">
-        <div className="bg-white rounded-lg border border-gray-200 p-8">
-          <div className="text-center">
-            <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <h2 className="text-2xl font-semibold text-gray-900 mb-2">Samples Coming Soon</h2>
-            <p className="text-gray-600 mb-6 max-w-md mx-auto">
-              This section will provide tools for managing datasets, participant samples, 
-              and data configurations for your cognitive simulation research.
-            </p>
-            <div className="space-y-4 text-left max-w-2xl mx-auto">
-              <h3 className="text-lg font-semibold text-gray-900">Planned Features:</h3>
-              <ul className="space-y-2 text-gray-600">
-                <li className="flex items-start gap-2">
-                  <span className="w-2 h-2 bg-blue-600 rounded-full mt-2"></span>
-                  Dataset upload and management
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="w-2 h-2 bg-blue-600 rounded-full mt-2"></span>
-                  Sample size calculations and power analysis
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="w-2 h-2 bg-blue-600 rounded-full mt-2"></span>
-                  Data preprocessing and cleaning tools
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="w-2 h-2 bg-blue-600 rounded-full mt-2"></span>
-                  Participant demographics and sampling strategies
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="w-2 h-2 bg-blue-600 rounded-full mt-2"></span>
-                  Data validation and quality checks
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="w-2 h-2 bg-blue-600 rounded-full mt-2"></span>
-                  Integration with external data sources
-                </li>
-              </ul>
-            </div>
+      <div className="flex-1 bg-gray-50 p-8">
+        <div className="bg-white rounded-lg border border-gray-200">
+          {/* Samples Overview Header */}
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h2 className="text-xl font-semibold text-[#6366f1]">Samples Overview</h2>
+            <p className="text-gray-600 text-sm mt-1">View and manage your samples. Click on a sample name to expand and see attributes.</p>
+          </div>
+
+          {/* Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created Date</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Attributes</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {samples.map((sample) => (
+                  <React.Fragment key={sample.id}>
+                    <tr className="hover:bg-gray-50 cursor-pointer" onClick={() => toggleSampleExpansion(sample.id)}>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <ChevronRight 
+                            className={`w-4 h-4 text-gray-400 mr-2 transition-transform ${sample.expanded ? 'rotate-90' : ''}`} 
+                          />
+                          <span className="text-sm font-medium text-gray-900">{sample.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {sample.createdDate}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {sample.attributes} attribute{sample.attributes !== 1 ? 's' : ''}
+                      </td>
+                    </tr>
+                    {sample.expanded && (
+                      <tr>
+                        <td colSpan={3} className="px-6 py-4 bg-gray-50">
+                          <div className="text-sm text-gray-600">
+                            <p className="font-medium text-gray-900 mb-2">Sample Attributes:</p>
+                            <ul className="list-disc list-inside space-y-1">
+                              {sample.selectedAttributes?.map((attribute, index) => (
+                                <li key={index}>{attribute}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
+
+      {/* New Sample Modal */}
+      <NewSampleModal
+        isOpen={isNewSampleModalOpen}
+        onClose={() => setIsNewSampleModalOpen(false)}
+        onSave={handleNewSample}
+      />
     </AppLayout>
   );
 }

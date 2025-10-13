@@ -1,0 +1,351 @@
+[
+    {
+      "id": "covid_vaccine_opinions",
+      "label": "COVID-19 Vaccine Opinions",
+      "category": "beliefs",
+      "options": [
+        { "id": "for", "label": "For (I feel positively about the vaccines)" },
+        { "id": "against", "label": "Against (I feel negatively about the vaccines)" },
+        { "id": "neutral", "label": "Neutral (I don't have strong opinions either way)" },
+        { "id": "prefer_not_say", "label": "Prefer not to say" }
+      ]
+    },
+    {
+      "id": "boycotting",
+      "label": "Boycotting",
+      "category": "beliefs",
+      "options": [
+        { "id": "yes", "label": "Yes" },
+        { "id": "no", "label": "No" }
+      ]
+    },
+    {
+      "id": "prolife_prochoice",
+      "label": "ProLife/ProChoice",
+      "category": "beliefs",
+      "options": [
+        { "id": "pro_life", "label": "Pro-Life" },
+        { "id": "pro_choice", "label": "Pro-choice" },
+        { "id": "na_rather_not_say", "label": "NA/Rather not say" }
+      ]
+    },
+    {
+      "id": "us_political_affiliation",
+      "label": "U.S. Political Affiliation",
+      "category": "beliefs",
+      "options": [
+        { "id": "democrat", "label": "Democrat" },
+        { "id": "republican", "label": "Republican" },
+        { "id": "independent", "label": "Independent" },
+        { "id": "other", "label": "Other" }
+      ]
+    },
+    {
+      "id": "us_2016_election",
+      "label": "2016 US presidential election",
+      "category": "beliefs",
+      "options": [
+        { "id": "donald_trump", "label": "Donald Trump" },
+        { "id": "hillary_clinton", "label": "Hillary Clinton" },
+        { "id": "did_not_vote", "label": "I did not vote" },
+        { "id": "rather_not_say", "label": "Rather not say or N/A" },
+        { "id": "jill_stein", "label": "Jill Stein" },
+        { "id": "other_candidate", "label": "Other candidate" },
+        { "id": "prefer_not_say", "label": "Prefer not to say" },
+        { "id": "not_applicable", "label": "Not applicable / rather not say" }
+      ]
+    },
+    {
+      "id": "uk_political_party",
+      "label": "Political Party Affiliation UK",
+      "category": "beliefs",
+      "options": [
+        { "id": "labour", "label": "Labour" },
+        { "id": "conservative", "label": "Conservative" },
+        { "id": "snp", "label": "Scottish National Party (SNP)" },
+        { "id": "liberal_democrats", "label": "Liberal Democrats" },
+        { "id": "green_party", "label": "Green Party" },
+        { "id": "ukip", "label": "UKIP" },
+        { "id": "other", "label": "Other" },
+        { "id": "brexit_party", "label": "Brexit Party" },
+        { "id": "change_uk", "label": "Change UK" },
+        { "id": "dup", "label": "Democratic Unionist Party (DUP)" },
+        { "id": "plaid_cymru", "label": "Plaid Cymru" },
+        { "id": "sinn_fein", "label": "Sinn Fein" },
+        { "id": "ulster_unionist", "label": "Ulster Unionist Party" },
+        { "id": "sdlp", "label": "Social Democratic & Labour Party" },
+        { "id": "alliance_party", "label": "Alliance Party" },
+        { "id": "independent", "label": "Independent" },
+        { "id": "rather_not_say", "label": "Rather not say" }
+      ]
+    },
+    {
+      "id": "us_political_spectrum",
+      "label": "Political Spectrum (US)",
+      "category": "beliefs",
+      "options": [
+        { "id": "conservative", "label": "Conservative" },
+        { "id": "moderate", "label": "Moderate" },
+        { "id": "liberal", "label": "Liberal" },
+        { "id": "other", "label": "Other" },
+        { "id": "na", "label": "N/A" }
+      ]
+    },
+    {
+      "id": "uk_2019_election",
+      "label": "UK General Election 2019",
+      "category": "beliefs",
+      "options": [
+        { "id": "did_not_vote", "label": "I did not vote" },
+        { "id": "conservatives", "label": "Conservatives" },
+        { "id": "labour_party", "label": "Labour Party" },
+        { "id": "snp", "label": "Scottish National Party (SNP)" },
+        { "id": "liberal_democrats", "label": "Liberal Democrats" },
+        { "id": "rather_not_say", "label": "Rather not say or N/A" },
+        { "id": "plaid_cymru", "label": "Plaid Cymru" },
+        { "id": "green_party", "label": "Green Party" },
+        { "id": "brexit_party", "label": "Brexit Party" },
+        { "id": "dup", "label": "Democratic Unionist Party (DUP)" },
+        { "id": "sinn_fein", "label": "Sinn Fein" },
+        { "id": "ulster_unionist", "label": "Ulster Unionist Party" },
+        { "id": "sdlp", "label": "Social Democratic & Labour Party" },
+        { "id": "did_not_vote_eligible", "label": "I did not vote" },
+        { "id": "independent", "label": "Independent" },
+        { "id": "other", "label": "Other" }
+      ]
+    },
+    {
+      "id": "us_2020_election",
+      "label": "2020 US Presidential election",
+      "category": "beliefs",
+      "options": [
+        { "id": "joe_biden", "label": "Joe Biden" },
+        { "id": "donald_trump", "label": "Donald Trump" },
+        { "id": "other_candidate", "label": "Other candidate" },
+        { "id": "did_not_vote", "label": "I did not vote" }
+      ]
+    },
+    {
+      "id": "voter_registration",
+      "label": "Voter Registration",
+      "category": "beliefs",
+      "options": [
+        { "id": "yes", "label": "Yes" },
+        { "id": "no", "label": "No" }
+      ]
+    },
+    {
+      "id": "uk_2024_election",
+      "label": "UK General Election 2024",
+      "category": "beliefs",
+      "options": [
+        { "id": "conservatives", "label": "Conservatives" },
+        { "id": "labour", "label": "Labour" },
+        { "id": "liberal_democrats", "label": "Liberal Democrats" },
+        { "id": "green_party", "label": "Green Party" },
+        { "id": "reform_uk", "label": "Reform UK" },
+        { "id": "snp", "label": "Scottish National Party (SNP)" },
+        { "id": "plaid_cymru", "label": "Plaid Cymru" },
+        { "id": "ukip", "label": "UK Independence Party" },
+        { "id": "dup", "label": "Democratic Unionist Party (DUP)" },
+        { "id": "sinn_fein", "label": "Sinn Fein" },
+        { "id": "ulster_unionist", "label": "Ulster Unionist Party" },
+        { "id": "sdlp", "label": "Social Democratic & Labour Party" },
+        { "id": "independent", "label": "Independent" },
+        { "id": "other", "label": "Other" },
+        { "id": "rather_not_say", "label": "Rather not say" }
+      ]
+    },
+    {
+      "id": "us_2024_election",
+      "label": "2024 US presidential election",
+      "category": "beliefs",
+      "options": [
+        { "id": "kamala_harris", "label": "Kamala Harris" },
+        { "id": "donald_trump", "label": "Donald Trump" },
+        { "id": "other_candidate", "label": "Other candidate" },
+        { "id": "did_not_vote", "label": "I did not vote" },
+        { "id": "rather_not_say", "label": "Rather not say or N/A" }
+      ]
+    },
+    {
+      "id": "uk_political_affiliation",
+      "label": "Political Affiliation (UK)",
+      "category": "beliefs",
+      "options": [
+        { "id": "left", "label": "Left" },
+        { "id": "centre", "label": "Centre" },
+        { "id": "right", "label": "Right" },
+        { "id": "na", "label": "N/A" }
+      ]
+    },
+    {
+      "id": "us_presidential_election",
+      "label": "US Presidential election",
+      "category": "beliefs",
+      "options": [
+        { "id": "yes", "label": "Yes" },
+        { "id": "no", "label": "No" },
+        { "id": "rather_not_say", "label": "Rather not say" }
+      ]
+    },
+    {
+      "id": "uk_2017_election",
+      "label": "UK general election 2017",
+      "category": "beliefs",
+      "options": [
+        { "id": "did_not_vote", "label": "I did not vote" },
+        { "id": "conservatives", "label": "Conservatives" },
+        { "id": "labour_party", "label": "Labour Party" },
+        { "id": "snp", "label": "Scottish National Party (SNP)" },
+        { "id": "liberal_democrats", "label": "Liberal Democrats" },
+        { "id": "not_eligible", "label": "I was eligible but did not vote" },
+        { "id": "not_eligible_to_vote", "label": "I was not eligible to vote" },
+        { "id": "plaid_cymru", "label": "Plaid Cymru" },
+        { "id": "green_party", "label": "Green Party" },
+        { "id": "ukip", "label": "UK Independence Party" },
+        { "id": "dup", "label": "Democratic Unionist Party (DUP)" },
+        { "id": "sinn_fein", "label": "Sinn Fein" },
+        { "id": "ulster_unionist", "label": "Ulster Unionist Party" },
+        { "id": "sdlp", "label": "Social Democratic & Labour Party" },
+        { "id": "independent", "label": "Independent" },
+        { "id": "other", "label": "Other" },
+        { "id": "rather_not_say", "label": "Rather not say" }
+      ]
+    },
+    {
+      "id": "brexit",
+      "label": "BREXIT",
+      "category": "beliefs",
+      "options": [
+        { "id": "remain", "label": "Remain" },
+        { "id": "leave", "label": "Leave" },
+        { "id": "rather_not_say", "label": "Rather not say" },
+        { "id": "not_eligible", "label": "I was eligible but did not vote" },
+        { "id": "not_eligible_to_vote", "label": "I was not eligible to vote" }
+      ]
+    },
+    {
+      "id": "religious_activities",
+      "label": "Participation in regular religious activities",
+      "category": "beliefs",
+      "options": [
+        { "id": "yes_public_private", "label": "Yes. Both public and private" },
+        { "id": "yes_public_only", "label": "Yes. Public only" },
+        { "id": "yes_private_only", "label": "Yes. Private only" },
+        { "id": "none_rather_not_say", "label": "None/Rather not say" }
+      ]
+    },
+    {
+      "id": "christianity_affiliation",
+      "label": "Christianity Affiliation (New)",
+      "category": "beliefs",
+      "options": [
+        { "id": "catholic", "label": "Catholic" },
+        { "id": "anglican_episcopalian", "label": "Anglican / Episcopalian" },
+        { "id": "baptist", "label": "Baptist" },
+        { "id": "calvinist_reformed", "label": "Calvinist / Reformed / Presbyterian" },
+        { "id": "lutheran", "label": "Lutheran" },
+        { "id": "methodist", "label": "Methodist" },
+        { "id": "lds", "label": "The Church of Jesus Christ of Latter-Day Saints" },
+        { "id": "pentecostal", "label": "Pentecostal/ Apostolic" },
+        { "id": "protestant", "label": "Protestant" },
+        { "id": "orthodox", "label": "Orthodox / Eastern Orthodox" },
+        { "id": "christian_no_branch", "label": "Christian -- no particular branch or denomination" },
+        { "id": "jehovahs_witnesses", "label": "Jehovah's Witnesses" },
+        { "id": "not_applicable", "label": "Not applicable / rather not say" }
+      ]
+    },
+    {
+      "id": "non_religious",
+      "label": "Non-Religious",
+      "category": "beliefs",
+      "options": [
+        { "id": "agnostic", "label": "Agnostic" },
+        { "id": "atheist", "label": "Atheist" },
+        { "id": "irreligious", "label": "Irreligious" },
+        { "id": "naturalist", "label": "Naturalist" },
+        { "id": "none_rather_not_say", "label": "None /Rather not say" }
+      ]
+    },
+    {
+      "id": "religious_affiliation",
+      "label": "Religious Affiliation",
+      "category": "beliefs",
+      "options": [
+        { "id": "bahai", "label": "Baha'i" },
+        { "id": "buddhism", "label": "Buddhism" },
+        { "id": "candomble", "label": "Candomble" },
+        { "id": "christianity", "label": "Christianity" },
+        { "id": "hinduism", "label": "Hinduism" },
+        { "id": "islam", "label": "Islam" },
+        { "id": "jainism", "label": "Jainism" },
+        { "id": "judaism", "label": "Judaism" },
+        { "id": "non_religious", "label": "Non Religious (e.g. Agnostic, Atheist, No Religion)" },
+        { "id": "paganism", "label": "Paganism" },
+        { "id": "rastafari", "label": "Rastafari" },
+        { "id": "santeria", "label": "Santeria" },
+        { "id": "shinto", "label": "Shinto" },
+        { "id": "sikhism", "label": "Sikhism" },
+        { "id": "spiritualism", "label": "Spiritualism" },
+        { "id": "taoism", "label": "Taoism" },
+        { "id": "unitarianism", "label": "Unitarianism" },
+        { "id": "zoroastrianism", "label": "Zorastrianism" },
+        { "id": "other", "label": "Other" },
+        { "id": "do_not_wish_answer", "label": "Do Not Wish to Answer" }
+      ]
+    },
+    {
+      "id": "climate_change",
+      "label": "Climate Change",
+      "category": "beliefs",
+      "options": [
+        { "id": "yes", "label": "Yes" },
+        { "id": "no", "label": "No" },
+        { "id": "dont_know", "label": "Don't know" },
+        { "id": "not_applicable", "label": "Not applicable / rather not say" }
+      ]
+    },
+    {
+      "id": "environmental_concern",
+      "label": "Concern about environmental issues",
+      "category": "beliefs",
+      "options": [
+        { "id": "1_not_concerned", "label": "1 (Not at all concerned)" },
+        { "id": "2", "label": "2" },
+        { "id": "3", "label": "3" },
+        { "id": "4", "label": "4" },
+        { "id": "5_very_concerned", "label": "5 (Very concerned)" }
+      ]
+    },
+    {
+      "id": "windfarms",
+      "label": "Windfarms",
+      "category": "beliefs",
+      "options": [
+        { "id": "1_strongly_oppose", "label": "1 (strongly oppose)" },
+        { "id": "2", "label": "2" },
+        { "id": "3", "label": "3" },
+        { "id": "4", "label": "4" },
+        { "id": "5", "label": "5" },
+        { "id": "6", "label": "6" },
+        { "id": "7_strongly_favor", "label": "7 (strongly in favor)" },
+        { "id": "rather_not_say", "label": "Rather not say" }
+      ]
+    },
+    {
+      "id": "immunization_safety",
+      "label": "On a scale from 1-7, please rate to what extent you agree with the following statement: I believe that scheduled immunizations are safe for children.",
+      "category": "beliefs",
+      "options": [
+        { "id": "1_totally_disagree", "label": "1 (TOTALLY DISAGREEE)" },
+        { "id": "2_disagree", "label": "2 (DISAGREE)" },
+        { "id": "3_somewhat_disagree", "label": "3(SOMEWHAT DISAGREE)" },
+        { "id": "4_neither", "label": "4 (NEITHER AGREE NOR DISAGREE)" },
+        { "id": "5_somewhat_agree", "label": "5 (SOMEWHAT AGREE)" },
+        { "id": "6_agree", "label": "6 (AGREE)" },
+        { "id": "7_totally_agree", "label": "7 (TOTALLY AGREE)" },
+        { "id": "rather_not_say", "label": "Rather not say" }
+      ]
+    }
+  ]

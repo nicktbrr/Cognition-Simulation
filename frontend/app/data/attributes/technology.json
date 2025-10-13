@@ -1,0 +1,581 @@
+[
+    {
+      "id": "tweeting_frequency",
+      "label": "Tweeting Frequency (Last 12 Months)",
+      "category": "technology",
+      "options": [
+        { "id": "0_times", "label": "0 times" },
+        { "id": "1_3_times", "label": "1-3 times" },
+        { "id": "4_20_times", "label": "4-20 times" },
+        { "id": "20_100_times", "label": "20-100 times" },
+        { "id": "more_than_100_times", "label": "more than 100 times" },
+        { "id": "na", "label": "N/A" }
+      ]
+    },
+    {
+      "id": "chat_messaging_apps",
+      "label": "Chat/Messaging apps",
+      "category": "technology",
+      "options": [
+        { "id": "rather_not_say", "label": "Rather not say" },
+        { "id": "facebook_messenger", "label": "Facebook Messenger" },
+        { "id": "google_hangouts", "label": "Google hangouts" },
+        { "id": "kik_messenger", "label": "Kik Messenger" },
+        { "id": "snapchat", "label": "Snapchat" },
+        { "id": "telegram", "label": "Telegram" },
+        { "id": "whatsapp", "label": "WhatsApp" },
+        { "id": "wechat", "label": "WeChat" },
+        { "id": "signal", "label": "Signal" },
+        { "id": "viber", "label": "Viber" },
+        { "id": "imessage", "label": "iMessage" },
+        { "id": "allo", "label": "Allo" },
+        { "id": "other", "label": "Other" }
+      ]
+    },
+    {
+      "id": "social_media",
+      "label": "Social-Media",
+      "category": "technology",
+      "options": [
+        { "id": "facebook", "label": "Facebook" },
+        { "id": "youtube", "label": "Youtube" },
+        { "id": "twitter", "label": "Twitter" },
+        { "id": "linkedin", "label": "Linkedin" },
+        { "id": "pinterest", "label": "Pinterest" },
+        { "id": "google_plus", "label": "Google Plus" },
+        { "id": "tumblr", "label": "Tumblr" },
+        { "id": "instagram", "label": "Instagram" },
+        { "id": "reddit", "label": "Reddit" },
+        { "id": "vk", "label": "VK (ВКонтакте)" },
+        { "id": "flickr", "label": "Flickr" },
+        { "id": "vine_co", "label": "Vine.co" },
+        { "id": "meetup", "label": "Meetup" },
+        { "id": "ask_fm", "label": "ask.fm" },
+        { "id": "na_rather_not_say_none", "label": "N/A, Rather not say, None of the above" },
+        { "id": "snapchat", "label": "Snapchat" },
+        { "id": "tiktok", "label": "TikTok" },
+        { "id": "medium", "label": "Medium" },
+        { "id": "nextdoor", "label": "Nextdoor" }
+      ]
+    },
+    {
+      "id": "vr_frequency",
+      "label": "VR headset (frequency per month)",
+      "category": "technology",
+      "options": [
+        { "id": "0_times", "label": "0 times" },
+        { "id": "1_5_times", "label": "1-5 times" },
+        { "id": "6_10_times", "label": "6-10 times" },
+        { "id": "11_15_times", "label": "11-15 times" },
+        { "id": "more_than_15_times", "label": "more than 15 times" },
+        { "id": "not_applicable_rather_not_say", "label": "Not applicable / rather not say" }
+      ]
+    },
+    {
+      "id": "vr_ownership",
+      "label": "VR headset (ownership)",
+      "category": "technology",
+      "options": [
+        { "id": "yes", "label": "Yes" },
+        { "id": "no", "label": "No" },
+        { "id": "dont_know_other", "label": "Don't know / other" },
+        { "id": "not_applicable_rather_not_say", "label": "Not applicable / rather not say" }
+      ]
+    },
+    {
+      "id": "video_games_hours",
+      "label": "Video Games (hrs/week)",
+      "category": "technology",
+      "options": [
+        { "id": "0_3_hours", "label": "0-3 hours" },
+        { "id": "3_6_hours", "label": "3-6 hours" },
+        { "id": "6_9_hours", "label": "6-9 hours" },
+        { "id": "10_12_hours", "label": "10-12 hours" },
+        { "id": "13_hours_or_more", "label": "13 hours or more" }
+      ]
+    },
+    {
+      "id": "simulated_experiences",
+      "label": "Simulated Experiences (Ever Participated)",
+      "category": "technology",
+      "options": [
+        { "id": "virtual_reality", "label": "Virtual reality" },
+        { "id": "augmented_reality", "label": "Augmented reality" },
+        { "id": "mixed_reality", "label": "Mixed reality" },
+        { "id": "other", "label": "Other" },
+        { "id": "not_applicable_rather_not_say", "label": "Not applicable / rather not say" }
+      ]
+    },
+    {
+      "id": "cell_phone_service_us",
+      "label": "Cell Phone Service [US participants only]",
+      "category": "technology",
+      "options": [
+        { "id": "t_mobile", "label": "T-Mobile" },
+        { "id": "verizon", "label": "Verizon" },
+        { "id": "att", "label": "AT&T" },
+        { "id": "sprint", "label": "Sprint" },
+        { "id": "mint_mobile", "label": "Mint Mobile" },
+        { "id": "visible", "label": "Visible" },
+        { "id": "metro", "label": "Metro" },
+        { "id": "consumer_cellular", "label": "Consumer Cellular" },
+        { "id": "google_fi", "label": "Google Fi" },
+        { "id": "boost_mobile", "label": "Boost Mobile" },
+        { "id": "other", "label": "Other" },
+        { "id": "no_cell_phone", "label": "I don't have a cell phone" }
+      ]
+    },
+    {
+      "id": "mobile_phone_service_uk",
+      "label": "Mobile Phone Service [UK participants only]",
+      "category": "technology",
+      "options": [
+        { "id": "ee", "label": "EE" },
+        { "id": "bt_mobile", "label": "BT Mobile" },
+        { "id": "o2", "label": "O2" },
+        { "id": "tesco_mobile", "label": "Tesco Mobile" },
+        { "id": "sky_mobile", "label": "Sky Mobile" },
+        { "id": "asda_mobile", "label": "Asda Mobile" },
+        { "id": "virgin_mobile", "label": "Virgin Mobile" },
+        { "id": "three", "label": "Three" },
+        { "id": "giffgaff", "label": "giffgaff" },
+        { "id": "id_mobile", "label": "iD Mobile" },
+        { "id": "vodafone", "label": "Vodafone" },
+        { "id": "other", "label": "Other" },
+        { "id": "no_mobile_phone", "label": "I don't have a mobile phone" }
+      ]
+    },
+    {
+      "id": "internet_provider_uk",
+      "label": "Home Internet Provider U.K",
+      "category": "technology",
+      "options": [
+        { "id": "a_and_a", "label": "A&A" },
+        { "id": "airband", "label": "Airband" },
+        { "id": "bt_internet", "label": "BT Internet" },
+        { "id": "co_op", "label": "Co-op" },
+        { "id": "community_fibre", "label": "Community Fibre" },
+        { "id": "county_broadband", "label": "County Broadband" },
+        { "id": "cuckoo", "label": "Cuckoo" },
+        { "id": "ee", "label": "EE" },
+        { "id": "google", "label": "Google" },
+        { "id": "home_telecom", "label": "Home Telecom" },
+        { "id": "hyperoptic", "label": "Hyperoptic" },
+        { "id": "idnet", "label": "IDNet" },
+        { "id": "john_lewis_broadband", "label": "John Lewis Broadband" },
+        { "id": "kcom", "label": "KCOM" },
+        { "id": "now", "label": "NOW" },
+        { "id": "onestream", "label": "Onestream" },
+        { "id": "origin", "label": "Origin" },
+        { "id": "pine_media", "label": "Pine Media" },
+        { "id": "plusnet_wireless", "label": "Plusnet Wireless" },
+        { "id": "post_office", "label": "Post Office" },
+        { "id": "ses", "label": "SES" },
+        { "id": "shell", "label": "Shell" },
+        { "id": "sky", "label": "Sky" },
+        { "id": "smarty", "label": "Smarty" },
+        { "id": "sse", "label": "SSE" },
+        { "id": "starlink", "label": "Starlink" },
+        { "id": "talktalk", "label": "TalkTalk" },
+        { "id": "three", "label": "Three" },
+        { "id": "utility_warehouse", "label": "Utility Warehouse" },
+        { "id": "virgin", "label": "Virgin" },
+        { "id": "vodafone", "label": "Vodafone" },
+        { "id": "wightfibre", "label": "WightFibre" },
+        { "id": "zen", "label": "Zen" },
+        { "id": "provider_not_listed", "label": "My provider is not listed" },
+        { "id": "no_home_internet", "label": "I don't have home internet/wifi" }
+      ]
+    },
+    {
+      "id": "internet_provider_us",
+      "label": "Home Internet Provider U.S.",
+      "category": "technology",
+      "options": [
+        { "id": "allo", "label": "Allo" },
+        { "id": "armstrong", "label": "Armstrong" },
+        { "id": "atlantic_broadband", "label": "Atlantic Broadband / Breezeline" },
+        { "id": "att", "label": "AT&T" },
+        { "id": "blue_ridge", "label": "Blue Ridge" },
+        { "id": "boost", "label": "Boost" },
+        { "id": "brandenburg_bbtel", "label": "Brandenburg / BBTEL" },
+        { "id": "bruce_telephone", "label": "Bruce Telephone Company" },
+        { "id": "bsnl_broadband", "label": "BSNL Broadband" },
+        { "id": "buckeye_broadband", "label": "Buckeye Broadband" },
+        { "id": "cablelynx", "label": "Cablelynx" },
+        { "id": "cameron_communications", "label": "Cameron Communications" },
+        { "id": "cellularone", "label": "CellularOne" },
+        { "id": "centurylink", "label": "CenturyLink" },
+        { "id": "cincinnati_bell", "label": "Cincinnati Bell" },
+        { "id": "cloud_south", "label": "Cloud South" },
+        { "id": "co_mo_connect", "label": "Co-Mo Connect" },
+        { "id": "comcast_xfinity", "label": "Comcast / Xfinity" },
+        { "id": "consolidated_communications", "label": "Consolidated Communications" },
+        { "id": "cox_communications", "label": "Cox Communications" },
+        { "id": "directv", "label": "DIRECTV" },
+        { "id": "fireserve", "label": "Fireserve" },
+        { "id": "frontier", "label": "Frontier" },
+        { "id": "google", "label": "Google" },
+        { "id": "grande_communications", "label": "Grande Communications" },
+        { "id": "hargray", "label": "Hargray" },
+        { "id": "hctc", "label": "HCTC" },
+        { "id": "hughesnet", "label": "HughesNet" },
+        { "id": "i3_broadband", "label": "i3 Broadband" },
+        { "id": "imon_communications", "label": "ImOn Communications" },
+        { "id": "infinity", "label": "Infinity" },
+        { "id": "kinetic", "label": "Kinetic" },
+        { "id": "lhtc", "label": "LHTC" },
+        { "id": "localtel", "label": "LocalTel" },
+        { "id": "loretto_telecom", "label": "Loretto Telecom" },
+        { "id": "lumen_technologies", "label": "Lumen Technologies" },
+        { "id": "maxxsouth", "label": "Maxxsouth" },
+        { "id": "medicom", "label": "Medicom" },
+        { "id": "mereo_network", "label": "Mereo Network" },
+        { "id": "metronet", "label": "Metronet" },
+        { "id": "midco", "label": "Midco" },
+        { "id": "nctc", "label": "NCTC" },
+        { "id": "netgear", "label": "Netgear" },
+        { "id": "optimum", "label": "Optimum" },
+        { "id": "pioneer", "label": "Pioneer" },
+        { "id": "rapid_systems", "label": "Rapid Systems" },
+        { "id": "rcn", "label": "RCN" },
+        { "id": "regional_provider", "label": "Regional Provider (i.e., local company)" },
+        { "id": "ruralband", "label": "RURALBAND" },
+        { "id": "service_electric", "label": "Service Electric" },
+        { "id": "skyline_skybest", "label": "SkyLine / SkyBest" },
+        { "id": "sonic", "label": "Sonic" },
+        { "id": "sparklight", "label": "Sparklight" },
+        { "id": "spectrum_charter", "label": "Spectrum / Charter" },
+        { "id": "sprint", "label": "Sprint" },
+        { "id": "starlink", "label": "Starlink" },
+        { "id": "suddenlink_altice", "label": "Suddenlink / Altice" },
+        { "id": "surf", "label": "Surf" },
+        { "id": "svetconnect", "label": "SVEConnect" },
+        { "id": "t_mobile", "label": "t-mobile" },
+        { "id": "tds", "label": "TDS" },
+        { "id": "ting", "label": "Ting" },
+        { "id": "triangle_communications", "label": "Triangle Communications" },
+        { "id": "us_internet", "label": "US Internet" },
+        { "id": "verizon_fios", "label": "Verizon / Fios" },
+        { "id": "viasat", "label": "Viasat" },
+        { "id": "visible", "label": "Visible" },
+        { "id": "vodafone", "label": "Vodafone" },
+        { "id": "vyve_broadband", "label": "Vyve Broadband" },
+        { "id": "windstream", "label": "WindStream" },
+        { "id": "wow", "label": "WOW" },
+        { "id": "provider_not_listed", "label": "My provider is not listed" },
+        { "id": "no_home_internet", "label": "I do not have home internet" },
+        { "id": "earthlink", "label": "Earthlink" }
+      ]
+    },
+    {
+      "id": "children_device_access",
+      "label": "Do your children have regular access to any of the following devices: IPad, Android tablet, smartphone?",
+      "category": "technology",
+      "options": [
+        { "id": "yes", "label": "Yes" },
+        { "id": "no", "label": "No" },
+        { "id": "rather_not_say", "label": "Rather not say" }
+      ]
+    },
+    {
+      "id": "weekly_device_usage",
+      "label": "Weekly device usage",
+      "category": "technology",
+      "options": [
+        { "id": "never", "label": "Never" },
+        { "id": "once_a_week", "label": "Once a week" },
+        { "id": "2_6_times_a_week", "label": "2-6 times a week" },
+        { "id": "every_day", "label": "Every day" },
+        { "id": "multiple_times_every_day", "label": "Multiple times every day" }
+      ]
+    },
+    {
+      "id": "tv_streaming",
+      "label": "TV Streaming Services",
+      "category": "technology",
+      "options": [
+        { "id": "netflix", "label": "Netflix" },
+        { "id": "amazon_prime_video", "label": "Amazon Prime Video" },
+        { "id": "disney_plus", "label": "Disney+" },
+        { "id": "hbo_max", "label": "HBO Max" },
+        { "id": "peacock", "label": "Peacock" },
+        { "id": "paramount_plus", "label": "Paramount+" },
+        { "id": "hulu", "label": "Hulu" },
+        { "id": "apple_tv_plus", "label": "Apple TV+" },
+        { "id": "discovery_plus", "label": "Discovery+" },
+        { "id": "now_tv", "label": "NOW TV" },
+        { "id": "crunchyroll", "label": "Crunchyroll" },
+        { "id": "funimation", "label": "Funimation" },
+        { "id": "bbc_iplayer", "label": "BBC iPlayer" },
+        { "id": "espn_plus", "label": "ESPN+" },
+        { "id": "dont_use_services", "label": "I don't use any of these services" },
+        { "id": "reelshort", "label": "ReelShort" },
+        { "id": "dramabox", "label": "DramaBox" },
+        { "id": "goodshort", "label": "GoodShort" },
+        { "id": "flextv", "label": "FlexTV" },
+        { "id": "shortmax", "label": "ShortMax" },
+        { "id": "moboreels", "label": "MoboReels" },
+        { "id": "xite", "label": "XITE" }
+      ]
+    },
+    {
+      "id": "assistive_technology",
+      "label": "Assistive Technology",
+      "category": "technology",
+      "options": [
+        { "id": "screen_reader", "label": "Screen reader" },
+        { "id": "adaptive_keyboard", "label": "Adaptive keyboard" },
+        { "id": "screen_magnification", "label": "Screen magnification software" },
+        { "id": "text_reader", "label": "Text reader" },
+        { "id": "speech_input", "label": "Speech input software" },
+        { "id": "other_assistive_technologies", "label": "I use other type(s) of assistive technologies" },
+        { "id": "no_assistive_technologies", "label": "I do not use any assistive technologies" }
+      ]
+    },
+    {
+      "id": "cloud_storage",
+      "label": "Cloud storage solutions",
+      "category": "technology",
+      "options": [
+        { "id": "amazon_cloud_drive", "label": "Amazon Cloud Drive" },
+        { "id": "backblaze", "label": "Backblaze" },
+        { "id": "box", "label": "Box" },
+        { "id": "dropbox", "label": "Dropbox" },
+        { "id": "google_drive", "label": "Google Drive" },
+        { "id": "idrive", "label": "IDrive" },
+        { "id": "icedrive", "label": "Icedrive" },
+        { "id": "mega", "label": "MEGA" },
+        { "id": "pcloud", "label": "pCloud" },
+        { "id": "onedrive", "label": "OneDrive" },
+        { "id": "proton_drive", "label": "Proton Drive" },
+        { "id": "sync", "label": "Sync" },
+        { "id": "provider_not_listed", "label": "My provider is not listed" },
+        { "id": "dont_use_cloud_storage", "label": "I don't use any cloud storage solutions" },
+        { "id": "amazon_photos", "label": "Amazon Photos" },
+        { "id": "google_photos", "label": "Google Photos" },
+        { "id": "icloud", "label": "Icloud" },
+        { "id": "verizon_cloud", "label": "Verizon Cloud" },
+        { "id": "att_personal_cloud", "label": "AT&T Personal Cloud" },
+        { "id": "none_rather_not_say", "label": "None/Rather not say" }
+      ]
+    },
+    {
+      "id": "video_streaming_devices",
+      "label": "Video Streaming Devices",
+      "category": "technology",
+      "options": [
+        { "id": "roku", "label": "Roku" },
+        { "id": "amazon_fire_tv_stick", "label": "Amazon Fire TV Stick" },
+        { "id": "apple_tv", "label": "Apple TV" },
+        { "id": "google_chromecast", "label": "Google Chromecast" },
+        { "id": "none", "label": "None" },
+        { "id": "video_streaming_product", "label": "Video streaming product (e.g. AppleTV, chromecast)" }
+      ]
+    },
+    {
+      "id": "internet_enabled_products",
+      "label": "Internet enabled products",
+      "category": "technology",
+      "options": [
+        { "id": "smart_tv", "label": "Smart TV (e.g. Samsung, LG, JVC)" },
+        { "id": "activity_tracker", "label": "Activity tracker excluding smart watches (e.g. Fitbit, Xiaomi Mi Band, Microsoft band)" },
+        { "id": "smart_thermostat", "label": "Smart Thermostat (e.g. Nest, Hive, tadoi)" },
+        { "id": "connected_lights", "label": "Connected lights (e.g. Phillips Hue, LIFX, Elgato Avea, Belkin WeMo)" },
+        { "id": "games_console", "label": "Games console (e.g. PS4, Xbox one)" },
+        { "id": "home_assistants", "label": "Home assistants/smart hub (e.g. Amazon echo, CastleHub, Google Home)" },
+        { "id": "smart_watch", "label": "Smart watch (e.g. Apple watch, Samsung gear, Moto 360, Asus ZenWatch)" },
+        { "id": "connected_printers", "label": "Connected printers (e.g. WiFi)" },
+        { "id": "smart_plugs", "label": "Smart plugs (e.g. Belkin WeMo Insight Switch, Ankuoo NEO PRO Wi-Fi Smart Switch)" },
+        { "id": "smart_doorlock_doorbell", "label": "Smart doorlock and/or doorbell (e.g. August Smartlock, Danalock, Ring smart doorbell)" },
+        { "id": "smart_security_camera", "label": "Smart security camera (e.g. Nest Cam, Netatmo, Netgear Arlo)" },
+        { "id": "baby_camera_monitor", "label": "Baby camera/monitor (e.g. Withings Smart Baby Monitor, Motorola Baby Monitor Camera)" },
+        { "id": "smart_water_sprinkler", "label": "Smart water sprinkler/irrigation controllers (e.g. Aifro WaterEco, BlueSpray, Rachio Smart Sprinkler Controller)" },
+        { "id": "smart_health_monitors", "label": "Smart health monitors excluding smart watches (e.g. scales, blood pressure monitors)" },
+        { "id": "grocery_ordering", "label": "Grocery ordering (e.g. Amazon dash buttons, Hiku, GeniCan)" },
+        { "id": "smart_smoke_monitors", "label": "Smart smoke monitors and alarms (e.g. Kepler, Birdi)" },
+        { "id": "smart_kitchen_appliances", "label": "Smart kitchen appliances (e.g. Fridge, oven, kettle, scales, vacuum cleaner)" },
+        { "id": "smart_bluetooth_trackers", "label": "Smart bluetooth trackers excluding smart watches (e.g. keyrings to identify lost keys such as Tile, Chipolo, Lapa 2)" },
+        { "id": "smart_glasses", "label": "Smart Glasses (e.g. Ray-Ban Meta, Amazon Echo Frames, Viture Pro XR Smart Glasses)" }
+      ]
+    },
+    {
+      "id": "devices_with_screens",
+      "label": "Devices with screens",
+      "category": "technology",
+      "options": [
+        { "id": "mobile_phone", "label": "Mobile Phone" },
+        { "id": "tablet_reader", "label": "Tablet reader" },
+        { "id": "tablet", "label": "Tablet" },
+        { "id": "laptop", "label": "Laptop" },
+        { "id": "desktop", "label": "Desktop" },
+        { "id": "no_device", "label": "I do not use any device on a near daily basis." }
+      ]
+    },
+    {
+      "id": "touch_typing",
+      "label": "Touch typing",
+      "category": "technology",
+      "options": [
+        { "id": "yes", "label": "Yes" },
+        { "id": "no", "label": "No" },
+        { "id": "dont_know_rather_not_say", "label": "Don't know / rather not say" }
+      ]
+    },
+    {
+      "id": "programming_skills",
+      "label": "Computer Programming Skills",
+      "category": "technology",
+      "options": [
+        { "id": "yes", "label": "Yes" },
+        { "id": "no", "label": "No" },
+        { "id": "dont_know", "label": "I don't know" }
+      ]
+    },
+    {
+      "id": "camera_usage",
+      "label": "Camera usage",
+      "category": "technology",
+      "options": [
+        { "id": "action", "label": "Action" },
+        { "id": "dslr", "label": "DSLR" },
+        { "id": "mirrorless", "label": "Mirrorless" },
+        { "id": "point_shoot", "label": "Point & Shoot" },
+        { "id": "instant_print", "label": "Instant Print" },
+        { "id": "film", "label": "Film" },
+        { "id": "smartphone", "label": "Smartphone" },
+        { "id": "rugged", "label": "Rugged" },
+        { "id": "none_dont_know", "label": "None of the above / I don't know" }
+      ]
+    },
+    {
+      "id": "programming_languages",
+      "label": "Programming Languages",
+      "category": "technology",
+      "options": [
+        { "id": "c_sharp", "label": "C#" },
+        { "id": "c_cpp", "label": "C and C++" },
+        { "id": "css", "label": "CSS" },
+        { "id": "go", "label": "Go" },
+        { "id": "java", "label": "Java" },
+        { "id": "javascript", "label": "Javascript" },
+        { "id": "html", "label": "HTML" },
+        { "id": "kotlin", "label": "Kotlin" },
+        { "id": "matlab", "label": "Matlab" },
+        { "id": "php", "label": "PHP" },
+        { "id": "python", "label": "Python" },
+        { "id": "r", "label": "R" },
+        { "id": "ruby", "label": "Ruby" },
+        { "id": "scala", "label": "Scala" },
+        { "id": "sql", "label": "SQL" },
+        { "id": "swift", "label": "Swift" },
+        { "id": "typescript", "label": "TypeScript" },
+        { "id": "none_of_these", "label": "None of these" }
+      ]
+    },
+    {
+      "id": "software_development",
+      "label": "Knowledge of software development techniques",
+      "category": "technology",
+      "options": [
+        { "id": "cloud_computing", "label": "Cloud computing" },
+        { "id": "shell_scripting", "label": "Shell scripting" },
+        { "id": "background_processing", "label": "Background processing" },
+        { "id": "search_technologies", "label": "Search technologies" },
+        { "id": "monitoring", "label": "Monitoring" },
+        { "id": "caching", "label": "caching" },
+        { "id": "version_control", "label": "Version control" },
+        { "id": "virtualisation", "label": "Virtualisation" },
+        { "id": "debugging", "label": "Debugging" },
+        { "id": "functional_testing", "label": "Functional testing" },
+        { "id": "unit_testing", "label": "Unit testing" },
+        { "id": "web_servers", "label": "Web servers" },
+        { "id": "database_management", "label": "Database management" },
+        { "id": "responsive_design", "label": "Responsive design" },
+        { "id": "ui_design", "label": "UI design" },
+        { "id": "ab_testing", "label": "A/B testing" },
+        { "id": "ux", "label": "UX" },
+        { "id": "dont_know_rather_not_say", "label": "Don't know/Rather not say" },
+        { "id": "lean", "label": "Lean" }
+      ]
+    },
+    {
+      "id": "internet_pornography",
+      "label": "Internet pornography (Last 6 Months)",
+      "category": "technology",
+      "options": [
+        { "id": "yes", "label": "Yes" },
+        { "id": "no", "label": "No" },
+        { "id": "rather_not_say", "label": "Rather not say" }
+      ]
+    },
+    {
+      "id": "ai_chatbots",
+      "label": "AI Chatbots Used",
+      "category": "technology",
+      "options": [
+        { "id": "character_ai", "label": "Character.AI" },
+        { "id": "chatgpt", "label": "ChatGPT" },
+        { "id": "claude", "label": "Claude" },
+        { "id": "github_copilot", "label": "GitHub Copilot" },
+        { "id": "google_bard", "label": "Google Bard" },
+        { "id": "google_gemini", "label": "Google Gemini" },
+        { "id": "grok", "label": "Grok" },
+        { "id": "huggingchat", "label": "HuggingChat" },
+        { "id": "jasper", "label": "Jasper" },
+        { "id": "meta_llama_2", "label": "Meta Llama 2" },
+        { "id": "microsoft_bing_ai", "label": "Microsoft Bing AI" },
+        { "id": "pi", "label": "Pi" },
+        { "id": "poe", "label": "Poe" },
+        { "id": "perplexity", "label": "Perplexity" },
+        { "id": "snapchat_my_ai", "label": "Snapchat My AI" },
+        { "id": "other", "label": "Other" },
+        { "id": "none_of_these", "label": "None of these" },
+        { "id": "microsoft_365_copilot", "label": "Microsoft 365 Copilot" },
+        { "id": "replika", "label": "Replika" },
+        { "id": "mistral", "label": "Mistral" },
+        { "id": "deepl", "label": "DeepL" }
+      ]
+    },
+    {
+      "id": "online_gambling_uk",
+      "label": "Online Gambling Sites (UK)",
+      "category": "technology",
+      "options": [
+        { "id": "888sport", "label": "888sport" },
+        { "id": "bet365", "label": "Bet365" },
+        { "id": "betfair", "label": "Betfair" },
+        { "id": "betmgm", "label": "BetMGM" },
+        { "id": "betuk", "label": "BetUK" },
+        { "id": "boylesports", "label": "BoyleSports" },
+        { "id": "coral", "label": "Coral" },
+        { "id": "ladbrokes", "label": "Ladbrokes" },
+        { "id": "paddy_power", "label": "Paddy Power" },
+        { "id": "sky_bet", "label": "Sky Bet" },
+        { "id": "william_hill", "label": "William Hill" },
+        { "id": "other", "label": "Other" },
+        { "id": "na", "label": "N/A" },
+        { "id": "not_applicable_rather_not_say", "label": "Not applicable / rather not say" }
+      ]
+    },
+    {
+      "id": "online_gambling_games",
+      "label": "Online gambling games",
+      "category": "technology",
+      "options": [
+        { "id": "baccarat", "label": "Baccarat" },
+        { "id": "blackjack", "label": "Blackjack" },
+        { "id": "bingo", "label": "Bingo" },
+        { "id": "craps", "label": "Craps" },
+        { "id": "lottery", "label": "Lottery" },
+        { "id": "pachinko", "label": "Pachinko" },
+        { "id": "poker", "label": "Poker" },
+        { "id": "race_sports_book", "label": "Race & Sports Book" },
+        { "id": "roulette", "label": "Roulette" },
+        { "id": "slots", "label": "Slots" },
+        { "id": "video_poker", "label": "Video poker" },
+        { "id": "virtual_sports_betting", "label": "Virtual Sports Betting" },
+        { "id": "none_of_the_above", "label": "None of the above" }
+      ]
+    }
+  ]

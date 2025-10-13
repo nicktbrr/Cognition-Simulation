@@ -1,0 +1,985 @@
+[
+    {
+      "id": "working_hours",
+      "label": "Working Hours",
+      "category": "work",
+      "options": [
+        { "id": "regular_9_5", "label": "Regular 9-5" },
+        { "id": "permanent_night", "label": "Permanent night shifts" },
+        { "id": "rotating_with_nights", "label": "Rotating shifts (different shifts each time) including night shifts" },
+        { "id": "rotating_without_nights", "label": "Rotating shifts not including night shifts" },
+        { "id": "other", "label": "Other" },
+        { "id": "na_rather_not_say", "label": "NA/Rather not say" }
+      ]
+    },
+    {
+      "id": "commute_travel",
+      "label": "Commute/Travel to Work",
+      "category": "work",
+      "options": [
+        { "id": "by_car", "label": "by car" },
+        { "id": "by_bus", "label": "by bus" },
+        { "id": "by_tube", "label": "by tube/metro/tram/train" },
+        { "id": "by_bike", "label": "by bike" },
+        { "id": "by_foot", "label": "by foot/walking" },
+        { "id": "by_motorcycle", "label": "by motorcycle" },
+        { "id": "other", "label": "other" }
+      ]
+    },
+    {
+      "id": "employment_status",
+      "label": "Employment Status",
+      "category": "work",
+      "options": [
+        { "id": "full_time", "label": "Full-Time" },
+        { "id": "part_time", "label": "Part-Time" },
+        { "id": "due_to_start", "label": "Due to start a new job within the next month" },
+        { "id": "unemployed_seeking", "label": "Unemployed (and job seeking)" },
+        { "id": "not_in_paid_work", "label": "Not in paid work (e.g. homemaker, retired or disabled)" },
+        { "id": "other", "label": "Other" }
+      ]
+    },
+    {
+      "id": "job_seeking",
+      "label": "Job Seeking",
+      "category": "work",
+      "options": [
+        { "id": "actively_looking", "label": "I am currently actively looking for a job" },
+        { "id": "not_actively_looking", "label": "I am currently not actively looking for a job" },
+        { "id": "na", "label": "N/A" }
+      ]
+    },
+    {
+      "id": "company_size",
+      "label": "Company Size",
+      "category": "work",
+      "options": [
+        { "id": "1_9", "label": "1-9" },
+        { "id": "10_49", "label": "10-49" },
+        { "id": "50_249", "label": "50-249" },
+        { "id": "250_999", "label": "250-999" },
+        { "id": "1000_plus", "label": "1000+" }
+      ]
+    },
+    {
+      "id": "retirement_status",
+      "label": "Retirement Status",
+      "category": "work",
+      "options": [
+        { "id": "yes", "label": "Yes" },
+        { "id": "no", "label": "No" },
+        { "id": "retired_but_volunteer", "label": "Retired but still volunteer" },
+        { "id": "rather_not_say", "label": "Rather not say" }
+      ]
+    },
+    {
+      "id": "business_turnover",
+      "label": "Annual Business Turnover",
+      "category": "work",
+      "options": [
+        { "id": "less_100k_gbp", "label": "Less than £100k" },
+        { "id": "100k_500k_gbp", "label": "£100k - £500k" },
+        { "id": "500k_1m_gbp", "label": "£500k - £1m" },
+        { "id": "1m_10m_gbp", "label": "£1m - £10m" },
+        { "id": "more_10m_gbp", "label": "More than £10m" },
+        { "id": "less_100k_usd", "label": "Less than $100k" },
+        { "id": "100k_500k_usd", "label": "$100k - $500k" },
+        { "id": "500k_1m_usd", "label": "$500k - $1m" },
+        { "id": "1m_10m_usd", "label": "$1m - $10m" },
+        { "id": "more_10m_usd", "label": "More than $10k" },
+        { "id": "unsure", "label": "Unsure / do not know" },
+        { "id": "not_applicable", "label": "Not applicable" }
+      ]
+    },
+    {
+      "id": "employment_role",
+      "label": "Employment Role",
+      "category": "work",
+      "options": [
+        { "id": "teacher", "label": "Teacher" },
+        { "id": "journalist", "label": "Journalist" },
+        { "id": "copywriter", "label": "Copywriter/marketing/communications role" },
+        { "id": "creative_writing", "label": "Creative Writing role" },
+        { "id": "recruitment_consultant", "label": "Recruitment consultant / CV coach / Professional development coach or similar" },
+        { "id": "financial_advisor", "label": "Financial advisor" },
+        { "id": "therapist", "label": "Therapist / Well-being counsellor / Nutritionist / Personal Trainer or similar" },
+        { "id": "coding_technical", "label": "Coding, technical writing or Systems administration" },
+        { "id": "translator", "label": "Translator or language/cultural expert" },
+        { "id": "visual_audio_creative", "label": "Visual/Audio Creative role (e.g. designer/photographer/musician)" },
+        { "id": "human_resources", "label": "Human resources" },
+        { "id": "none_of_above", "label": "None of the above" },
+        { "id": "events_management", "label": "Events Management" },
+        { "id": "self_employed", "label": "Other - I am self-employed" },
+        { "id": "student_not_employed", "label": "Other - I am a student and not employed" },
+        { "id": "not_applicable", "label": "Not applicable / rather not say" }
+      ]
+    },
+    {
+      "id": "method_of_work",
+      "label": "Method of work",
+      "category": "work",
+      "options": [
+        { "id": "computer_75_plus", "label": "I use a computer or mobile device for 75% or more of my work" },
+        { "id": "computer_50_74", "label": "I use a computer or mobile device for 50% to 74% of my work" },
+        { "id": "computer_25_49", "label": "I use a computer or mobile device for 25% to 49% of my work" },
+        { "id": "computer_less_25", "label": "I use a computer or mobile device for less than 25% of my work" }
+      ]
+    },
+    {
+      "id": "company_fleet",
+      "label": "Cars in Company Fleet",
+      "category": "work",
+      "options": [
+        { "id": "0_5", "label": "0 – 5" },
+        { "id": "6_10", "label": "6 – 10" },
+        { "id": "11_25", "label": "11 – 25" },
+        { "id": "26_50", "label": "26 – 50" },
+        { "id": "51_100", "label": "51 – 100" },
+        { "id": "101_150", "label": "101 – 150" },
+        { "id": "150_plus", "label": "150+" },
+        { "id": "none", "label": "None" }
+      ]
+    },
+    {
+      "id": "standard_employees",
+      "label": "Standard Employees",
+      "category": "work",
+      "options": [
+        { "id": "1", "label": "1" },
+        { "id": "2_10", "label": "2-10" },
+        { "id": "11_50", "label": "11-50" },
+        { "id": "51_100", "label": "51-100" },
+        { "id": "101_500", "label": "101-500" },
+        { "id": "501_1000", "label": "501-1000" },
+        { "id": "1001_5000", "label": "1001-5000" },
+        { "id": "greater_5000", "label": "Greater than 5000" }
+      ]
+    },
+    {
+      "id": "organization_type",
+      "label": "Organization Type",
+      "category": "work",
+      "options": [
+        { "id": "for_profit_b2b", "label": "A for-profit, business-to-business company (B2B)" },
+        { "id": "for_profit_b2c", "label": "A for-profit, business-to-consumer company (B2C)" },
+        { "id": "for_profit_b2b_b2c", "label": "A for-profit company that is both business-to-business and business-to-consumer (B2B & B2C)" },
+        { "id": "non_profit", "label": "A non-profit organization" },
+        { "id": "governmental", "label": "A governmental organization" },
+        { "id": "none_of_above", "label": "None of the above" }
+      ]
+    },
+    {
+      "id": "tech_use_work",
+      "label": "Technology Use at Work",
+      "category": "work",
+      "options": [
+        { "id": "not_at_all", "label": "not at all" },
+        { "id": "less_than_once_week", "label": "less than once a week" },
+        { "id": "about_once_week", "label": "about once a week" },
+        { "id": "2_3_times_week", "label": "2 or 3 times a week" },
+        { "id": "4_6_times_week", "label": "4 or 6 times a week" },
+        { "id": "about_once_day", "label": "about once a day" },
+        { "id": "more_than_once_day", "label": "more than once a day" }
+      ]
+    },
+    {
+      "id": "startup",
+      "label": "Startup",
+      "category": "work",
+      "options": [
+        { "id": "never_considered", "label": "No, I've never considered it." },
+        { "id": "considered", "label": "Yes, I've considered it" },
+        { "id": "looked_into", "label": "Yes, I've looked into seriously" },
+        { "id": "applied_didnt_happen", "label": "Yes, I've applied but it didn't happen" },
+        { "id": "done_in_past", "label": "Yes, I've done it in the past" },
+        { "id": "doing_now", "label": "Yes, I'm doing it now" }
+      ]
+    },
+    {
+      "id": "entrepreneurship",
+      "label": "Entrepreneurship",
+      "category": "work",
+      "options": [
+        { "id": "in_past", "label": "I have in the past" },
+        { "id": "currently_doing", "label": "I am currently doing this" },
+        { "id": "intend_future", "label": "I intend to in the future" },
+        { "id": "does_not_apply", "label": "Does not apply" }
+      ]
+    },
+    {
+      "id": "negotiation_experience",
+      "label": "Negotiation Experience",
+      "category": "work",
+      "options": [
+        { "id": "yes", "label": "Yes" },
+        { "id": "no", "label": "No" },
+        { "id": "not_applicable", "label": "Not Applicable" }
+      ]
+    },
+    {
+      "id": "teacher",
+      "label": "Teacher",
+      "category": "work",
+      "options": [
+        { "id": "yes", "label": "Yes" },
+        { "id": "no", "label": "No" },
+        { "id": "dont_know_rather_not_say", "label": "Don't Know/Rather not say" }
+      ]
+    },
+    {
+      "id": "work_week_hours",
+      "label": "Work Week in hours",
+      "category": "work",
+      "options": [
+        { "id": "1_10", "label": "1-10 hours per week" },
+        { "id": "11_20", "label": "11-20 hours per week" },
+        { "id": "21_30", "label": "21-30 hours per week" },
+        { "id": "31_40", "label": "31-40 hours per week" },
+        { "id": "41_50", "label": "41-50 hours per week" },
+        { "id": "51_60", "label": "51-60 hours per week" },
+        { "id": "more_than_60", "label": "More than 60 hours per week" }
+      ]
+    },
+    {
+      "id": "remote_office",
+      "label": "Remote/Office",
+      "category": "work",
+      "options": [
+        { "id": "always_central", "label": "I always work from a central place of work" },
+        { "id": "sometimes_central", "label": "I sometimes work from a central place of work and sometimes remotely" },
+        { "id": "always_remote", "label": "I always work remotely" },
+        { "id": "changes_regularly", "label": "My place of work changes regularly" },
+        { "id": "none_other", "label": "None of the above / Other" }
+      ]
+    },
+    {
+      "id": "safety_procedures",
+      "label": "Safety procedures at work",
+      "category": "work",
+      "options": [
+        { "id": "no_safety_procedures", "label": "My job doesn't involve the use of safety procedures." },
+        { "id": "occasionally", "label": "Occasionally my job task requires the use of a safety procedure." },
+        { "id": "sometimes_compliance", "label": "Sometimes my job involves compliance with a safety procedure." },
+        { "id": "every_day", "label": "I follow safety procedure every day." },
+        { "id": "almost_all_guided", "label": "Almost all my job tasks are guided by safety procedures" },
+        { "id": "not_applicable", "label": "Not applicable/Rather not say" }
+      ]
+    },
+    {
+      "id": "business_travel",
+      "label": "Business Travel",
+      "category": "work",
+      "options": [
+        { "id": "regularly_hire_car", "label": "I regularly hire a car for business travel (5+ times a year)" },
+        { "id": "regularly_hire_van", "label": "I regularly hire a van/truck for business travel (5+ times a year)" },
+        { "id": "regularly_hire_bike", "label": "I regularly hire a pedal or electric bike for business travel (5+ times a year)" },
+        { "id": "own_car", "label": "I own a car that I use for business travel" },
+        { "id": "own_van", "label": "I own a van/truck that I use for business travel" },
+        { "id": "own_bike", "label": "I own a pedal or electric bike that I use for business travel" },
+        { "id": "regularly_train", "label": "I regularly take the train for business travel (5+ times a year)" },
+        { "id": "regularly_flights", "label": "I regularly take flights for business travel (5+ times a year)" },
+        { "id": "do_not_travel", "label": "I do not regularly travel for business purposes" }
+      ]
+    },
+    {
+      "id": "k12_roles",
+      "label": "Roles - Primary/Secondary (K-12)",
+      "category": "work",
+      "options": [
+        { "id": "state_administrator", "label": "State-Level Administrator" },
+        { "id": "superintendent", "label": "Superintendent/Asst. Superintendent" },
+        { "id": "principal", "label": "Principal/Assistant Principal" },
+        { "id": "curriculum_director", "label": "Curriculum Director" },
+        { "id": "academic_coach", "label": "Academic/Instructional Coach" },
+        { "id": "core_teacher", "label": "Core/General Education Teacher" },
+        { "id": "support_teacher", "label": "Support Teacher/Interventionist" },
+        { "id": "special_education", "label": "Special Education Teacher" },
+        { "id": "technologist", "label": "School/District Technologist" },
+        { "id": "none_of_these", "label": "None of These" }
+      ]
+    },
+    {
+      "id": "work_experiences",
+      "label": "Experiences at Work",
+      "category": "work",
+      "options": [
+        { "id": "passionate", "label": "I generally feel passionate about my work (that is, excited and highly motivated)" },
+        { "id": "respected", "label": "I generally feel respected at work (by my colleagues and/or superiors)" },
+        { "id": "bored", "label": "I generally feel bored of my job (that is, disinterested and not sufficiently challenged)" },
+        { "id": "workplace_conflict", "label": "I've experienced workplace conflict (for example due to differing goals, values, or perspectives)" },
+        { "id": "been_bullied", "label": "I've been bullied at work (that is, I've been a victim of emotional, physical, and/or verbal abuse)" },
+        { "id": "witnessed_bullying", "label": "I have witnessed others being bullied at work (i.e., I've been a victim of emotional, physical, and/or verbal abuse)" },
+        { "id": "witnessed_wrongdoing", "label": "I've observed or become aware of wrongdoing (e.g., stealing, cheating) committed by members of my workgroup" }
+      ]
+    },
+    {
+      "id": "covid_employment",
+      "label": "COVID-19 Employment Status",
+      "category": "work",
+      "options": [
+        { "id": "full_time_still_full", "label": "I was working full-time, and am now still working or being paid for full-time hours." },
+        { "id": "full_time_now_part", "label": "I was working full-time, but am now working or being paid for part-time hours." },
+        { "id": "full_time_suspended", "label": "I was working full-time, but now my job has been suspended (e.g. unpaid leave or furloughed)." },
+        { "id": "full_time_unemployed", "label": "I was working full-time, but am now unemployed." },
+        { "id": "part_time_now_full", "label": "I was working part-time, and am now working or being paid for full-time hours." },
+        { "id": "part_time_still_part", "label": "I was working part-time, and am now still working or being paid for the same part-time hours." },
+        { "id": "part_time_fewer_hours", "label": "I was working part-time, and am now working or being paid for fewer part-time hours." },
+        { "id": "part_time_suspended", "label": "I was working part-time, but now my job has been suspended (e.g. unpaid leave or furloughed)." },
+        { "id": "part_time_unemployed", "label": "I was working part-time, but am now unemployed." },
+        { "id": "unemployed_now_full", "label": "I was unemployed or out of work, but am now working or being paid for full-time hours." },
+        { "id": "unemployed_now_part", "label": "I was unemployed or out of work, but am now working or being paid for part-time hours." },
+        { "id": "unemployed_still_unemployed", "label": "I was unemployed or out of work, and my situation remains the same." }
+      ]
+    },
+    {
+      "id": "company_type",
+      "label": "Company Type",
+      "category": "work",
+      "options": [
+        { "id": "micro_enterprise", "label": "Micro enterprise" },
+        { "id": "sme", "label": "Small and medium-sized enterprises (SME)" },
+        { "id": "large_private", "label": "Large private enterprise" },
+        { "id": "publicly_listed", "label": "Publicly listed/traded enterprise (e.g. listed on a stock exchange)" },
+        { "id": "other", "label": "Other" }
+      ]
+    },
+    {
+      "id": "military_veteran",
+      "label": "Military Veteran",
+      "category": "work",
+      "options": [
+        { "id": "us_services_veteran", "label": "I'm a US services veteran" },
+        { "id": "uk_services_veteran", "label": "I'm a UK services veteran" },
+        { "id": "other_country_veteran", "label": "I'm a services veteran from another country" },
+        { "id": "no", "label": "No" },
+        { "id": "prefer_not_say", "label": "Prefer not to say" }
+      ]
+    },
+    {
+      "id": "business_role",
+      "label": "Business Role",
+      "category": "work",
+      "options": [
+        { "id": "financial_advisor_wealth", "label": "Financial advisor (at a wealth management firm)" },
+        { "id": "pr_corporate_comm", "label": "PR & Corporate Communications professional (including PR Agency staff)" },
+        { "id": "data_scientist_not_gov", "label": "Data scientist (not in a government role)" },
+        { "id": "consultant_management", "label": "Consultant (at a management consulting firm)" },
+        { "id": "trader_stocks", "label": "Trader (in stock/shares/bonds)" },
+        { "id": "portfolio_manager", "label": "Portfolio managers (at an asset management firm)" },
+        { "id": "researcher_corporation", "label": "Researcher in a corporation or management consultancy (not in a university or government)" }
+      ]
+    },
+    {
+      "id": "dentistry",
+      "label": "Dentistry",
+      "category": "work",
+      "options": [
+        { "id": "yes", "label": "Yes" },
+        { "id": "no", "label": "No" }
+      ]
+    },
+    {
+      "id": "work_function",
+      "label": "Work Function",
+      "category": "work",
+      "options": [
+        { "id": "account_management", "label": "Account Management" },
+        { "id": "admin_pa", "label": "Administration/ Personal Assistant" },
+        { "id": "operations_management", "label": "Operations Management" },
+        { "id": "service_management", "label": "Service Management" },
+        { "id": "engineering", "label": "Chemical / Mechanical / Electrical / Civil Engineering" },
+        { "id": "cx_support", "label": "CX / Customer Experience / Support" },
+        { "id": "data_analysis", "label": "Data Analysis" },
+        { "id": "design_creative", "label": "Design or Creative" },
+        { "id": "healthcare_professional", "label": "Healthcare Professional" },
+        { "id": "education_professional", "label": "Education Professional" },
+        { "id": "engineering_software", "label": "Engineering (e.g. software)" },
+        { "id": "finance_accounting", "label": "Finance or Accounting" },
+        { "id": "fundraising", "label": "Fundraising" },
+        { "id": "human_resources", "label": "Human Resources" },
+        { "id": "it_info_security", "label": "IT / Information Networking / Information Security" },
+        { "id": "legal", "label": "Legal" },
+        { "id": "marketing", "label": "Marketing" },
+        { "id": "operations", "label": "Operations" },
+        { "id": "product_management", "label": "Product or Product Management" },
+        { "id": "project_management", "label": "Project or Program Management" },
+        { "id": "public_relations", "label": "Public Relations / Communications" },
+        { "id": "research", "label": "Research" },
+        { "id": "sales_business_dev", "label": "Sales / Business Development" }
+      ]
+    },
+    {
+      "id": "it_role",
+      "label": "Employment Role within Information Technology",
+      "category": "work",
+      "options": [
+        { "id": "service_management", "label": "Service Management" },
+        { "id": "service_desk_agent", "label": "Service Desk Agent/Manager" },
+        { "id": "noc_operator", "label": "NOC Operator/Manager" },
+        { "id": "change_management", "label": "Change Management" },
+        { "id": "other", "label": "Other" }
+      ]
+    },
+    {
+      "id": "grades_taught",
+      "label": "Grades taught - Primary/Secondary (K-12)",
+      "category": "work",
+      "options": [
+        { "id": "kindergarten", "label": "Kindergarten" },
+        { "id": "1st_grade", "label": "1st grade" },
+        { "id": "2nd_grade", "label": "2nd grade" },
+        { "id": "3rd_grade", "label": "3rd grade" },
+        { "id": "4th_grade", "label": "4th grade" },
+        { "id": "5th_grade", "label": "5th grade" },
+        { "id": "6th_grade", "label": "6th grade" },
+        { "id": "7th_grade", "label": "7th grade" },
+        { "id": "8th_grade", "label": "8th grade" },
+        { "id": "9th_grade", "label": "9th grade" },
+        { "id": "10th_grade", "label": "10th grade" },
+        { "id": "11th_grade", "label": "11th grade" },
+        { "id": "12th_grade", "label": "12th grade" },
+        { "id": "other", "label": "Other" },
+        { "id": "not_applicable", "label": "Not applicable" }
+      ]
+    },
+    {
+      "id": "employer_type",
+      "label": "Employer Type",
+      "category": "work",
+      "options": [
+        { "id": "for_profit_employee", "label": "Employee of a for-profit company or business or of an individual, for wages, salary, or commissions" },
+        { "id": "non_profit_employee", "label": "Employee of a not-for-profit, tax-exempt, or charitable organization" },
+        { "id": "local_government", "label": "Local government employee (city, county, etc.)" },
+        { "id": "state_government", "label": "State government employee" },
+        { "id": "federal_government", "label": "Federal government employee" },
+        { "id": "self_employed_not_incorporated", "label": "Self-employed in own not-incorporated business, professional practice, or farm" },
+        { "id": "self_employed_incorporated", "label": "Self-employed in own incorporated business, professional practice, or farm" },
+        { "id": "working_without_pay", "label": "Working without pay in family business or farm" },
+        { "id": "none_of_above", "label": "None of the above" }
+      ]
+    },
+    {
+      "id": "industry_role",
+      "label": "Industry Role",
+      "category": "work",
+      "options": [
+        { "id": "upper_management", "label": "Upper Management" },
+        { "id": "trained_professional", "label": "Trained Professional" },
+        { "id": "middle_management", "label": "Middle Management" },
+        { "id": "skilled_laborer", "label": "Skilled Laborer" },
+        { "id": "junior_management", "label": "Junior Management" },
+        { "id": "consultant", "label": "Consultant" },
+        { "id": "administrative_staff", "label": "Administrative Staff" },
+        { "id": "temporary_employee", "label": "Temporary Employee" },
+        { "id": "support_staff", "label": "Support Staff" }
+      ]
+    },
+    {
+      "id": "business_management_sector",
+      "label": "Employment Sector within Business Management and Administration",
+      "category": "work",
+      "options": [
+        { "id": "accountant", "label": "Accountant" },
+        { "id": "admin_assistant", "label": "Administrative Assistant/Secretary" },
+        { "id": "advertising", "label": "Advertising" },
+        { "id": "consultant", "label": "Consultant" },
+        { "id": "financial_advisor", "label": "Financial Advisor" },
+        { "id": "fundraiser", "label": "Fundraiser" },
+        { "id": "government_jobs", "label": "Government Jobs" },
+        { "id": "human_resources", "label": "Human Resources/Personnel Departments" },
+        { "id": "insurance_agent", "label": "Insurance Agent" },
+        { "id": "investment_banker", "label": "Investment Banker" },
+        { "id": "lawyer", "label": "Lawyer" },
+        { "id": "management", "label": "Management" },
+        { "id": "nonprofit_job", "label": "Nonprofit Job" },
+        { "id": "graphic_design", "label": "Graphic Design" },
+        { "id": "grocery", "label": "Grocery" },
+        { "id": "homemaker", "label": "Homemaker" }
+      ]
+    },
+    {
+      "id": "industry",
+      "label": "Industry",
+      "category": "work",
+      "options": [
+        { "id": "agriculture_forestry_fishing", "label": "Agriculture Forestry Fishing and Hunting" },
+        { "id": "arts_design_entertainment", "label": "Arts Design Entertainment and Recreation" },
+        { "id": "broadcasting", "label": "Broadcasting" },
+        { "id": "college_university", "label": "College University and Adult Education" },
+        { "id": "computer_electronics", "label": "Computer and Electronics Manufacturing" },
+        { "id": "construction", "label": "Construction" },
+        { "id": "emergency_service", "label": "Emergency service" },
+        { "id": "finance_insurance", "label": "Finance and Insurance" },
+        { "id": "fishery", "label": "Fishery" },
+        { "id": "food_processing", "label": "Food processing and service" },
+        { "id": "forestry", "label": "Forestry" },
+        { "id": "government_public_admin", "label": "Government and Public Administration" },
+        { "id": "health_care_social", "label": "Health Care and Social Assistance" },
+        { "id": "hotel_food_services", "label": "Hotel and Food Services" },
+        { "id": "information_services", "label": "Information Services and Data Processing" },
+        { "id": "legal_services", "label": "Legal Services" },
+        { "id": "manufacturing", "label": "Manufacturing" },
+        { "id": "mining", "label": "Mining" },
+        { "id": "nuclear_power", "label": "Nuclear Power" },
+        { "id": "oil_gas", "label": "Oil and Gas" },
+        { "id": "other_education", "label": "Other Education Industry" },
+        { "id": "other_industry", "label": "Other Industry / None of the above" },
+        { "id": "other_information", "label": "Other Information Industry" },
+        { "id": "other_manufacturing", "label": "Other Manufacturing" },
+        { "id": "police", "label": "Police" },
+        { "id": "primary_secondary_k12", "label": "Primary/Secondary (K-12) Education" },
+        { "id": "product_development", "label": "Product Development" },
+        { "id": "publishing", "label": "Publishing" },
+        { "id": "real_estate_rental", "label": "Real Estate Rental and Leasing" },
+        { "id": "religious", "label": "Religious" },
+        { "id": "research_laboratories", "label": "Research laboratories" },
+        { "id": "retail", "label": "Retail" },
+        { "id": "sanitation", "label": "Sanitation" },
+        { "id": "scientific_technical", "label": "Scientific or Technical Services" },
+        { "id": "software", "label": "Software" },
+        { "id": "telecommunications", "label": "Telecommunications" },
+        { "id": "tourism_hospitality", "label": "Tourism and hospitality" },
+        { "id": "transportation_warehousing", "label": "Transportation and Warehousing" },
+        { "id": "utilities", "label": "Utilities" },
+        { "id": "veterinary", "label": "Veterinary" },
+        { "id": "wholesale", "label": "Wholesale" },
+        { "id": "video_games", "label": "Video Games" },
+        { "id": "accounting", "label": "Accounting" },
+        { "id": "architecture", "label": "Architecture" },
+        { "id": "automotive", "label": "Automotive" },
+        { "id": "consulting", "label": "Consulting" },
+        { "id": "engineering", "label": "Engineering" },
+        { "id": "environmental_services", "label": "Environmental Services" },
+        { "id": "fashion", "label": "Fashion" },
+        { "id": "non_profit_social", "label": "Non-Profit / Social Services" },
+        { "id": "pharmaceuticals_biotech", "label": "Pharmaceuticals / Bio-tech" },
+        { "id": "wellness_beauty", "label": "Wellness / Beauty" }
+      ]
+    },
+    {
+      "id": "employment_sector",
+      "label": "Employment Sector",
+      "category": "work",
+      "options": [
+        { "id": "agriculture_food_natural", "label": "Agriculture, Food and Natural Resources" },
+        { "id": "architecture_construction", "label": "Architecture and Construction" },
+        { "id": "arts", "label": "Arts" },
+        { "id": "aviation", "label": "Aviation" },
+        { "id": "business_management_admin", "label": "Business Management & Administration" },
+        { "id": "education_training", "label": "Education & Training" },
+        { "id": "finance", "label": "Finance" },
+        { "id": "government_public_admin", "label": "Government & Public Administration" },
+        { "id": "hospitality_tourism", "label": "Hospitality & Tourism" },
+        { "id": "information_technology", "label": "Information Technology" },
+        { "id": "legal", "label": "Legal" },
+        { "id": "medicine", "label": "Medicine" },
+        { "id": "military", "label": "Military" },
+        { "id": "policing", "label": "Policing" },
+        { "id": "manufacturing", "label": "Manufacturing" },
+        { "id": "marketing_sales", "label": "Marketing & Sales" },
+        { "id": "science_tech_engineering", "label": "Science, Technology, Engineering & Mathematics" },
+        { "id": "social_sciences", "label": "Social Sciences" },
+        { "id": "transportation_distribution", "label": "Transportation, Distribution & Logistics" },
+        { "id": "other", "label": "Other" },
+        { "id": "rather_not_say", "label": "Rather not say" }
+      ]
+    },
+    {
+      "id": "organizational_tenure",
+      "label": "Organizational Tenure",
+      "category": "work",
+      "options": [
+        { "id": "less_2_months", "label": "Less than 2 months" },
+        { "id": "2_4_months", "label": "2-4 months" },
+        { "id": "5_6_months", "label": "5-6 months" },
+        { "id": "7_12_months", "label": "7-12 months" },
+        { "id": "1_2_years", "label": "1-2 years" },
+        { "id": "2_5_years", "label": "2-5 years" },
+        { "id": "more_5_years", "label": "More than 5 years" },
+        { "id": "other", "label": "Other (e.g. I work for more than one organization)" },
+        { "id": "dont_know", "label": "Don't know" },
+        { "id": "not_applicable", "label": "Not applicable / rather not say" }
+      ]
+    },
+    {
+      "id": "healthcare_sector",
+      "label": "Employment Sector within Medicine/Healthcare",
+      "category": "work",
+      "options": [
+        { "id": "doctor", "label": "Doctor" },
+        { "id": "emergency_dispatcher", "label": "Emergency 911 Dispatcher" },
+        { "id": "emergency_medical", "label": "Emergency Medical Services" },
+        { "id": "nurse", "label": "Nurse" },
+        { "id": "paramedic", "label": "Paramedic" },
+        { "id": "pharmacist", "label": "Pharmacist" },
+        { "id": "psychologist", "label": "Psychologist" },
+        { "id": "social_worker", "label": "Social Worker" },
+        { "id": "veterinarian", "label": "Veterinarian" },
+        { "id": "other", "label": "Other" },
+        { "id": "not_applicable", "label": "Not applicable" }
+      ]
+    },
+    {
+      "id": "uk_services",
+      "label": "Employment in UK Services",
+      "category": "work",
+      "options": [
+        { "id": "4x4_response", "label": "4x4 Response" },
+        { "id": "ambulance_service", "label": "Ambulance Service" },
+        { "id": "blood_bikes", "label": "Blood Bikes" },
+        { "id": "border_force", "label": "Border Force" },
+        { "id": "british_army", "label": "British Army" },
+        { "id": "cave_rescue", "label": "Cave Rescue" },
+        { "id": "community_first_responders", "label": "Community First Responders" },
+        { "id": "fire_service", "label": "Fire Service" },
+        { "id": "highways_england", "label": "Highways England Traffic Officer" },
+        { "id": "hm_armed_forces_veteran", "label": "HM Armed Forces Veteran" },
+        { "id": "hm_coastguard", "label": "HM Coastguard" },
+        { "id": "hm_prison_service", "label": "HM Prison Service" },
+        { "id": "immigration_enforcement", "label": "Immigration Enforcement" },
+        { "id": "lowland_search_rescue", "label": "Lowland Search and Rescue" },
+        { "id": "mod_fire_service", "label": "MoD Fire Service" },
+        { "id": "mod_police", "label": "MoD Police" },
+        { "id": "mountain_rescue", "label": "Mountain Rescue" },
+        { "id": "nhs", "label": "NHS" },
+        { "id": "police", "label": "Police" },
+        { "id": "red_cross", "label": "Red Cross" },
+        { "id": "reserve_armed_forces", "label": "Researve Armed Forces" },
+        { "id": "rnli", "label": "RNLI" },
+        { "id": "royal_air_force", "label": "Royal Air Force" },
+        { "id": "royal_marines", "label": "Royal Marines" },
+        { "id": "royal_navy", "label": "Royal Navy" },
+        { "id": "search_rescue", "label": "Search and Rescue" },
+        { "id": "social_care", "label": "Social Care" },
+        { "id": "st_andrews_ambulance", "label": "St Andrews Ambulance" },
+        { "id": "st_johns_ambulance", "label": "St Johns Ambulance" },
+        { "id": "uk_visas_immigration", "label": "UK Visas and Immigration" },
+        { "id": "none_of_above", "label": "None of the above" }
+      ]
+    },
+    {
+      "id": "grades_supported",
+      "label": "Grades supported - Primary/Secondary (K-12)",
+      "category": "work",
+      "options": [
+        { "id": "kindergarten", "label": "Kindergarten" },
+        { "id": "1st_grade", "label": "1st grade" },
+        { "id": "2nd_grade", "label": "2nd grade" },
+        { "id": "3rd_grade", "label": "3rd grade" },
+        { "id": "4th_grade", "label": "4th grade" },
+        { "id": "5th_grade", "label": "5th grade" },
+        { "id": "6th_grade", "label": "6th grade" },
+        { "id": "7th_grade", "label": "7th grade" },
+        { "id": "8th_grade", "label": "8th grade" },
+        { "id": "9th_grade", "label": "9th grade" },
+        { "id": "10th_grade", "label": "10th grade" },
+        { "id": "11th_grade", "label": "11th grade" },
+        { "id": "12th_grade", "label": "12th grade" }
+      ]
+    },
+    {
+      "id": "subjects_supported",
+      "label": "Subjects supported - Primary/Secondary (K-12)",
+      "category": "work",
+      "options": [
+        { "id": "all_subjects", "label": "All subjects" },
+        { "id": "math", "label": "Math" },
+        { "id": "science", "label": "Science" },
+        { "id": "english", "label": "English Language Arts (ELA) / Humanities" },
+        { "id": "history", "label": "History" },
+        { "id": "biology", "label": "Biology" },
+        { "id": "art", "label": "Art" },
+        { "id": "social_studies", "label": "Social studies" },
+        { "id": "physical_education", "label": "Physical education" },
+        { "id": "health", "label": "Health" },
+        { "id": "music", "label": "Music" },
+        { "id": "world_languages", "label": "World Languages" },
+        { "id": "other", "label": "Other" }
+      ]
+    },
+    {
+      "id": "subjects_taught",
+      "label": "Subjects taught - Primary/Secondary (K-12)",
+      "category": "work",
+      "options": [
+        { "id": "math", "label": "Math" },
+        { "id": "science", "label": "Science" },
+        { "id": "english", "label": "English Language Arts (ELA) / Humanities" },
+        { "id": "history", "label": "History" },
+        { "id": "biology", "label": "Biology" },
+        { "id": "art", "label": "Art" },
+        { "id": "social_studies", "label": "Social studies" },
+        { "id": "physical_education", "label": "Physical education" },
+        { "id": "health", "label": "Health" },
+        { "id": "music", "label": "Music" },
+        { "id": "world_languages", "label": "World Languages" },
+        { "id": "other", "label": "Other" }
+      ]
+    },
+    {
+      "id": "active_military",
+      "label": "Active military service member",
+      "category": "work",
+      "options": [
+        { "id": "active_us_military", "label": "I'm an active US military service member" },
+        { "id": "active_uk_military", "label": "I'm an active UK military service member" },
+        { "id": "active_other_military", "label": "I'm an active military service member from another country" },
+        { "id": "family_member_active", "label": "A member of my family is an active military member" },
+        { "id": "no", "label": "No, I am not" },
+        { "id": "prefer_not_say", "label": "Prefer not to say" }
+      ]
+    },
+    {
+      "id": "past_employment",
+      "label": "Past Employment Sectors",
+      "category": "work",
+      "options": [
+        { "id": "agriculture_food_natural", "label": "Agriculture, Food and Natural Resources" },
+        { "id": "architecture_construction", "label": "Architecture and Construction" },
+        { "id": "arts", "label": "Arts" },
+        { "id": "business_management_admin", "label": "Business Management & Administration" },
+        { "id": "education_training", "label": "Education & Training" },
+        { "id": "finance", "label": "Finance" },
+        { "id": "government_public_admin", "label": "Government & Public Administration" },
+        { "id": "hospitality_tourism", "label": "Hospitality & Tourism" },
+        { "id": "information_technology", "label": "Information Technology" },
+        { "id": "legal", "label": "Legal" },
+        { "id": "medicine", "label": "Medicine" },
+        { "id": "military", "label": "Military" },
+        { "id": "policing", "label": "Policing" },
+        { "id": "manufacturing", "label": "Manufacturing" },
+        { "id": "marketing_sales", "label": "Marketing & Sales" },
+        { "id": "science_tech_engineering", "label": "Science, Technology, Engineering & Mathematics" },
+        { "id": "social_sciences", "label": "Social Sciences" },
+        { "id": "transportation_distribution", "label": "Transportation, Distribution & Logistics" },
+        { "id": "other", "label": "Other" },
+        { "id": "rather_not_say", "label": "Rather not say" }
+      ]
+    },
+    {
+      "id": "management_years",
+      "label": "Years of Management Experience",
+      "category": "work",
+      "options": [
+        { "id": "never_managed", "label": "I've never managed a subordinate" },
+        { "id": "less_1_year", "label": "Less than 1 year" },
+        { "id": "1_2_years", "label": "1 - 2 years" },
+        { "id": "2_3_years", "label": "2 - 3 years" },
+        { "id": "3_4_years", "label": "3 - 4 years" },
+        { "id": "5_plus_years", "label": "5+ years" }
+      ]
+    },
+    {
+      "id": "work_role",
+      "label": "Work Role",
+      "category": "work",
+      "options": [
+        { "id": "ceo_c_suite", "label": "CEO or C-suite Executive" },
+        { "id": "president", "label": "President" },
+        { "id": "vice_president", "label": "Vice President (EVP, SVP, AVP, VP)" },
+        { "id": "director_associate", "label": "Director / Associate Director" },
+        { "id": "senior_manager", "label": "Senior Manager" },
+        { "id": "manager", "label": "Manager" },
+        { "id": "individual_contributor", "label": "Individual contributor / Non-manager" },
+        { "id": "none_of_above", "label": "None of the above" }
+      ]
+    },
+    {
+      "id": "work_experience_years",
+      "label": "Years of Work Experience",
+      "category": "work",
+      "options": [
+        { "id": "less_1_year", "label": "Less than one year" },
+        { "id": "1_2_years", "label": "1-2 years" },
+        { "id": "3_5_years", "label": "3-5 years" },
+        { "id": "6_10_years", "label": "6-10 years" },
+        { "id": "11_15_years", "label": "11-15 years" },
+        { "id": "16_plus_years", "label": "16+ years" },
+        { "id": "no_experience", "label": "I don't have any work experience" },
+        { "id": "prefer_not_say", "label": "Prefer not to say" }
+      ]
+    },
+    {
+      "id": "press_releases",
+      "label": "Press Releases",
+      "category": "work",
+      "options": [
+        { "id": "yes", "label": "Yes" },
+        { "id": "no", "label": "No" }
+      ]
+    },
+    {
+      "id": "job_position",
+      "label": "Job Position",
+      "category": "work",
+      "options": [
+        { "id": "c_level", "label": "C-Level (e.g. CEO, CFO), Owner, Partner, President" },
+        { "id": "vice_president", "label": "Vice President (EVP, SVP, AVP, VP)" },
+        { "id": "director", "label": "Director (Group Director, Sr. Director, Director)" },
+        { "id": "manager", "label": "Manager (Group Manager, Sr. Manager, Manager, Program Manager)" },
+        { "id": "individual_contributor", "label": "Individual Contributor (IC)" },
+        { "id": "analyst", "label": "Analyst" },
+        { "id": "assistant_associate", "label": "Assistant or Associate" },
+        { "id": "administrative", "label": "Administrative (Clerical or Support Staff)" },
+        { "id": "consultant", "label": "Consultant" },
+        { "id": "intern", "label": "Intern" },
+        { "id": "volunteer", "label": "Volunteer" },
+        { "id": "none_of_above", "label": "None of the above" },
+        { "id": "owner", "label": "Owner" },
+        { "id": "partner", "label": "Partner" }
+      ]
+    },
+    {
+      "id": "leadership_position",
+      "label": "Leadership/Position of power/Supervisory duties",
+      "category": "work",
+      "options": [
+        { "id": "yes", "label": "Yes" },
+        { "id": "no", "label": "No" },
+        { "id": "rather_not_say", "label": "I'd rather not say" }
+      ]
+    },
+    {
+      "id": "management_experience",
+      "label": "Management experience",
+      "category": "work",
+      "options": [
+        { "id": "yes", "label": "Yes" },
+        { "id": "no", "label": "No" },
+        { "id": "rather_not_say", "label": "I'd rather not say" }
+      ]
+    },
+    {
+      "id": "hiring_decisions",
+      "label": "Do you have any experience in making hiring decisions (i.e. have you been responsible for hiring job candidates)?",
+      "category": "work",
+      "options": [
+        { "id": "yes", "label": "Yes" },
+        { "id": "no", "label": "No" },
+        { "id": "rather_not_say", "label": "I'd rather not say" }
+      ]
+    },
+    {
+      "id": "decision_making",
+      "label": "Decision-making responsibilities",
+      "category": "work",
+      "options": [
+        { "id": "accounts_finance", "label": "Accounts/finance" },
+        { "id": "business_strategy", "label": "Business strategy" },
+        { "id": "customer_client", "label": "Customer/client" },
+        { "id": "hiring", "label": "Hiring" },
+        { "id": "marketing_sales_advertising", "label": "Marketing/sales/advertising" },
+        { "id": "operations_production", "label": "Operations/production" },
+        { "id": "other", "label": "Other" },
+        { "id": "people_management", "label": "People management" },
+        { "id": "research_development", "label": "Research/development" },
+        { "id": "supply_chain_logistics", "label": "Supply chain/logistics" },
+        { "id": "none", "label": "None" },
+        { "id": "fleet_management", "label": "fleet management" }
+      ]
+    },
+    {
+      "id": "org_function",
+      "label": "Function in Organization",
+      "category": "work",
+      "options": [
+        { "id": "account_management", "label": "Account Management" },
+        { "id": "admin_pa", "label": "Administration/ Personal Assistant" },
+        { "id": "engineering", "label": "Chemical / Mechanical / Electrical / Civil Engineering" },
+        { "id": "cx_support", "label": "CX / Customer Experience / Support" },
+        { "id": "data_analysis", "label": "Data Analysis" },
+        { "id": "design_creative", "label": "Design or Creative" },
+        { "id": "healthcare_professional", "label": "Healthcare Professional" },
+        { "id": "education_professional", "label": "Education Professional" },
+        { "id": "engineering_software", "label": "Engineering (e.g. software)" },
+        { "id": "finance_accounting", "label": "Finance or Accounting" },
+        { "id": "fundraising", "label": "Fundraising" },
+        { "id": "human_resources", "label": "Human Resources" },
+        { "id": "it_info_security", "label": "IT / Information Networking / Information Security" },
+        { "id": "legal", "label": "Legal" },
+        { "id": "marketing", "label": "Marketing" },
+        { "id": "operations", "label": "Operations" },
+        { "id": "product_management", "label": "Product or Product Management" },
+        { "id": "project_management", "label": "Project or Program Management" },
+        { "id": "public_relations", "label": "Public Relations / Communications" },
+        { "id": "research", "label": "Research" },
+        { "id": "sales_business_dev", "label": "Sales / Business Development" }
+      ]
+    },
+    {
+      "id": "ai_use_weekly",
+      "label": "Weekly Ai (Artificial Intelligence) use",
+      "category": "work",
+      "options": [
+        { "id": "never", "label": "Never" },
+        { "id": "once_week", "label": "Once a Week" },
+        { "id": "2_6_times_week", "label": "2-6 times a week" },
+        { "id": "every_day", "label": "Every day" },
+        { "id": "multiple_times_daily", "label": "Multiple times every day" }
+      ]
+    },
+    {
+      "id": "subordinates",
+      "label": "Number of subordinates",
+      "category": "work",
+      "options": [
+        { "id": "1", "label": "1" },
+        { "id": "2_3", "label": "2-3" },
+        { "id": "4_6", "label": "4-6" },
+        { "id": "7_10", "label": "7-10" },
+        { "id": "more_than_10", "label": ">10" }
+      ]
+    },
+    {
+      "id": "supervisor",
+      "label": "Supervisor",
+      "category": "work",
+      "options": [
+        { "id": "yes", "label": "Yes" },
+        { "id": "no", "label": "No" },
+        { "id": "rather_not_say", "label": "Rather not say" }
+      ]
+    },
+    {
+      "id": "employee_interactions",
+      "label": "Employee Interactions",
+      "category": "work",
+      "options": [
+        { "id": "yes", "label": "Yes" },
+        { "id": "no", "label": "No" },
+        { "id": "rather_not_say", "label": "Rather not say" }
+      ]
+    },
+    {
+      "id": "work_colleague",
+      "label": "Do you have a colleague whom you spend most of your time at work with?",
+      "category": "work",
+      "options": [
+        { "id": "yes", "label": "Yes" },
+        { "id": "no", "label": "No" },
+        { "id": "rather_not_say", "label": "Rather not say" }
+      ]
+    },
+    {
+      "id": "customer_facing",
+      "label": "Are you employed in a customer facing/front line employee role such as retail or banking?",
+      "category": "work",
+      "options": [
+        { "id": "yes", "label": "Yes" },
+        { "id": "no", "label": "No" },
+        { "id": "rather_not_say", "label": "Rather not say" }
+      ]
+    },
+    {
+      "id": "work_groups",
+      "label": "Work Groups",
+      "category": "work",
+      "options": [
+        { "id": "alone", "label": "I work alone" },
+        { "id": "sometimes_group_sometimes_alone", "label": "I sometimes work as part of a group and sometimes alone" },
+        { "id": "small_group_2_10", "label": "I work as part of a small group 2-10" },
+        { "id": "large_group_10_plus", "label": "I work as part of a large group 10+" },
+        { "id": "not_applicable", "label": "Not applicable" }
+      ]
+    }
+  ]

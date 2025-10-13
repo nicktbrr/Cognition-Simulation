@@ -1,0 +1,649 @@
+[
+    {
+      "id": "investable_assets_gbp",
+      "label": "Current investable assets (GBP)",
+      "category": "finance",
+      "options": [
+        { "id": "less_than_1500", "label": "Less than £1,500" },
+        { "id": "1500_7499", "label": "£1,500 - £7,499" },
+        { "id": "7500_14999", "label": "£7,500 - £14,999" },
+        { "id": "15000_24999", "label": "£15,000 - £24,999" },
+        { "id": "25000_49999", "label": "£25,000 - £49,999" },
+        { "id": "50000_99999", "label": "£50,000 - £99,999" },
+        { "id": "100000_149999", "label": "£100,000 - £149,999" },
+        { "id": "150000_249999", "label": "£150,000 - £249,999" },
+        { "id": "250000_499999", "label": "£250,000 - £499,999" },
+        { "id": "500000_999999", "label": "£500,000 - £999,999" },
+        { "id": "1000000_1999999", "label": "£1,000,000 - £1,999,999" },
+        { "id": "more_than_2000000", "label": "More than £2,000,000" },
+        { "id": "rather_not_say", "label": "Rather not say" }
+      ]
+    },
+    {
+      "id": "investable_assets_usd",
+      "label": "Current investable assets (USD) [US participants only]",
+      "category": "finance",
+      "options": [
+        { "id": "less_than_1500", "label": "Less than $1,500" },
+        { "id": "1500_7499", "label": "$1,500 - $7,499" },
+        { "id": "7500_14999", "label": "$7,500 - $14,999" },
+        { "id": "15000_24999", "label": "$15,000 - $24,999" },
+        { "id": "25000_49999", "label": "$25,000 - $49,999" },
+        { "id": "50000_99999", "label": "$50,000 - $99,999" },
+        { "id": "100000_149999", "label": "$100,000 - $149,999" },
+        { "id": "150000_249999", "label": "$150,000 - $249,999" },
+        { "id": "250000_499999", "label": "$250,000 - $499,999" },
+        { "id": "500000_999999", "label": "$500,000 - $999,999" },
+        { "id": "1000000_1999999", "label": "$1,000,000 - $1,999,999" },
+        { "id": "more_than_2000000", "label": "More than $2,000,000" },
+        { "id": "rather_not_say", "label": "Rather not say" }
+      ]
+    },
+    {
+      "id": "investable_assets_dollars",
+      "label": "Current investable assets (Dollars) [Non US participants only]",
+      "category": "finance",
+      "options": [
+        { "id": "less_than_1500", "label": "Less than $1,500" },
+        { "id": "1500_7499", "label": "$1,500 - $7,499" },
+        { "id": "7500_14999", "label": "$7,500 - $14,999" },
+        { "id": "15000_24999", "label": "$15,000 - $24,999" },
+        { "id": "25000_49999", "label": "$25,000 - $49,999" },
+        { "id": "50000_99999", "label": "$50,000 - $99,999" },
+        { "id": "100000_149999", "label": "$100,000 - $149,999" },
+        { "id": "150000_249999", "label": "$150,000 - $249,999" },
+        { "id": "250000_499999", "label": "$250,000 - $499,999" },
+        { "id": "500000_999999", "label": "$500,000 - $999,999" },
+        { "id": "1000000_1999999", "label": "$1,000,000 - $1,999,999" },
+        { "id": "more_than_2000000", "label": "More than $2,000,000" },
+        { "id": "rather_not_say", "label": "Rather not say" }
+      ]
+    },
+    {
+      "id": "invested_assets_value",
+      "label": "Total Value of Invested Assets (Excluding Property)",
+      "category": "finance",
+      "options": [
+        { "id": "no_invested_assets", "label": "I do not currently have any invested assets" },
+        { "id": "less_than_10000", "label": "Less than £10,000" },
+        { "id": "10000_19999", "label": "£10,000 - £19,999" },
+        { "id": "20000_49999", "label": "£20,000 - £49,999" },
+        { "id": "50000_99999", "label": "£50,000 - £99,999" },
+        { "id": "100000_249999", "label": "£100,000 - £249,999" },
+        { "id": "250000_499999", "label": "£250,000 - £499,999" },
+        { "id": "500000_or_more", "label": "£500,000 or more" },
+        { "id": "prefer_not_say", "label": "Prefer not to say" }
+      ]
+    },
+    {
+      "id": "investment",
+      "label": "Investment",
+      "category": "finance",
+      "options": [
+        { "id": "yes", "label": "Y" },
+        { "id": "no", "label": "N" },
+        { "id": "dont_know_rather_not_say", "label": "Don't Know/Rather Not Say" }
+      ]
+    },
+    {
+      "id": "stock_evaluation",
+      "label": "Evaluating a company's stock as a potential investment",
+      "category": "finance",
+      "options": [
+        { "id": "never", "label": "Never" },
+        { "id": "rarely", "label": "Rarely" },
+        { "id": "sometimes", "label": "Sometimes" },
+        { "id": "most_of_the_time", "label": "Most of the time" },
+        { "id": "always", "label": "Always" },
+        { "id": "not_applicable_rather_not_say", "label": "Not applicable/ Rather not say" }
+      ]
+    },
+    {
+      "id": "crypto_exchanges",
+      "label": "Cryptocurrency Exchanges",
+      "category": "finance",
+      "options": [
+        { "id": "binance", "label": "Binance" },
+        { "id": "coinbase", "label": "Coinbase" },
+        { "id": "kraken", "label": "Kraken" },
+        { "id": "crypto_com", "label": "Crypto.com" },
+        { "id": "revolut", "label": "Revolut" },
+        { "id": "gemini", "label": "Gemini" },
+        { "id": "ftx", "label": "FTX" },
+        { "id": "kucoin", "label": "KuCoin" },
+        { "id": "gate_io", "label": "Gate.io" },
+        { "id": "bitfinex", "label": "Bitfinex" },
+        { "id": "other", "label": "Other" },
+        { "id": "no_crypto", "label": "I do not own any cryptocurrency" }
+      ]
+    },
+    {
+      "id": "trading_platforms",
+      "label": "Trading Platforms",
+      "category": "finance",
+      "options": [
+        { "id": "acorns", "label": "Acorns" },
+        { "id": "aj_bell_youinvest", "label": "AJ Bell Youinvest" },
+        { "id": "ally_invest", "label": "Ally Invest" },
+        { "id": "ayondo", "label": "Ayondo" },
+        { "id": "capital_com", "label": "Capital.com" },
+        { "id": "city_index", "label": "City Index" },
+        { "id": "cmc_markets", "label": "CMC Markets" },
+        { "id": "degiro", "label": "Degiro" },
+        { "id": "dodl", "label": "Dodl" },
+        { "id": "etrade", "label": "E*Trade" },
+        { "id": "etoro", "label": "eToro" },
+        { "id": "fidelity", "label": "Fidelity" },
+        { "id": "fineco", "label": "Fineco" },
+        { "id": "freetrade", "label": "Freetrade" },
+        { "id": "fxcm", "label": "FXCM" },
+        { "id": "hargreaves_lansdown", "label": "Hargreaves Lansdown" },
+        { "id": "ig", "label": "IG" },
+        { "id": "interactive_brokers", "label": "Interactive Brokers" },
+        { "id": "interactive_investor", "label": "Interactive Investor" },
+        { "id": "iron_fx", "label": "Iron FX" },
+        { "id": "m1_finance", "label": "M1 Finance" },
+        { "id": "mydigitrade", "label": "MyDigiTrade" },
+        { "id": "peeptrade", "label": "Peeptrade" },
+        { "id": "pepperstone", "label": "Pepperstone" },
+        { "id": "plus500", "label": "Plus500" },
+        { "id": "revolut", "label": "Revolut" },
+        { "id": "robinhood", "label": "Robinhood" },
+        { "id": "stash", "label": "Stash" },
+        { "id": "td_ameritrade", "label": "TD Ameritrade" },
+        { "id": "tradency", "label": "Tradency" },
+        { "id": "tradeo", "label": "Tradeo" },
+        { "id": "tradezero", "label": "TradeZero" },
+        { "id": "trading212", "label": "Trading212" },
+        { "id": "vantage_fx", "label": "Vantage FX" },
+        { "id": "webull", "label": "WeBull" },
+        { "id": "xtb", "label": "XTB" },
+        { "id": "zulutrade", "label": "ZuluTrade" },
+        { "id": "other_platform_not_listed", "label": "Other platform not listed" },
+        { "id": "do_not_use_trading_platforms", "label": "I do not use trading platforms" }
+      ]
+    },
+    {
+      "id": "investment_types",
+      "label": "Types of investment",
+      "category": "finance",
+      "options": [
+        { "id": "etf_etc", "label": "ETF or ETC" },
+        { "id": "government_bonds", "label": "Government Bonds" },
+        { "id": "unit_trusts", "label": "Unit trusts" },
+        { "id": "angel_syndicate", "label": "Angel syndicate" },
+        { "id": "options", "label": "Options" },
+        { "id": "private_equity_fund", "label": "Private Equity fund" },
+        { "id": "venture_capital_fund", "label": "Venture Capital fund" },
+        { "id": "crowdfunding", "label": "Crowdfunding" },
+        { "id": "other", "label": "Other" },
+        { "id": "dont_know_rather_not_say", "label": "Don't know/Rather not say" }
+      ]
+    },
+    {
+      "id": "retirement_plan",
+      "label": "Retirement Plan",
+      "category": "finance",
+      "options": [
+        { "id": "yes", "label": "Y" },
+        { "id": "no", "label": "N" }
+      ]
+    },
+    {
+      "id": "credit_card",
+      "label": "Credit Card",
+      "category": "finance",
+      "options": [
+        { "id": "yes", "label": "Yes" },
+        { "id": "no", "label": "No" },
+        { "id": "rather_not_say", "label": "Rather Not Say" }
+      ]
+    },
+    {
+      "id": "disposable_income_gbp",
+      "label": "Disposable income (GBP)",
+      "category": "finance",
+      "options": [
+        { "id": "less_than_50", "label": "Less than £50" },
+        { "id": "51_100", "label": "£51-£100" },
+        { "id": "101_200", "label": "£101 - £200" },
+        { "id": "201_500", "label": "£201 - £500" },
+        { "id": "501_1000", "label": "£501 - £1,000" },
+        { "id": "more_than_1001", "label": "More than £1,001" },
+        { "id": "0", "label": "£0" }
+      ]
+    },
+    {
+      "id": "financial_risk_attitudes",
+      "label": "Attitudes towards Financial Risk",
+      "category": "finance",
+      "options": [
+        { "id": "avoid_risks", "label": "I try to avoid financial risks – I prefer certainty" },
+        { "id": "cautious_low_risk", "label": "I am cautious and prefer low-risk investments" },
+        { "id": "moderate_risks", "label": "I am willing to take moderate risks for potential gains" },
+        { "id": "high_risks_comfortable", "label": "I am comfortable taking high risks for high rewards" },
+        { "id": "seek_high_risks", "label": "I seek out high-risk investments and am very comfortable with uncertainty" }
+      ]
+    },
+    {
+      "id": "charitable_giving",
+      "label": "Charitable Giving",
+      "category": "finance",
+      "options": [
+        { "id": "501_plus", "label": "£501+" },
+        { "id": "201_500", "label": "£201-£500" },
+        { "id": "101_200", "label": "£101-£200" },
+        { "id": "75_100", "label": "£75-£100" },
+        { "id": "50_75", "label": "£50-£75" },
+        { "id": "1_50", "label": "£1-£50" },
+        { "id": "0", "label": "£0" }
+      ]
+    },
+    {
+      "id": "socioeconomic_status",
+      "label": "Socioeconomic Status",
+      "category": "finance",
+      "options": [
+        { "id": "1", "label": "1" },
+        { "id": "2", "label": "2" },
+        { "id": "3", "label": "3" },
+        { "id": "4", "label": "4" },
+        { "id": "5", "label": "5" },
+        { "id": "6", "label": "6" },
+        { "id": "7", "label": "7" },
+        { "id": "8", "label": "8" },
+        { "id": "9", "label": "9" },
+        { "id": "10", "label": "10" }
+      ]
+    },
+    {
+      "id": "nft_experience",
+      "label": "NFT experience",
+      "category": "finance",
+      "options": [
+        { "id": "own_nfts", "label": "I own one or more NFTs" },
+        { "id": "created_nfts", "label": "I have created one or more NFTs" },
+        { "id": "considered_buying", "label": "I have considered buying an NFT, but haven't done so" },
+        { "id": "considered_creating", "label": "I have considered creating an NFT, but haven't done so" },
+        { "id": "not_considered_buying", "label": "I have not considered buying an NFT" },
+        { "id": "not_considered_creating", "label": "I have not considered creating an NFT" },
+        { "id": "dont_know_nft", "label": "I don't know what an NFT is" }
+      ]
+    },
+    {
+      "id": "credit_card_brand",
+      "label": "Credit Card Brand",
+      "category": "finance",
+      "options": [
+        { "id": "visa", "label": "Visa" },
+        { "id": "mastercard", "label": "MasterCard" },
+        { "id": "american_express", "label": "American Express" },
+        { "id": "other", "label": "Other" },
+        { "id": "none", "label": "None" }
+      ]
+    },
+    {
+      "id": "property_ownership",
+      "label": "Property Ownership",
+      "category": "finance",
+      "options": [
+        { "id": "own_property", "label": "I own the property I live in" },
+        { "id": "privately_rented", "label": "I live in privately rented accommodation" },
+        { "id": "social_housing", "label": "I live in social housing or affordable-rented accommodation" },
+        { "id": "prefer_not_say", "label": "Prefer not to say" },
+        { "id": "live_with_family", "label": "I live with family who own the property" },
+        { "id": "not_applicable", "label": "Not applicable" }
+      ]
+    },
+    {
+      "id": "ev_charging",
+      "label": "EV Charging",
+      "category": "finance",
+      "options": [
+        { "id": "yes", "label": "Y" },
+        { "id": "no", "label": "N" }
+      ]
+    },
+    {
+      "id": "car_ownership",
+      "label": "Car ownership",
+      "category": "finance",
+      "options": [
+        { "id": "own_car", "label": "I own a car" },
+        { "id": "lease_car", "label": "I lease a car" },
+        { "id": "own_and_lease", "label": "I both own and lease a car" },
+        { "id": "no_car", "label": "I do not own or lease a car" }
+      ]
+    },
+    {
+      "id": "current_car_type",
+      "label": "Current car type",
+      "category": "finance",
+      "options": [
+        { "id": "petrol", "label": "Petrol" },
+        { "id": "diesel", "label": "Diesel" },
+        { "id": "hybrid", "label": "Hybrid" },
+        { "id": "electric", "label": "Electric" },
+        { "id": "other", "label": "Other" },
+        { "id": "not_applicable", "label": "Not Applicable" }
+      ]
+    },
+    {
+      "id": "property_type",
+      "label": "Property Type",
+      "category": "finance",
+      "options": [
+        { "id": "apartment_purpose_built", "label": "Apartment/Flat (purpose built block)" },
+        { "id": "apartment_converted", "label": "Apartment/Flat (converted within other property type such as house) " },
+        { "id": "terraced_house", "label": "Terraced house" },
+        { "id": "semi_detached", "label": "Semi-detached house" },
+        { "id": "detached_house", "label": "Detached house" },
+        { "id": "other", "label": "Other" },
+        { "id": "not_applicable", "label": "Not Applicable" }
+      ]
+    },
+    {
+      "id": "ev_ownership",
+      "label": "Household electric vehicle ownership or leasing",
+      "category": "finance",
+      "options": [
+        { "id": "electric_car_van", "label": "Yes, electric car or van" },
+        { "id": "electric_motorcycle", "label": "Yes, electric motorcycle" },
+        { "id": "electric_bike", "label": "Yes, electric bike" },
+        { "id": "other_electric_vehicle", "label": "Yes, other electric vehicle (e.g. scooter)" },
+        { "id": "no", "label": "No" }
+      ]
+    },
+    {
+      "id": "future_house_ownership",
+      "label": "Future House Ownership",
+      "category": "finance",
+      "options": [
+        { "id": "not_interested", "label": "I am not interested in buying a house at this time." },
+        { "id": "considering", "label": "I am considering buying a house but have not started the process." },
+        { "id": "actively_looking", "label": "I am actively looking for a house to buy." },
+        { "id": "made_offer", "label": "I have made an offer on a house." },
+        { "id": "closing_process", "label": "I am in the process of closing on a house." },
+        { "id": "recently_purchased", "label": "I have recently purchased a house." },
+        { "id": "recently_sold", "label": "I have recently sold a house in the last 6 months." }
+      ]
+    },
+    {
+      "id": "household_income_usd",
+      "label": "Household Income (USD) [US participants only]",
+      "category": "finance",
+      "options": [
+        { "id": "less_than_10000", "label": "Less than $10000" },
+        { "id": "10000_15999", "label": "$10000–$15999" },
+        { "id": "16000_19999", "label": "$16000–$19999" },
+        { "id": "20000_29999", "label": "$20000–$29999" },
+        { "id": "30000_39999", "label": "$30000–$39999" },
+        { "id": "40000_49999", "label": "$40000–$49999" },
+        { "id": "50000_59999", "label": "$50000–$59999" },
+        { "id": "60000_69999", "label": "$60000–$69999" },
+        { "id": "70000_79999", "label": "$70000–$79999" },
+        { "id": "80000_89999", "label": "$80000–$89999" },
+        { "id": "90000_99999", "label": "$90000–$99999" },
+        { "id": "100000_149999", "label": "$100000–$149999" },
+        { "id": "more_than_150000", "label": "More than $150000" }
+      ]
+    },
+    {
+      "id": "household_bill_paying",
+      "label": "Household bill paying",
+      "category": "finance",
+      "options": [
+        { "id": "solely_responsible", "label": "Yes - solely responsible" },
+        { "id": "jointly_responsible", "label": "Yes - jointly responsible" },
+        { "id": "no", "label": "No" },
+        { "id": "dont_know_rather_not_say", "label": "Don't know / rather not say" },
+        { "id": "not_applicable", "label": "Not Applicable" }
+      ]
+    },
+    {
+      "id": "universal_credit",
+      "label": "Universal Credit",
+      "category": "finance",
+      "options": [
+        { "id": "yes", "label": "Y" },
+        { "id": "no", "label": "N" },
+        { "id": "prefer_not_say", "label": "Prefer not to say" }
+      ]
+    },
+    {
+      "id": "bank_account",
+      "label": "Bank Account",
+      "category": "finance",
+      "options": [
+        { "id": "own_account", "label": "I have my own account" },
+        { "id": "joint_account", "label": "I have a joint account with someone else" },
+        { "id": "both_accounts", "label": "I have both my own account and a joint account" },
+        { "id": "no_account", "label": "No, I do not have a bank account" }
+      ]
+    },
+    {
+      "id": "pension_income",
+      "label": "Pension Income",
+      "category": "finance",
+      "options": [
+        { "id": "yes", "label": "Yes" },
+        { "id": "no", "label": "No" },
+        { "id": "rather_not_say", "label": "Rather not say" },
+        { "id": "dont_know", "label": "Don't know" }
+      ]
+    },
+    {
+      "id": "financial_decision_making",
+      "label": "Financial decision-making",
+      "category": "finance",
+      "options": [
+        { "id": "primary_decision_maker", "label": "I am the primary financial decision-maker" },
+        { "id": "share_equally", "label": "I share equally in financial decisions" },
+        { "id": "little_say", "label": "I have a little say in financial decisions" },
+        { "id": "not_involved", "label": "I am not involved in financial decisions at all" },
+        { "id": "rather_not_say", "label": "Rather not say" }
+      ]
+    },
+    {
+      "id": "uk_main_bank",
+      "label": "UK Main Bank Account",
+      "category": "finance",
+      "options": [
+        { "id": "barclays", "label": "Barclays" },
+        { "id": "bank_of_scotland", "label": "Bank of Scotland" },
+        { "id": "clydesdale_bank", "label": "Clydesdale Bank" },
+        { "id": "hsbc", "label": "HSBC" },
+        { "id": "lloyds_bank", "label": "Lloyds Bank" },
+        { "id": "metro_bank", "label": "Metro Bank" },
+        { "id": "monzo", "label": "Monzo" },
+        { "id": "natwest", "label": "NatWest" },
+        { "id": "royal_bank_of_scotland", "label": "Royal Bank of Scotland" },
+        { "id": "santander", "label": "Santander" },
+        { "id": "starling", "label": "Starling" },
+        { "id": "ulster_bank", "label": "Ulster Bank" },
+        { "id": "yorkshire_bank", "label": "Yorkshire Bank" },
+        { "id": "unknown", "label": "Unknown" },
+        { "id": "other", "label": "Other" },
+        { "id": "no_bank_account", "label": "I don't have a bank account" },
+        { "id": "virgin_money", "label": "Virgin Money" },
+        { "id": "nationwide", "label": "Nationwide" },
+        { "id": "halifax", "label": "Halifax" }
+      ]
+    },
+    {
+      "id": "personal_income_euro",
+      "label": "Personal Income (Euro)",
+      "category": "finance",
+      "options": [
+        { "id": "less_than_10000", "label": "Less than €10,000" },
+        { "id": "10000_19999", "label": "€10,000 - €19,999" },
+        { "id": "20000_29999", "label": "€20,000 - €29,999" },
+        { "id": "30000_39999", "label": "€30,000 - €39,999" },
+        { "id": "40000_49999", "label": "€40,000 - €49,999" },
+        { "id": "50000_59999", "label": "€50,000 - €59,999" },
+        { "id": "60000_69999", "label": "€60,000 - €69,999" },
+        { "id": "70000_79999", "label": "€70,000 - €79,999" },
+        { "id": "80000_89999", "label": "€80,000 - €89,999" },
+        { "id": "90000_99999", "label": "€90,000 - €99,999" },
+        { "id": "100000_149999", "label": "€100,000 - €149,999" },
+        { "id": "more_than_150000", "label": "More than €150,000" },
+        { "id": "rather_not_say", "label": "Rather not say" }
+      ]
+    },
+    {
+      "id": "personal_income_dollars",
+      "label": "Personal Income (Dollars) [Non US participants only]",
+      "category": "finance",
+      "options": [
+        { "id": "less_than_10000", "label": "Less than $10,000" },
+        { "id": "10000_19999", "label": "$10,000 - $19,999" },
+        { "id": "20000_29999", "label": "$20,000 - $29,999" },
+        { "id": "30000_39999", "label": "$30,000 - $39,999" },
+        { "id": "40000_49999", "label": "$40,000 - $49,999" },
+        { "id": "50000_59999", "label": "$50,000 - $59,999" },
+        { "id": "60000_69999", "label": "$60,000 - $69,999" },
+        { "id": "70000_79999", "label": "$70,000 - $79,999" },
+        { "id": "80000_89999", "label": "$80,000 - $89,999" },
+        { "id": "90000_99999", "label": "$90,000 - $99,999" },
+        { "id": "100000_149999", "label": "$100,000 - $149,999" },
+        { "id": "more_than_150000", "label": "More than $150,000" },
+        { "id": "rather_not_say", "label": "Rather not say" }
+      ]
+    },
+    {
+      "id": "online_banking",
+      "label": "Online Banking",
+      "category": "finance",
+      "options": [
+        { "id": "yes", "label": "Yes" },
+        { "id": "no", "label": "No" },
+        { "id": "rather_not_say", "label": "Rather Not Say" }
+      ]
+    },
+    {
+      "id": "personal_income_gbp",
+      "label": "Personal Income (GBP)",
+      "category": "finance",
+      "options": [
+        { "id": "less_than_10000", "label": "Less than £10,000" },
+        { "id": "10000_19999", "label": "£10,000 - £19,999" },
+        { "id": "20000_29999", "label": "£20,000 - £29,999" },
+        { "id": "30000_39999", "label": "£30,000 - £39,999" },
+        { "id": "40000_49999", "label": "£40,000 - £49,999" },
+        { "id": "50000_59999", "label": "£50,000 - £59,999" },
+        { "id": "60000_69999", "label": "£60,000 - £69,999" },
+        { "id": "70000_79999", "label": "£70,000 - £79,999" },
+        { "id": "80000_89999", "label": "£80,000 - £89,999" },
+        { "id": "90000_99999", "label": "£90,000 - £99,999" },
+        { "id": "100000_149999", "label": "£100,000 - £149,999" },
+        { "id": "more_than_150000", "label": "More than £150,000" },
+        { "id": "rather_not_say", "label": "Rather not say" }
+      ]
+    },
+    {
+      "id": "household_income_gbp",
+      "label": "Household Income (GBP)",
+      "category": "finance",
+      "options": [
+        { "id": "less_than_10000", "label": "Less than £10,000" },
+        { "id": "10000_15999", "label": "£10,000 - £15,999" },
+        { "id": "16000_19999", "label": "£16,000 - £19,999" },
+        { "id": "20000_29999", "label": "£20,000 - £29,999" },
+        { "id": "30000_39999", "label": "£30,000 - £39,999" },
+        { "id": "40000_49999", "label": "£40,000 - £49,999" },
+        { "id": "50000_59999", "label": "£50,000 - £59,999" },
+        { "id": "60000_69999", "label": "£60,000 - £69,999" },
+        { "id": "70000_79999", "label": "£70,000 - £79,999" },
+        { "id": "80000_89999", "label": "£80,000 - £89,999" },
+        { "id": "90000_99999", "label": "£90,000 - £99,999" },
+        { "id": "100000_149999", "label": "£100,000 - £149,999" },
+        { "id": "more_than_150000", "label": "More than £150,000" },
+        { "id": "rather_not_say", "label": "Rather not say" }
+      ]
+    },
+    {
+      "id": "insurance_types",
+      "label": "Insurance types",
+      "category": "finance",
+      "options": [
+        { "id": "health_insurance", "label": "Health Insurance" },
+        { "id": "home_insurance", "label": "Home Insurance" },
+        { "id": "income_protection", "label": "Income Protection Insurance" },
+        { "id": "life_insurance", "label": "Life Insurance" },
+        { "id": "pet_insurance", "label": "Pet Insurance" },
+        { "id": "purchase_insurance", "label": "Purchase Insurance (e.g. Mobile Phone)" },
+        { "id": "travel_insurance", "label": "Travel Insurance" },
+        { "id": "vehicle_insurance", "label": "Vehicle Insurance" },
+        { "id": "no_insurance", "label": "I don't hold any insurance policies" },
+        { "id": "dont_know_rather_not_say", "label": "Don't know / rather not say" }
+      ]
+    },
+    {
+      "id": "bnpl_usage",
+      "label": "Buy now Pay Later - Financial services usage",
+      "category": "finance",
+      "options": [
+        { "id": "klarna", "label": "Klarna" },
+        { "id": "paypal", "label": "Paypal" },
+        { "id": "clearpay_afterpay", "label": "Clearpay / Afterpay" },
+        { "id": "apple_pay", "label": "Apple pay" },
+        { "id": "laybuy", "label": "Laybuy" },
+        { "id": "revolut", "label": "Revolut" },
+        { "id": "amex", "label": "Amex" },
+        { "id": "none_not_applicable", "label": "None/ Not applicable" }
+      ]
+    },
+    {
+      "id": "short_term_listing",
+      "label": "Short-term let listing",
+      "category": "finance",
+      "options": [
+        { "id": "airbnb", "label": "Airbnb" },
+        { "id": "vrbo", "label": "VRBO" },
+        { "id": "booking_com", "label": "Booking.com" },
+        { "id": "homeaway", "label": "HomeAway" },
+        { "id": "stayz", "label": "Stayz" },
+        { "id": "riparide", "label": "Riparide" },
+        { "id": "not_listed", "label": "I have not listed a property for a short-term let" }
+      ]
+    },
+    {
+      "id": "credit_card_signup",
+      "label": "Credit card signup reason",
+      "category": "finance",
+      "options": [
+        { "id": "rewards_cashback", "label": "To earn rewards points or cash back" },
+        { "id": "specific_purchase", "label": "For a specific purchase or to manage spending" },
+        { "id": "build_credit", "label": "To build or improve my credit score" },
+        { "id": "promotional_offer", "label": "To take advantage of a promotional offer (e.g., 0% interest, sign-up bonus) " },
+        { "id": "travel_benefits", "label": "For travel benefits (e.g., airline miles, hotel points, travel insurance) " },
+        { "id": "financial_product_requirement", "label": "As a requirement for a financial product (e.g., bank account, loan) " },
+        { "id": "business_expenses", "label": "For business or professional expenses" },
+        { "id": "something_else", "label": "Something Else" }
+      ]
+    },
+    {
+      "id": "banking_products",
+      "label": "Banking Products",
+      "category": "finance",
+      "options": [
+        { "id": "current_chequing", "label": "Current/Chequing Account" },
+        { "id": "savings", "label": "Savings" },
+        { "id": "foreign_currency", "label": "Foreign Currency Account" },
+        { "id": "joint_account", "label": "Joint Account Investment Account" },
+        { "id": "pension_retirement", "label": "Pension/Retirement Account" },
+        { "id": "credit_card", "label": "Credit Card" },
+        { "id": "mortgage", "label": "Mortgage" },
+        { "id": "loans_lines_credit", "label": "Loans and or lines of credit" }
+      ]
+    },
+    {
+      "id": "cryptocurrencies",
+      "label": "Do you own/hold any cryptocurrencies?",
+      "category": "finance",
+      "options": [
+        { "id": "yes", "label": "Y" },
+        { "id": "no", "label": "N" }
+      ]
+    }
+  ]

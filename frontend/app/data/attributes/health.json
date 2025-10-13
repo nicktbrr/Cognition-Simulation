@@ -1,0 +1,698 @@
+[
+  {
+    "id": "neurodiversity",
+    "label": "Neurodiversity",
+    "category": "health",
+    "options": [
+      { "id": "yes", "label": "yes" },
+      { "id": "no", "label": "no" },
+      { "id": "rather_not_say", "label": "rather not say" },
+      { "id": "not_sure", "label": "not sure" }
+    ]
+  },
+  {
+    "id": "oral_contraceptives",
+    "label": "Oral Contraceptives",
+    "category": "health",
+    "options": [
+      { "id": "yes", "label": "yes" },
+      { "id": "no", "label": "no" }
+    ]
+  },
+  {
+    "id": "telemedicine",
+    "label": "Telemedicine",
+    "category": "health",
+    "options": [
+      { "id": "used_past_12_months", "label": "yes, I have used telehealth/telemedicine in the past 12 months" },
+      { "id": "used_past_5_years", "label": "yes, I have used telehealth/telemedicine in the past 5 years" },
+      { "id": "used_before_5_years", "label": "yes, I have used telehealth/telemedicine, but it was more than 5 years ago" },
+      { "id": "no", "label": "no, I have never used telehealth/telemedicine" }
+    ]
+  },
+  {
+    "id": "blood_type",
+    "label": "Blood type",
+    "category": "health",
+    "options": [
+      { "id": "a_positive", "label": "A+" },
+      { "id": "a_negative", "label": "A-" },
+      { "id": "b_positive", "label": "B+" },
+      { "id": "b_negative", "label": "B-" },
+      { "id": "ab_positive", "label": "AB+" },
+      { "id": "ab_negative", "label": "AB-" },
+      { "id": "o_positive", "label": "O+" },
+      { "id": "o_negative", "label": "O-" },
+      { "id": "dont_know", "label": "don't know" }
+    ]
+  },
+  {
+    "id": "healthcare_provider",
+    "label": "Healthcare provider consultation",
+    "category": "health",
+    "options": [
+      { "id": "within_30_days", "label": "within the past 30 days" },
+      { "id": "1_3_months", "label": "1 to 3 months ago" },
+      { "id": "4_6_months", "label": "4 to 6 months ago" },
+      { "id": "7_12_months", "label": "7 to 12 months ago" },
+      { "id": "more_than_year", "label": "more than a year ago" },
+      { "id": "never", "label": "never" }
+    ]
+  },
+  {
+    "id": "dyslexia",
+    "label": "Dyslexia",
+    "category": "health",
+    "options": [
+      { "id": "yes", "label": "yes" },
+      { "id": "no", "label": "no" }
+    ]
+  },
+  {
+    "id": "prescription_meds",
+    "label": "Prescription Medications",
+    "category": "health",
+    "options": [
+      { "id": "yes", "label": "yes" },
+      { "id": "no", "label": "no" }
+    ]
+  },
+  {
+    "id": "health_insurance",
+    "label": "Health Insurance",
+    "category": "health",
+    "options": [
+      { "id": "yes", "label": "yes" },
+      { "id": "no", "label": "no" }
+    ]
+  },
+  {
+    "id": "ozempic",
+    "label": "Ozempic",
+    "category": "health",
+    "options": [
+      { "id": "yes_ozempic", "label": "Yes, Ozempic" },
+      { "id": "yes_wegovy", "label": "Yes, Wegovy" },
+      { "id": "yes_mounjaro", "label": "Yes, Mounjaro/Zepbound" },
+      { "id": "yes_other", "label": "Yes, other GLP-1 medication" },
+      { "id": "no_not_interested", "label": "No, and not interested" },
+      { "id": "no_but_interested", "label": "No, but interested" }
+    ]
+  },
+  {
+    "id": "speech_disorders",
+    "label": "Speech Disorders",
+    "category": "health",
+    "options": [
+      { "id": "stutter", "label": "Stutter" },
+      { "id": "speech_sound_disorder", "label": "Speech sound disorder" },
+      { "id": "voice_disorder", "label": "Voice disorder" },
+      { "id": "fluency_disorder", "label": "Fluency disorder" },
+      { "id": "language_disorder", "label": "Language disorder" },
+      { "id": "none", "label": "None of these apply to me" },
+      { "id": "rather_not_say", "label": "Rather not say" }
+    ]
+  },
+  {
+    "id": "corrected_vision",
+    "label": "Corrected vision",
+    "category": "health",
+    "options": [
+      { "id": "glasses", "label": "glasses" },
+      { "id": "contact_lenses", "label": "contact lenses" },
+      { "id": "both", "label": "both" },
+      { "id": "surgery", "label": "surgery" },
+      { "id": "none", "label": "none" }
+    ]
+  },
+  {
+    "id": "hearing_difficulties",
+    "label": "Hearing difficulties",
+    "category": "health",
+    "options": [
+      { "id": "yes", "label": "yes" },
+      { "id": "no", "label": "no" }
+    ]
+  },
+  {
+    "id": "cochlear_implant",
+    "label": "Cochlear implant",
+    "category": "health",
+    "options": [
+      { "id": "yes", "label": "yes" },
+      { "id": "no", "label": "no" }
+    ]
+  },
+  {
+    "id": "colourblindness",
+    "label": "Colourblindness",
+    "category": "health",
+    "options": [
+      { "id": "yes", "label": "yes" },
+      { "id": "no", "label": "no" },
+      { "id": "not_sure", "label": "not sure" }
+    ]
+  },
+  {
+    "id": "normal_vision",
+    "label": "Do you have normal or corrected-to-normal vision?",
+    "category": "health",
+    "options": [
+      { "id": "yes", "label": "yes" },
+      { "id": "no", "label": "no" }
+    ]
+  },
+  {
+    "id": "smoking_frequency",
+    "label": "Smoking frequency",
+    "category": "health",
+    "options": [
+      { "id": "daily", "label": "Daily" },
+      { "id": "weekly", "label": "Weekly" },
+      { "id": "monthly", "label": "Monthly" },
+      { "id": "occasionally", "label": "Occasionally" },
+      { "id": "never", "label": "Never" }
+    ]
+  },
+  {
+    "id": "quit_smoking",
+    "label": "When was the last time you tried to quit smoking, if at all?",
+    "category": "health",
+    "options": [
+      { "id": "never_tried", "label": "I have never tried to quit smoking" },
+      { "id": "past_month", "label": "In the past month" },
+      { "id": "past_3_months", "label": "In the past 3 months" },
+      { "id": "past_6_months", "label": "In the past 6 months" },
+      { "id": "past_year", "label": "In the past year" },
+      { "id": "1_2_years_ago", "label": "1-2 years ago" },
+      { "id": "more_than_2_years", "label": "More than 2 years ago" }
+    ]
+  },
+  {
+    "id": "tobacco_cigarettes",
+    "label": "Smoking: Tobacco or e-cigarettes",
+    "category": "health",
+    "options": [
+      { "id": "neither", "label": "Neither" },
+      { "id": "tobacco_only", "label": "Tobacco cigarettes only" },
+      { "id": "e_cigarettes_only", "label": "E-cigarettes only" },
+      { "id": "both", "label": "Both tobacco and e-cigarettes" }
+    ]
+  },
+  {
+    "id": "smoking_status",
+    "label": "Smoking status",
+    "category": "health",
+    "options": [
+      { "id": "never_smoked", "label": "I have never smoked" },
+      { "id": "current_smoker", "label": "I am a current smoker" },
+      { "id": "former_smoker", "label": "I am a former smoker" }
+    ]
+  },
+  {
+    "id": "vaping_status",
+    "label": "Vaping status",
+    "category": "health",
+    "options": [
+      { "id": "never_vaped", "label": "I have never vaped" },
+      { "id": "current_vaper", "label": "I am a current vaper" },
+      { "id": "former_vaper", "label": "I am a former vaper" }
+    ]
+  },
+  {
+    "id": "nicotine_usage",
+    "label": "Nicotine product usage",
+    "category": "health",
+    "options": [
+      { "id": "cigarettes", "label": "Cigarettes" },
+      { "id": "e_cigarettes", "label": "E-cigarettes/vaping products" },
+      { "id": "cigars", "label": "Cigars" },
+      { "id": "pipe", "label": "Pipe" },
+      { "id": "chewing_tobacco", "label": "Chewing tobacco" },
+      { "id": "snuff", "label": "Snuff" },
+      { "id": "nicotine_gum", "label": "Nicotine gum" },
+      { "id": "nicotine_patches", "label": "Nicotine patches" },
+      { "id": "none", "label": "None" }
+    ]
+  },
+  {
+    "id": "chronic_pain",
+    "label": "Throughout our lives, most of us have had pain from time to time (such as minor headaches, sprains and toothaches). Have you had pain other than these everyday kinds of pain?",
+    "category": "health",
+    "options": [
+      { "id": "yes", "label": "Yes" },
+      { "id": "no", "label": "No" }
+    ]
+  },
+  {
+    "id": "chronic_pain_duration",
+    "label": "You've previously responded 'Yes' to the question about chronic pain. For how long have you experienced this pain?",
+    "category": "health",
+    "options": [
+      { "id": "1_3_months", "label": "1-3 months" },
+      { "id": "3_6_months", "label": "3-6 months" },
+      { "id": "6_months_1_year", "label": "6 months-1 year" },
+      { "id": "1_2_years", "label": "1-2 years" },
+      { "id": "2_5_years", "label": "2-5 years" },
+      { "id": "more_than_5_years", "label": "More than 5 years" }
+    ]
+  },
+  {
+    "id": "multiple_sclerosis",
+    "label": "Have you ever been diagnosed with multiple sclerosis (MS)?",
+    "category": "health",
+    "options": [
+      { "id": "yes", "label": "Yes" },
+      { "id": "no", "label": "No" }
+    ]
+  },
+  {
+    "id": "chronic_diseases",
+    "label": "Have you been diagnosed with any chronic diseases such as diabetes, heart disease, stroke etc.?",
+    "category": "health",
+    "options": [
+      { "id": "yes", "label": "Yes" },
+      { "id": "no", "label": "No" }
+    ]
+  },
+  {
+    "id": "long_term_condition",
+    "label": "Would you describe yourself as having a long-term health condition or a disability?",
+    "category": "health",
+    "options": [
+      { "id": "yes", "label": "Yes" },
+      { "id": "no", "label": "No" }
+    ]
+  },
+  {
+    "id": "respiratory_diseases",
+    "label": "Do you suffer from any respiratory diseases, such as asthma or chronic obstructive pulmonary disease (COPD)?",
+    "category": "health",
+    "options": [
+      { "id": "asthma", "label": "Asthma" },
+      { "id": "copd", "label": "COPD" },
+      { "id": "both", "label": "Both" },
+      { "id": "neither", "label": "Neither" }
+    ]
+  },
+  {
+    "id": "diabetes_type",
+    "label": "Which type of Diabetes have you been diagnosed with?",
+    "category": "health",
+    "options": [
+      { "id": "type_1", "label": "Type 1 Diabetes" },
+      { "id": "type_2", "label": "Type 2 Diabetes" },
+      { "id": "gestational", "label": "Gestational Diabetes" },
+      { "id": "prediabetes", "label": "Prediabetes" },
+      { "id": "not_sure", "label": "Not sure" }
+    ]
+  },
+  {
+    "id": "disability_type",
+    "label": "What kind of long-term health condition or disability do you have? Select all that apply.",
+    "category": "health",
+    "options": [
+      { "id": "mobility_impairment", "label": "Mobility impairment" },
+      { "id": "visual_impairment", "label": "Visual impairment" },
+      { "id": "hearing_impairment", "label": "Hearing impairment" },
+      { "id": "cognitive_disability", "label": "Cognitive disability" },
+      { "id": "mental_health", "label": "Mental health condition" },
+      { "id": "chronic_illness", "label": "Chronic illness" },
+      { "id": "other", "label": "Other" },
+      { "id": "prefer_not_to_say", "label": "Prefer not to say" }
+    ]
+  },
+  {
+    "id": "chronic_condition_details",
+    "label": "Chronic condition/illness details",
+    "category": "health",
+    "options": [
+      { "id": "diabetes", "label": "Diabetes" },
+      { "id": "heart_disease", "label": "Heart disease" },
+      { "id": "hypertension", "label": "Hypertension/High blood pressure" },
+      { "id": "asthma", "label": "Asthma" },
+      { "id": "arthritis", "label": "Arthritis" },
+      { "id": "cancer", "label": "Cancer" },
+      { "id": "chronic_pain", "label": "Chronic pain" },
+      { "id": "depression", "label": "Depression" },
+      { "id": "anxiety", "label": "Anxiety" },
+      { "id": "other", "label": "Other" }
+    ]
+  },
+  {
+    "id": "chronic_condition",
+    "label": "Chronic condition/illness",
+    "category": "health",
+    "options": [
+      { "id": "yes", "label": "Yes" },
+      { "id": "no", "label": "No" }
+    ]
+  },
+  {
+    "id": "coronary_artery",
+    "label": "Have you ever been diagnosed with coronary artery disease (or ischemic heart disease, or angina) by a medical doctor?",
+    "category": "health",
+    "options": [
+      { "id": "yes", "label": "Yes" },
+      { "id": "no", "label": "No" }
+    ]
+  },
+  {
+    "id": "heart_failure",
+    "label": "Have you ever been diagnosed with heart failure by a medical doctor?",
+    "category": "health",
+    "options": [
+      { "id": "yes", "label": "Yes" },
+      { "id": "no", "label": "No" }
+    ]
+  },
+  {
+    "id": "covid_symptoms",
+    "label": "COVID-19 Symptoms",
+    "category": "health",
+    "options": [
+      { "id": "fever", "label": "Fever" },
+      { "id": "cough", "label": "Cough" },
+      { "id": "shortness_of_breath", "label": "Shortness of breath" },
+      { "id": "fatigue", "label": "Fatigue" },
+      { "id": "body_aches", "label": "Body aches" },
+      { "id": "headache", "label": "Headache" },
+      { "id": "loss_of_taste_smell", "label": "Loss of taste or smell" },
+      { "id": "sore_throat", "label": "Sore throat" },
+      { "id": "congestion", "label": "Congestion or runny nose" },
+      { "id": "nausea", "label": "Nausea or vomiting" },
+      { "id": "diarrhea", "label": "Diarrhea" },
+      { "id": "none", "label": "None of these" }
+    ]
+  },
+  {
+    "id": "covid_vaccination",
+    "label": "Have you received a coronavirus (COVID-19) vaccination?",
+    "category": "health",
+    "options": [
+      { "id": "yes", "label": "Yes" },
+      { "id": "no", "label": "No" },
+      { "id": "prefer_not_to_say", "label": "Prefer not to say" }
+    ]
+  },
+  {
+    "id": "covid_vaccinations_count",
+    "label": "Including boosters, how many COVID-19 vaccinations have you received?",
+    "category": "health",
+    "options": [
+      { "id": "1", "label": "1" },
+      { "id": "2", "label": "2" },
+      { "id": "3", "label": "3" },
+      { "id": "4", "label": "4" },
+      { "id": "5", "label": "5" },
+      { "id": "6_or_more", "label": "6 or more" },
+      { "id": "none", "label": "None" },
+      { "id": "prefer_not_to_say", "label": "Prefer not to say" }
+    ]
+  },
+  {
+    "id": "depression",
+    "label": "Depression",
+    "category": "health",
+    "options": [
+      { "id": "yes", "label": "yes" },
+      { "id": "no", "label": "no" },
+      { "id": "rather_not_say", "label": "rather not say" }
+    ]
+  },
+  {
+    "id": "anxiety",
+    "label": "Anxiety",
+    "category": "health",
+    "options": [
+      { "id": "yes", "label": "yes" },
+      { "id": "no", "label": "no" },
+      { "id": "rather_not_say", "label": "rather not say" }
+    ]
+  },
+  {
+    "id": "adhd",
+    "label": "Do you consider yourself to have attention deficit disorder (ADD)/attention deficit hyperactivity disorder (ADHD)?",
+    "category": "health",
+    "options": [
+      { "id": "yes_diagnosed", "label": "Yes, I have been formally diagnosed" },
+      { "id": "yes_not_diagnosed", "label": "Yes, but I have not been formally diagnosed" },
+      { "id": "no", "label": "No" },
+      { "id": "not_sure", "label": "Not sure" }
+    ]
+  },
+  {
+    "id": "anxiety_low_mood",
+    "label": "Are you currently experiencing levels of anxiety or low mood that are causing you concern?",
+    "category": "health",
+    "options": [
+      { "id": "yes", "label": "Yes" },
+      { "id": "no", "label": "No" },
+      { "id": "prefer_not_to_say", "label": "Prefer not to say" }
+    ]
+  },
+  {
+    "id": "mental_health_diagnosed",
+    "label": "Are you currently diagnosed with a mental health condition?",
+    "category": "health",
+    "options": [
+      { "id": "yes", "label": "Yes" },
+      { "id": "no", "label": "No" },
+      { "id": "prefer_not_to_say", "label": "Prefer not to say" }
+    ]
+  },
+  {
+    "id": "mental_health_ongoing",
+    "label": "Do you have – or have you had – a diagnosed, on-going mental health/illness/condition?",
+    "category": "health",
+    "options": [
+      { "id": "yes_current", "label": "Yes, currently" },
+      { "id": "yes_past", "label": "Yes, in the past" },
+      { "id": "no", "label": "No" },
+      { "id": "prefer_not_to_say", "label": "Prefer not to say" }
+    ]
+  },
+  {
+    "id": "nhs_mental_health",
+    "label": "Have you tried to access mental health support on the NHS in the last 12 months?",
+    "category": "health",
+    "options": [
+      { "id": "yes_successful", "label": "Yes, and I was successful" },
+      { "id": "yes_unsuccessful", "label": "Yes, but I was unsuccessful" },
+      { "id": "no", "label": "No" },
+      { "id": "prefer_not_to_say", "label": "Prefer not to say" }
+    ]
+  },
+  {
+    "id": "antidepressant_medication",
+    "label": "Are you currently taking any medication to treat symptoms of depression, anxiety or low-mood (e.g. SSRIs)?",
+    "category": "health",
+    "options": [
+      { "id": "yes", "label": "Yes" },
+      { "id": "no", "label": "No" },
+      { "id": "prefer_not_to_say", "label": "Prefer not to say" }
+    ]
+  },
+  {
+    "id": "cognitive_impairment",
+    "label": "Have you ever been diagnosed with mild cognitive impairment or dementia?",
+    "category": "health",
+    "options": [
+      { "id": "yes_mci", "label": "Yes, mild cognitive impairment" },
+      { "id": "yes_dementia", "label": "Yes, dementia" },
+      { "id": "yes_both", "label": "Yes, both" },
+      { "id": "no", "label": "No" },
+      { "id": "prefer_not_to_say", "label": "Prefer not to say" }
+    ]
+  },
+  {
+    "id": "antidepressants",
+    "label": "Antidepressants",
+    "category": "health",
+    "options": [
+      { "id": "currently_taking", "label": "Currently taking" },
+      { "id": "previously_taken", "label": "Previously taken" },
+      { "id": "never_taken", "label": "Never taken" },
+      { "id": "prefer_not_to_say", "label": "Prefer not to say" }
+    ]
+  },
+  {
+    "id": "uncontrolled_mental_health",
+    "label": "Do you have any diagnosed mental health condition that is uncontrolled (by medication or intervention) and which has a significant impact on your daily life / activities?",
+    "category": "health",
+    "options": [
+      { "id": "yes", "label": "Yes" },
+      { "id": "no", "label": "No" },
+      { "id": "prefer_not_to_say", "label": "Prefer not to say" }
+    ]
+  },
+  {
+    "id": "autism_diagnosis",
+    "label": "Have you received a formal clinical diagnosis of autism spectrum disorder, made by a psychiatrist, psychologist, or other qualified medical specialist? This includes Asperger's syndrome, Autism Disorder, High Functioning Autism or Pervasive Developmental Disorder",
+    "category": "health",
+    "options": [
+      { "id": "yes", "label": "Yes" },
+      { "id": "no", "label": "No" },
+      { "id": "in_process", "label": "Currently in the process of getting diagnosed" },
+      { "id": "self_diagnosed", "label": "Self-diagnosed" },
+      { "id": "prefer_not_to_say", "label": "Prefer not to say" }
+    ]
+  },
+  {
+    "id": "mental_health_treatment",
+    "label": "Are you currently receiving or waiting for treatment for symptoms of a mental health condition, e.g. psychological therapy or medication?",
+    "category": "health",
+    "options": [
+      { "id": "yes_receiving", "label": "Yes, currently receiving treatment" },
+      { "id": "yes_waiting", "label": "Yes, waiting for treatment" },
+      { "id": "no", "label": "No" },
+      { "id": "prefer_not_to_say", "label": "Prefer not to say" }
+    ]
+  },
+  {
+    "id": "mental_health_conditions",
+    "label": "Are you currently diagnosed with any of the following mental health conditions?",
+    "category": "health",
+    "options": [
+      { "id": "depression", "label": "Depression" },
+      { "id": "anxiety", "label": "Anxiety" },
+      { "id": "bipolar_disorder", "label": "Bipolar disorder" },
+      { "id": "schizophrenia", "label": "Schizophrenia" },
+      { "id": "ocd", "label": "Obsessive-compulsive disorder (OCD)" },
+      { "id": "ptsd", "label": "Post-traumatic stress disorder (PTSD)" },
+      { "id": "adhd", "label": "Attention deficit hyperactivity disorder (ADHD)" },
+      { "id": "autism", "label": "Autism spectrum disorder" },
+      { "id": "eating_disorder", "label": "Eating disorder" },
+      { "id": "personality_disorder", "label": "Personality disorder" },
+      { "id": "other", "label": "Other" },
+      { "id": "none", "label": "None of these" },
+      { "id": "prefer_not_to_say", "label": "Prefer not to say" }
+    ]
+  },
+  {
+    "id": "weight_loss_products",
+    "label": "Are you interested or open to products to help you lose weight?",
+    "category": "health",
+    "options": [
+      { "id": "very_interested", "label": "Very interested" },
+      { "id": "somewhat_interested", "label": "Somewhat interested" },
+      { "id": "not_very_interested", "label": "Not very interested" },
+      { "id": "not_at_all_interested", "label": "Not at all interested" }
+    ]
+  },
+  {
+    "id": "trying_lose_weight",
+    "label": "Are you currently trying to lose weight?",
+    "category": "health",
+    "options": [
+      { "id": "yes", "label": "Yes" },
+      { "id": "no", "label": "No" }
+    ]
+  },
+  {
+    "id": "current_diets",
+    "label": "Do you currently follow any of the following diets?",
+    "category": "health",
+    "options": [
+      { "id": "keto", "label": "Ketogenic (Keto)" },
+      { "id": "paleo", "label": "Paleo" },
+      { "id": "mediterranean", "label": "Mediterranean" },
+      { "id": "low_carb", "label": "Low-carb" },
+      { "id": "intermittent_fasting", "label": "Intermittent fasting" },
+      { "id": "vegetarian", "label": "Vegetarian" },
+      { "id": "vegan", "label": "Vegan" },
+      { "id": "gluten_free", "label": "Gluten-free" },
+      { "id": "dash", "label": "DASH" },
+      { "id": "weight_watchers", "label": "Weight Watchers" },
+      { "id": "atkins", "label": "Atkins" },
+      { "id": "south_beach", "label": "South Beach" },
+      { "id": "none", "label": "None of these" }
+    ]
+  },
+  {
+    "id": "past_diets",
+    "label": "Have you ever gone on a diet in the past?",
+    "category": "health",
+    "options": [
+      { "id": "yes", "label": "Yes" },
+      { "id": "no", "label": "No" }
+    ]
+  },
+  {
+    "id": "bmi",
+    "label": "What is your BMI (Body Mass Index)?",
+    "category": "health",
+    "options": [
+      { "id": "underweight", "label": "Underweight (BMI less than 18.5)" },
+      { "id": "normal", "label": "Normal weight (BMI 18.5-24.9)" },
+      { "id": "overweight", "label": "Overweight (BMI 25-29.9)" },
+      { "id": "obese_class_1", "label": "Obese Class I (BMI 30-34.9)" },
+      { "id": "obese_class_2", "label": "Obese Class II (BMI 35-39.9)" },
+      { "id": "obese_class_3", "label": "Obese Class III (BMI 40 or greater)" },
+      { "id": "dont_know", "label": "I don't know my BMI" }
+    ]
+  },
+  {
+    "id": "body_weight_perception",
+    "label": "Thinking about your body weight which of the following would you say you are?",
+    "category": "health",
+    "options": [
+      { "id": "very_underweight", "label": "Very underweight" },
+      { "id": "slightly_underweight", "label": "Slightly underweight" },
+      { "id": "about_right", "label": "About the right weight" },
+      { "id": "slightly_overweight", "label": "Slightly overweight" },
+      { "id": "very_overweight", "label": "Very overweight" }
+    ]
+  },
+  {
+    "id": "food_restriction",
+    "label": "Do you currently for at least one week restrict your food intake in any way, with the goal to manage your weight?",
+    "category": "health",
+    "options": [
+      { "id": "yes", "label": "Yes" },
+      { "id": "no", "label": "No" }
+    ]
+  },
+  {
+    "id": "alcohol_units",
+    "label": "How many units of alcohol do you drink on average per week?",
+    "category": "health",
+    "options": [
+      { "id": "0", "label": "0 units (I don't drink alcohol)" },
+      { "id": "1_7", "label": "1-7 units" },
+      { "id": "8_14", "label": "8-14 units" },
+      { "id": "15_21", "label": "15-21 units" },
+      { "id": "22_28", "label": "22-28 units" },
+      { "id": "29_35", "label": "29-35 units" },
+      { "id": "over_35", "label": "Over 35 units" }
+    ]
+  },
+  {
+    "id": "alcohol_therapy",
+    "label": "Have you previously been in individual therapy for alcohol use?",
+    "category": "health",
+    "options": [
+      { "id": "yes", "label": "Yes" },
+      { "id": "no", "label": "No" },
+      { "id": "prefer_not_to_say", "label": "Prefer not to say" }
+    ]
+  },
+  {
+    "id": "head_injury_knockout",
+    "label": "Have you ever had an injury to the head that's caused you to be knocked out for a period of time (E.g. from a fall, blow to the head, road traffic accident)?",
+    "category": "health",
+    "options": [
+      { "id": "yes", "label": "Yes" },
+      { "id": "no", "label": "No" }
+    ]
+  },
+  {
+    "id": "head_injury_dazed",
+    "label": "Have you ever had an injury to the head that's caused you to be knocked out and/or dazed and confused for a period of time?",
+    "category": "health",
+    "options": [
+      { "id": "yes", "label": "Yes" },
+      { "id": "no", "label": "No" }
+    ]
+  }
+]
