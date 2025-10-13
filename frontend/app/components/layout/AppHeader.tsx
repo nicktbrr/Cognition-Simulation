@@ -84,17 +84,17 @@ export default function AppHeader({ title, userData }: AppHeaderProps) {
                 />
               ) : (
                 <span>
-                  {(userData?.user_email?.split('@')[0]?.charAt(0) || 'S').toUpperCase()}
+                  {(userData?.user_email?.split('@')[0]?.charAt(0) || 'U').toUpperCase()}
                 </span>
               )}
             </div>
             
             <div className="text-right">
               <div className="font-medium text-gray-900">
-                {userData?.user_email?.split('@')[0] || 'Dr. Sarah Chen'}
+                {userData?.user_email?.split('@')[0] || 'User'}
               </div>
               <div className="text-sm text-gray-500">
-                {userData?.user_email || 'sarah.chen@simulab.com'}
+                {userData?.user_email || 'Loading...'}
               </div>
             </div>
             
