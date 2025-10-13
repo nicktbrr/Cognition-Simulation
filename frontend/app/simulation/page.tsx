@@ -1,14 +1,14 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { Save, Download, RotateCcw, RotateCw, HelpCircle, Sparkles } from "lucide-react";
+import React, { useEffect, useState, useRef } from "react";
+import { Save, Download, RotateCcw, RotateCw, HelpCircle, Sparkles, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "../utils/supabase";
 import { useAuth } from "../hooks/useAuth";
 import AuthLoading from "../components/auth-loading";
 import AppLayout from "../components/layout/AppLayout";
 import SubHeader from "../components/layout/SubHeader";
-import ReactFlowApp from "../components/react-flow";
+import ReactFlowApp, { ReactFlowRef } from "../components/react-flow";
 import { Node, Edge } from "@xyflow/react";
 
 type Sample = {
@@ -143,12 +143,14 @@ export default function SimulationPage() {
   const { user, isLoading, isAuthenticated } = useAuth();
   const [userData, setUserData] = useState<UserData | null>(null);
   const [processDescription, setProcessDescription] = useState("");
+  const [processTitle, setProcessTitle] = useState("");
   const [selectedSample, setSelectedSample] = useState("");
   const [flowNodes, setFlowNodes] = useState<Node[]>([]);
   const [flowEdges, setFlowEdges] = useState<Edge[]>([]);
   const [selectedColor, setSelectedColor] = useState<string>('#3b82f6');
   const [measures, setMeasures] = useState<Measure[]>([]);
   const [loadingMeasures, setLoadingMeasures] = useState(false);
+  const reactFlowRef = useRef<ReactFlowRef>(null);
 
   const getUserData = async (userId: string) => {
     const { data, error } = await supabase
@@ -202,6 +204,21 @@ export default function SimulationPage() {
 
   const handleSaveDraft = () => {
     // TODO: Implement save draft functionality
+  };
+
+  const handleClearAll = () => {
+    // Clear form fields
+    setProcessDescription("");
+    setProcessTitle("");
+    setSelectedSample("");
+    
+    // Clear React Flow
+    if (reactFlowRef.current) {
+      reactFlowRef.current.clearFlow();
+    }
+    
+    // Clear localStorage simulation-flow
+    localStorage.removeItem('simulation-flow');
   };
 
   const convertFlowNodesToSteps = (nodes: Node[], edges: Edge[]) => {
@@ -370,7 +387,7 @@ export default function SimulationPage() {
         iters: 10,
         temperature: 0.5,
         user_id: parsedUser.id,
-        title: processDescription || "Simulation Flow",
+        title: processTitle || "Simulation Flow",
       };
       
       // Define backend URL based on environment
@@ -488,7 +505,16 @@ export default function SimulationPage() {
 
           {/* Colors Section */}
           <div>
-            <h3 className="text-sm font-semibold text-gray-700 mb-3">Colors</h3>
+            <div className="flex items-center gap-2 mb-3">
+              <h3 className="text-sm font-semibold text-gray-700">Colors</h3>
+              <div className="relative group">
+                <Info className="w-4 h-4 text-gray-400 cursor-help" />
+                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
+                  Color selection is for visual organization only and does not affect your simulation results
+                  <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+                </div>
+              </div>
+            </div>
             <div className="grid grid-cols-4 gap-2">
               {[
                 { color: '#3b82f6', name: 'blue' },
@@ -523,7 +549,11 @@ export default function SimulationPage() {
 
           {/* Action Buttons */}
           <div className="space-y-2">
-            <Button variant="outline" className="w-full text-xs">
+            <Button 
+              variant="outline" 
+              className="w-full text-xs"
+              onClick={handleClearAll}
+            >
               Clear All
             </Button>
             <div className="flex gap-1">
@@ -561,26 +591,44 @@ export default function SimulationPage() {
         <div className="flex-1 flex flex-col">
           {/* Process Description Section */}
           <div className="bg-gray-50 p-6 border-b border-gray-200">
-            <div className="max-w-4xl">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                Enter a description of your process
-              </h3>
-              <div className="flex gap-4 items-end">
-                <div className="flex-1">
-                  <textarea
-                    placeholder="Describe the process you want to simulate..."
-                    value={processDescription}
-                    onChange={(e) => setProcessDescription(e.target.value)}
-                    className="w-full h-24 px-4 py-3 bg-white border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
+            <div className="max-w-4xl space-y-6">
+              {/* Process Description Section */}
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Enter a description of your process
+                </h3>
+                <div className="flex gap-4 items-end">
+                  <div className="flex-1">
+                    <textarea
+                      placeholder="Describe the process you want to simulate..."
+                      value={processDescription}
+                      onChange={(e) => setProcessDescription(e.target.value)}
+                      className="w-full h-24 px-4 py-3 bg-white border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <Button 
+                    onClick={handleGenerateSteps}
+                    variant="outline"
+                    className="flex items-center gap-2"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    Generate Steps
+                  </Button>
                 </div>
-                <Button 
-                  onClick={handleGenerateSteps}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 h-auto flex items-center gap-2"
-                >
-                  <Sparkles className="w-4 h-4" />
-                  Generate Steps
-                </Button>
+              </div>
+
+              {/* Process Title Section */}
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Title of the process
+                </h3>
+                <input
+                  type="text"
+                  placeholder="Enter process title..."
+                  value={processTitle}
+                  onChange={(e) => setProcessTitle(e.target.value)}
+                  className="w-full px-4 py-3 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
               </div>
             </div>
           </div>
@@ -589,6 +637,7 @@ export default function SimulationPage() {
           <div className="flex-1 relative overflow-hidden p-6">
             <div className="absolute inset-6">
               <ReactFlowApp 
+                ref={reactFlowRef}
                 onFlowDataChange={handleFlowDataChange} 
                 selectedColor={selectedColor} 
                 measures={measures}

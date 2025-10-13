@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useRef } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { Plus, ChevronLeft, ChevronRight, ChevronDown, MoreVertical, Edit, Copy, Trash2 } from "lucide-react";
 import { Button } from "../../components/ui/button";
@@ -42,7 +43,11 @@ export default function MeasuresPage() {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [loadingMeasures, setLoadingMeasures] = useState(false);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0 });
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [measureToDelete, setMeasureToDelete] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   const getUserData = async (userId: string) => {
     const { data, error } = await supabase
@@ -143,8 +148,18 @@ export default function MeasuresPage() {
     setExpandedRows(newExpandedRows);
   };
 
-  const toggleDropdown = (measureId: string) => {
-    setOpenDropdown(openDropdown === measureId ? null : measureId);
+  const toggleDropdown = (measureId: string, event: React.MouseEvent) => {
+    if (openDropdown === measureId) {
+      setOpenDropdown(null);
+    } else {
+      const button = event.currentTarget as HTMLButtonElement;
+      const rect = button.getBoundingClientRect();
+      setDropdownPosition({
+        top: rect.bottom + 4,
+        right: window.innerWidth - rect.right
+      });
+      setOpenDropdown(measureId);
+    }
   };
 
   // Close dropdown when clicking outside
@@ -218,11 +233,19 @@ export default function MeasuresPage() {
   };
 
   const handleDeleteMeasure = async (id: string) => {
+    setMeasureToDelete(id);
+    setShowDeleteConfirm(true);
+    setOpenDropdown(null);
+  };
+
+  const confirmDelete = async () => {
+    if (!measureToDelete) return;
+
     try {
       const { error } = await supabase
         .from("measures")
         .delete()
-        .eq("id", id);
+        .eq("id", measureToDelete);
 
       if (error) {
         console.error("Error deleting measure:", error);
@@ -230,11 +253,17 @@ export default function MeasuresPage() {
       }
 
       // Remove from local state
-      setMeasures(measures.filter(m => m.id !== id));
-      setOpenDropdown(null);
+      setMeasures(measures.filter(m => m.id !== measureToDelete));
+      setShowDeleteConfirm(false);
+      setMeasureToDelete(null);
     } catch (error) {
-      console.error("Error in handleDeleteMeasure:", error);
+      console.error("Error in confirmDelete:", error);
     }
+  };
+
+  const cancelDelete = () => {
+    setShowDeleteConfirm(false);
+    setMeasureToDelete(null);
   };
 
   useEffect(() => {
@@ -320,40 +349,14 @@ export default function MeasuresPage() {
                           <span className="font-medium text-foreground">{measure.title}</span>
                           <div className="relative flex-shrink-0" ref={openDropdown === measure.id ? dropdownRef : null}>
                             <Button
+                              ref={buttonRef}
                               variant="ghost"
                               size="sm"
                               className="h-6 w-6 p-0"
-                              onClick={() => toggleDropdown(measure.id)}
+                              onClick={(e) => toggleDropdown(measure.id, e)}
                             >
                               <MoreVertical className="h-3 w-3" />
                             </Button>
-                            {openDropdown === measure.id && (
-                              <div className="absolute right-0 top-8 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
-                                <div className="py-1">
-                                  <button
-                                    onClick={() => handleEditMeasure(measure.id)}
-                                    className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                                  >
-                                    <Edit className="h-4 w-4" />
-                                    Edit
-                                  </button>
-                                  <button
-                                    onClick={() => handleDuplicateMeasure(measure.id)}
-                                    className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                                  >
-                                    <Copy className="h-4 w-4" />
-                                    Duplicate
-                                  </button>
-                                  <button
-                                    onClick={() => handleDeleteMeasure(measure.id)}
-                                    className="flex items-center gap-3 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                    Delete
-                                  </button>
-                                </div>
-                              </div>
-                            )}
                           </div>
                         </div>
                       </TableCell>
@@ -367,7 +370,7 @@ export default function MeasuresPage() {
                     {expandedRows.has(measure.id) && (
                       <TableRow>
                         <TableCell colSpan={4} className="bg-muted/30 p-4">
-                          <div className="space-y-2">
+                          <div className="space-y-2" style={{marginLeft: '65px'}}>
                             <h4 className="font-medium text-sm text-muted-foreground mb-3">Desired Values:</h4>
                             <div className="space-y-1">
                               {measure.desiredValues.map((desired, index) => (
@@ -398,6 +401,79 @@ export default function MeasuresPage() {
         onClose={() => setIsAddModalOpen(false)}
         onAdd={handleAddMeasure}
       />
+
+      {/* Portal-based Dropdown */}
+      {openDropdown && createPortal(
+        <div 
+          ref={dropdownRef}
+          className="fixed w-48 bg-white border border-gray-200 rounded-lg shadow-xl z-[99999]"
+          style={{
+            top: dropdownPosition.top,
+            right: dropdownPosition.right
+          }}
+        >
+          <div className="py-1">
+            <button
+              onClick={() => handleEditMeasure(openDropdown)}
+              className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <Edit className="h-4 w-4" />
+              Edit
+            </button>
+            <button
+              onClick={() => handleDuplicateMeasure(openDropdown)}
+              className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <Copy className="h-4 w-4" />
+              Duplicate
+            </button>
+            <button
+              onClick={() => handleDeleteMeasure(openDropdown)}
+              className="flex items-center gap-3 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && createPortal(
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[99999]">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                <Trash2 className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Delete Measure</h3>
+                <p className="text-sm text-gray-500">This action cannot be undone</p>
+              </div>
+            </div>
+            <p className="text-gray-700 mb-6">
+              Are you sure you want to delete this measure? This will permanently remove it from your measures list.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <Button
+                onClick={cancelDelete}
+                variant="outline"
+                className="px-4 py-2"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={confirmDelete}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white"
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </AppLayout>
   );
 }

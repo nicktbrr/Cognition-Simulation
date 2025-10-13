@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import Link from "next/link";
-import { Play } from "lucide-react";
+import { Play, Trash2 } from "lucide-react";
+import { createPortal } from "react-dom";
 import { supabase } from "../utils/supabase";
 import { useAuth } from "../hooks/useAuth";
 import AuthLoading from "../components/auth-loading";
@@ -39,7 +40,7 @@ interface Project {
   downloads: Download[];
   steps: SimulationStep[];
   created_at?: string;
-  id?: number;
+  id?: string;
 }
 
 interface UserData {
@@ -57,6 +58,8 @@ export default function DashboardHistory() {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
 
   const getHistory = async (userId: string) => {
     const { data, error } = await supabase.from("dashboard").select("created_at, name, url").eq("user_id", userId);
@@ -98,12 +101,13 @@ export default function DashboardHistory() {
 
       const formattedProjects: Project[] = data.map((experiment: any, index: number) => {
         const experimentData = experiment.experiment_data || {};
+        console.log(experiment.experiment_id)
         return {
           name: experimentData.title || experiment.simulation_name || `Simulation ${index + 1}`,
           sample_name: experiment.sample_name || experiment.description || "No seed",
           status: experiment.status || "Draft",
           created_at: experiment.created_at,
-          id: experiment.id,
+          id: experiment.experiment_id,
           downloads: experiment.url ? [
             {
               date: new Date(experiment.created_at).toLocaleString(),
@@ -127,7 +131,7 @@ export default function DashboardHistory() {
             ]
         };
       });
-
+     
       setProjects(formattedProjects);
     } catch (error) {
       console.error("Error processing projects data:", error);
@@ -154,12 +158,12 @@ export default function DashboardHistory() {
     }
   };
 
-  const handleRename = async (projectId: number, newName: string) => {
+  const handleRename = async (projectId: string, newName: string) => {
     try {
       const { data, error } = await supabase
         .from("experiments")
         .select("experiment_data")
-        .eq("id", projectId)
+        .eq("experiment_id", projectId)
         .single();
 
       if (error) {
@@ -175,7 +179,7 @@ export default function DashboardHistory() {
       const { error: updateError } = await supabase
         .from("experiments")
         .update({ experiment_data: updatedExperimentData })
-        .eq("id", projectId);
+        .eq("experiment_id", projectId);
 
       if (updateError) {
         console.error("Error updating experiment:", updateError);
@@ -193,6 +197,44 @@ export default function DashboardHistory() {
     }
   };
 
+  const handleDelete = async (projectId: string) => {
+    setProjectToDelete(projectId);
+    setShowDeleteConfirm(true);
+    return true;
+  };
+
+  const confirmDelete = async () => {
+    if (projectToDelete && user) {
+      try {
+        const { error } = await supabase
+          .from("experiments")
+          .delete()
+          .eq("experiment_id", projectToDelete);
+
+        if (error) {
+          console.error("Error deleting project:", error);
+          alert("Error deleting project. Please try again.");
+        } else {
+          // Refresh projects after successful deletion
+          await getProjects(user.user_id);
+          alert("Project deleted successfully!");
+        }
+      } catch (error) {
+        console.error("Error in delete operation:", error);
+        alert("Error deleting project. Please try again.");
+      }
+    }
+    
+    // Close modal
+    setShowDeleteConfirm(false);
+    setProjectToDelete(null);
+  };
+
+  const cancelDelete = () => {
+    setShowDeleteConfirm(false);
+    setProjectToDelete(null);
+  };
+
   useEffect(() => {
     if (user && isAuthenticated) {
       getUserData(user.user_id);
@@ -200,6 +242,7 @@ export default function DashboardHistory() {
       getProjects(user.user_id);
     }
   }, [user, isAuthenticated]);
+
 
   // Show loading state while checking authentication
   if (isLoading) {
@@ -236,13 +279,52 @@ export default function DashboardHistory() {
             <div className="text-gray-500">Loading projects...</div>
           </div>
         ) : (
-          <ProjectsTable 
-            projects={projects}
-            onDownload={handleDownload}
-            onRename={handleRename}
-          />
+          <>
+            <ProjectsTable 
+              projects={projects}
+              onDownload={handleDownload}
+              onRename={handleRename}
+              onDelete={handleDelete}
+            />
+          </>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && createPortal(
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[99999]">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                <Trash2 className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Delete Simulation</h3>
+                <p className="text-sm text-gray-500">This action cannot be undone</p>
+              </div>
+            </div>
+            <p className="text-gray-700 mb-6">
+              Are you sure you want to delete this simulation? This will permanently remove it from your projects list.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <Button
+                onClick={cancelDelete}
+                variant="outline"
+                className="px-4 py-2"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={confirmDelete}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white"
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </AppLayout>
   );
 }
