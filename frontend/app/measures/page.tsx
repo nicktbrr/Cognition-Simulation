@@ -42,19 +42,25 @@ export default function MeasuresPage() {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [loadingMeasures, setLoadingMeasures] = useState(false);
+  const [loadingUserData, setLoadingUserData] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const getUserData = async (userId: string) => {
-    const { data, error } = await supabase
-      .from("user_emails")
-      .select("user_email, user_id, pic_url")
-      .eq("user_id", userId)
-      .single();
+    setLoadingUserData(true);
+    try {
+      const { data, error } = await supabase
+        .from("user_emails")
+        .select("user_email, user_id, pic_url")
+        .eq("user_id", userId)
+        .single();
 
-    if (error) {
-      console.error("Error fetching user data:", error);
-    } else {
-      setUserData(data);
+      if (error) {
+        console.error("Error fetching user data:", error);
+      } else {
+        setUserData(data);
+      }
+    } finally {
+      setLoadingUserData(false);
     }
   };
 
@@ -163,7 +169,6 @@ export default function MeasuresPage() {
 
   const handleEditMeasure = (id: string) => {
     // TODO: Implement edit functionality
-    console.log('Edit measure:', id);
     setOpenDropdown(null);
   };
 
@@ -259,6 +264,7 @@ export default function MeasuresPage() {
       currentPage="measures" 
       headerTitle="Dashboard"
       userData={userData}
+      isLoading={loadingUserData}
     >
       <SubHeader
         title="Measures"
@@ -274,7 +280,7 @@ export default function MeasuresPage() {
       </SubHeader>
 
       {/* Content */}
-      <div className="flex-1 p-8 bg-gray-100">
+      <div className="flex-1 p-8 bg-gray-100 animate-in fade-in duration-500 delay-300">
         <Card className="shadow-md">
           <CardHeader>
             <CardTitle className="text-blue-600">Measures Overview</CardTitle>

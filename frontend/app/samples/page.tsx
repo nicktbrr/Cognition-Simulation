@@ -18,18 +18,24 @@ interface UserData {
 export default function SamplesPage() {
   const { user, isLoading, isAuthenticated } = useAuth();
   const [userData, setUserData] = useState<UserData | null>(null);
+  const [loadingUserData, setLoadingUserData] = useState(false);
 
   const getUserData = async (userId: string) => {
-    const { data, error } = await supabase
-      .from("user_emails")
-      .select("user_email, user_id, pic_url")
-      .eq("user_id", userId)
-      .single();
+    setLoadingUserData(true);
+    try {
+      const { data, error } = await supabase
+        .from("user_emails")
+        .select("user_email, user_id, pic_url")
+        .eq("user_id", userId)
+        .single();
 
-    if (error) {
-      console.error("Error fetching user data:", error);
-    } else {
-      setUserData(data);
+      if (error) {
+        console.error("Error fetching user data:", error);
+      } else {
+        setUserData(data);
+      }
+    } finally {
+      setLoadingUserData(false);
     }
   };
 
@@ -54,9 +60,10 @@ export default function SamplesPage() {
       currentPage="samples" 
       headerTitle="Samples"
       userData={userData}
+      isLoading={loadingUserData}
     >
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-8 py-6">
+      <div className="bg-white border-b border-gray-200 px-8 py-6 animate-in fade-in duration-500 delay-200">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Samples</h1>
@@ -72,7 +79,7 @@ export default function SamplesPage() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 p-8">
+      <div className="flex-1 p-8 animate-in fade-in duration-500 delay-300">
         <div className="bg-white rounded-lg border border-gray-200 p-8">
           <div className="text-center">
             <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />

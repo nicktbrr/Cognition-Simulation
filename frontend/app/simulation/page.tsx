@@ -149,18 +149,24 @@ export default function SimulationPage() {
   const [selectedColor, setSelectedColor] = useState<string>('#3b82f6');
   const [measures, setMeasures] = useState<Measure[]>([]);
   const [loadingMeasures, setLoadingMeasures] = useState(false);
+  const [loadingUserData, setLoadingUserData] = useState(false);
 
   const getUserData = async (userId: string) => {
-    const { data, error } = await supabase
-      .from("user_emails")
-      .select("user_email, user_id, pic_url")
-      .eq("user_id", userId)
-      .single();
+    setLoadingUserData(true);
+    try {
+      const { data, error } = await supabase
+        .from("user_emails")
+        .select("user_email, user_id, pic_url")
+        .eq("user_id", userId)
+        .single();
 
-    if (error) {
-      console.error("Error fetching user data:", error);
-    } else {
-      setUserData(data);
+      if (error) {
+        console.error("Error fetching user data:", error);
+      } else {
+        setUserData(data);
+      }
+    } finally {
+      setLoadingUserData(false);
     }
   };
 
@@ -444,6 +450,7 @@ export default function SimulationPage() {
       currentPage="simulation" 
       headerTitle="Dashboard"
       userData={userData}
+      isLoading={loadingUserData}
     >
       <SubHeader
         title="Simulation Whiteboard"
@@ -468,7 +475,7 @@ export default function SimulationPage() {
         </div>
       </SubHeader>
 
-      <div className="flex h-full">
+      <div className="flex h-full animate-in fade-in duration-500 delay-300">
         {/* Left Sidebar - Tools */}
         <div className="w-56 bg-white border-r border-gray-200 p-4 space-y-6">
           {/* Tools Section */}

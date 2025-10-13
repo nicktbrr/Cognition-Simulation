@@ -79,19 +79,21 @@ export default function AppHeader({ title, userData }: AppHeaderProps) {
                 />
               ) : (
                 <span>
-                  {(userData?.user_email?.split('@')[0]?.charAt(0) || 'S').toUpperCase()}
+                  {userData?.user_email?.split('@')[0]?.charAt(0)?.toUpperCase() || '?'}
                 </span>
               )}
             </div>
             
-            <div className="text-right">
-              <div className="font-medium text-gray-900">
-                {userData?.user_email?.split('@')[0] || 'Dr. Sarah Chen'}
+            {userData && (
+              <div className="text-right">
+                <div className="font-medium text-gray-900">
+                  {userData.user_email?.split('@')[0]}
+                </div>
+                <div className="text-sm text-gray-500">
+                  {userData.user_email}
+                </div>
               </div>
-              <div className="text-sm text-gray-500">
-                {userData?.user_email || 'sarah.chen@simulab.com'}
-              </div>
-            </div>
+            )}
             
             <ChevronDown className={`w-4 h-4 transition-transform ${profileDropdownOpen ? 'rotate-180' : ''}`} />
           </button>

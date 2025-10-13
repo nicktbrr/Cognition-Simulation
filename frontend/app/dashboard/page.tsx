@@ -57,6 +57,7 @@ export default function DashboardHistory() {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(false);
+  const [loadingUserData, setLoadingUserData] = useState(false);
 
   const getHistory = async (userId: string) => {
     const { data, error } = await supabase.from("dashboard").select("created_at, name, url").eq("user_id", userId);
@@ -68,16 +69,21 @@ export default function DashboardHistory() {
   };
 
   const getUserData = async (userId: string) => {
-    const { data, error } = await supabase
-      .from("user_emails")
-      .select("user_email, user_id, pic_url")
-      .eq("user_id", userId)
-      .single();
+    setLoadingUserData(true);
+    try {
+      const { data, error } = await supabase
+        .from("user_emails")
+        .select("user_email, user_id, pic_url")
+        .eq("user_id", userId)
+        .single();
 
-    if (error) {
-      console.error("Error fetching user data:", error);
-    } else {
-      setUserData(data);
+      if (error) {
+        console.error("Error fetching user data:", error);
+      } else {
+        setUserData(data);
+      }
+    } finally {
+      setLoadingUserData(false);
     }
   };
 
@@ -216,6 +222,7 @@ export default function DashboardHistory() {
       currentPage="dashboard" 
       headerTitle="Dashboard"
       userData={userData}
+      isLoading={loadingUserData}
     >
       <SubHeader
         title="Simulation Projects"
@@ -230,7 +237,7 @@ export default function DashboardHistory() {
       </SubHeader>
 
       {/* Content */}
-      <div className="flex-1 p-8 bg-gray-100">
+      <div className="flex-1 p-8 bg-gray-100 animate-in fade-in duration-1000 delay-300">
         {loadingProjects ? (
           <div className="flex items-center justify-center h-64">
             <div className="text-gray-500">Loading projects...</div>
