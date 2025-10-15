@@ -12,6 +12,7 @@ import concurrent.futures
 import os
 # import openai
 from datetime import datetime
+from supabase import create_client, Client
 
 class EvaluationMetricsGPT4(BaseModel):
     """
@@ -35,6 +36,87 @@ class EvaluationMetrics(typing.TypedDict):
     """
     metric: list[str]
     score: list[float]
+
+
+def generate_persona_from_attributes(sample, key_g, supabase_client=None):
+    """
+    Generate a persona using Gemini based on sample attributes when persona is 'NA'.
+    
+    Args:
+        sample (dict): Sample data containing attributes and persona
+        key_g (str): Gemini API key
+        supabase_client: Supabase client for database updates
+        
+    Returns:
+        str: Generated persona or original persona if not 'NA'
+    """
+    # Check if persona is 'NA'
+    if sample.get('persona', '').upper() != 'NA':
+        return sample.get('persona', '')
+    
+    # Extract attributes for persona generation
+    attributes = sample.get('attributes', [])
+    
+    # Build attributes description for the prompt
+    attributes_text = ""
+    for attr in attributes:
+        label = attr.get('label', '')
+        category = attr.get('category', '')
+        values = attr.get('values', [])
+        if values:
+            values_str = ', '.join(values)
+            attributes_text += f"- {label} ({category}): {values_str}\n"
+    
+    # Create prompt for persona generation
+    persona_prompt = f"""Based on the following demographic and attribute information, create a detailed persona description that captures the personality, background, and characteristics of this individual.
+
+Attributes:
+{attributes_text}
+
+Please create a persona that:
+1. Is 3-4 sentences long
+2. Captures the key demographic and lifestyle characteristics
+3. Reflects the person's likely personality traits based on their attributes
+4. Is written in third person
+5. Sounds natural and human-like
+
+Respond with ONLY the persona description, no additional text or formatting."""
+
+    try:
+        # Configure Gemini API
+        genai.configure(api_key=key_g)
+        model = genai.GenerativeModel("gemini-2.0-flash")
+        
+        # Generate persona
+        response = model.generate_content(
+            persona_prompt,
+            generation_config=genai.types.GenerationConfig(
+                temperature=0.7,
+                max_output_tokens=200
+            )
+        )
+        
+        generated_persona = response.text.strip()
+
+        print("generated_persona", generated_persona)
+        
+        # Update the sample in the database if supabase client is provided
+        if supabase_client and generated_persona:
+            try:
+                supabase_client.table("samples").update({
+                    "persona": generated_persona
+                }).eq("id", sample.get('id')).execute()
+                print(f"Updated persona for sample {sample.get('id')}")
+            except Exception as e:
+                print(f"Error updating persona in database: {e}")
+        
+        return generated_persona
+        
+    except Exception as e:
+        print(f"Error generating persona: {e}")
+        return sample.get('persona', '')
+
+
 
 
 def extract_unique_measures(steps):
