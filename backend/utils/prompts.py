@@ -12,16 +12,6 @@ import concurrent.futures
 import random
 from .personas import personas
 
-def random_persona_generator():
-    """
-    Generator function that yields random personas from the personas list.
-    
-    Yields:
-        str: A randomly selected persona from the personas list.
-    """
-    while True:
-        yield random.choice(personas)
-
 
 class BaseClass(typing.TypedDict, total=False):
     """
@@ -148,13 +138,14 @@ def process_row_with_chat(row_idx, df, prompt, key_g, system_prompt, persona):
     return row_data, tokens_dict
 
 
-def baseline_prompt(prompt, key_g):
+def baseline_prompt(prompt, key_g, sample=None):
     """
     Process multiple rows in parallel using threading and combine results into a DataFrame.
     
     Args:
         prompt (list): List containing prompt configuration including seed, steps, and iterations
         key_g (str): Google AI API key
+        sample (dict): Sample data containing persona information
     
     Returns:
         tuple: (final_df, tokens_ls) where:
@@ -170,20 +161,11 @@ def baseline_prompt(prompt, key_g):
     seed = prompt['seed']
     iterations = prompt['iters']
 
-    # Select unique personas for each row
-    if len(personas) >= iterations:
-        # Shuffle personas and take the first N unique ones
-        selected_personas = random.sample(personas, iterations)
-    else:
-        # If we have fewer personas than iterations, repeat personas but ensure variety
-        selected_personas = []
-        while len(selected_personas) < iterations:
-            remaining_personas = [p for p in personas if p not in selected_personas]
-            if remaining_personas:
-                selected_personas.extend(remaining_personas)
-            else:
-                # If we've used all personas, start over
-                selected_personas.extend(random.sample(personas, min(len(personas), iterations - len(selected_personas))))
+    # Use the sample's persona for all iterations
+    sample_persona = sample.get('persona', '') if sample else ''
+
+    # Use the same persona for all iterations
+    selected_personas = [sample_persona] * iterations
 
     # Extract labels from the steps array
     steps = prompt['steps']

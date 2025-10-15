@@ -86,17 +86,21 @@ def run_evaluation(uuid, data, key_g, jwt=None):
             "progress": 10,
         }).eq("experiment_id", uuid).execute()
 
-        # Check and generate personas for sample with 'NA' persona
+        # Check and generate persona for sample with 'NA' persona
         sample = data.get('sample')
         if sample and sample.get('persona', '').upper() == 'NA':
-            print("Checking sample for NA persona...")
+            print("Sample has NA persona, generating new persona...")
             from utils.evaluate import generate_persona_from_attributes
             generated_persona = generate_persona_from_attributes(sample, key_g, supabase)
-            sample['persona'] = generated_persona
-            data['sample'] = sample
+            if generated_persona:
+                print(f"Generated persona: {generated_persona}")
+                # Update the sample in the data with the new persona
+                sample['persona'] = generated_persona
+                data['sample'] = sample
 
         # Generate baseline prompt and get token usage
-        df, prompt_tokens = baseline_prompt(data, key_g)
+        sample = data.get('sample')
+        df, prompt_tokens = baseline_prompt(data, key_g, sample)
 
         # Update progress to 30% - Baseline prompt generated
         supabase.table("experiments").update({

@@ -74,7 +74,7 @@ Attributes:
 {attributes_text}
 
 Please create a persona that:
-1. Is 2-3 sentences long
+1. Is 3-4 sentences long
 2. Captures the key demographic and lifestyle characteristics
 3. Reflects the person's likely personality traits based on their attributes
 4. Is written in third person
@@ -117,29 +117,6 @@ Respond with ONLY the persona description, no additional text or formatting."""
         return sample.get('persona', '')
 
 
-def check_and_generate_personas(samples, key_g, supabase_client=None):
-    """
-    Check all samples for 'NA' personas and generate personas where needed.
-    
-    Args:
-        samples (list): List of sample dictionaries
-        key_g (str): Gemini API key
-        supabase_client: Supabase client for database updates
-        
-    Returns:
-        list: Updated samples with generated personas
-    """
-    updated_samples = []
-    
-    for sample in samples:
-        if sample.get('persona', '').upper() == 'NA':
-            print(f"Generating persona for sample {sample.get('id')}")
-            generated_persona = generate_persona_from_attributes(sample, key_g, supabase_client)
-            sample['persona'] = generated_persona
-        
-        updated_samples.append(sample)
-    
-    return updated_samples
 
 
 def extract_unique_measures(steps):
