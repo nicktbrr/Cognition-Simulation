@@ -13,113 +13,16 @@ import { Node, Edge } from "@xyflow/react";
 import Spinner from "../components/ui/spinner";
 
 type Sample = {
-  id: number;
-  label: string;
+  id: string; // Changed to string for UUID
+  name: string; // Changed from label to name to match Supabase
   desc: string;
+  user_id?: string;
+  created_at?: string;
+  attributes?: any;
+  persona?: string;
 };
 
-export const samples: Sample[] = [
-  {
-    id: 1,
-    label: "Sample 1",
-    desc: "A young Black woman working in healthcare in the South. High school educated, compassionate, and community-focused."
-  },
-  {
-    id: 2,
-    label: "Sample 2",
-    desc: "A Hispanic teenage girl working retail while attending high school in a Spanish-speaking household. Balances family responsibilities with big dreams for the future."
-  },
-  {
-    id: 3,
-    label: "Sample 3",
-    desc: "An Asian female medical doctor in her late 50s living in New England. Fluent in English and driven by a lifelong commitment to care."
-  },
-  {
-    id: 4,
-    label: "Sample 4",
-    desc: "A Native male manufacturing supervisor in his late 60s from a remote part of Alaska. Has some college education and carries deep cultural and technical knowledge."
-  },
-  {
-    id: 5,
-    label: "Sample 5",
-    desc: "A retired white male lawyer in his late 60s, living in the Southwest. Values justice, debate, and a strong sense of civic duty."
-  },
-  {
-    id: 6,
-    label: "Sample 6",
-    desc: "A young foreign-born woman with a Master's in psychology who works with people with disabilities. Spanish-speaking and empathetic by nature."
-  },
-  {
-    id: 7,
-    label: "Sample 7",
-    desc: "An elderly white woman with a high school diploma working in a religious setting in the Midwest. Grounded in faith and community."
-  },
-  {
-    id: 8,
-    label: "Sample 8",
-    desc: "A white male plumber in his 50s, with a high school diploma and strong ties to his rural community. Practical and proud of his trade."
-  },
-  {
-    id: 9,
-    label: "Sample 9",
-    desc: "A white male in construction with a bachelor's degree and a pioneering spirit, living in the northern Rockies. Enjoys building both structures and relationships."
-  },
-  {
-    id: 10,
-    label: "Sample 10",
-    desc: "A retired Asian female architect in her 60s, Hawaiian by residence, fluent in Tagalog. Creative, cultured, and design-driven."
-  },
-  {
-    id: 11,
-    label: "Sample 11",
-    desc: "A middle-aged foreign-born social worker, Spanish-speaking, living in Florida. Grounded in empathy and focused on immigrant family well-being."
-  },
-  {
-    id: 12,
-    label: "Sample 12",
-    desc: "A white male farmer in his 50s with a high school diploma, deeply rooted in North Dakota. Values tradition, land, and independence."
-  },
-  {
-    id: 13,
-    label: "Sample 13",
-    desc: "A young Black female teacher in the South with a bachelor's degree. Passionate about equity and education."
-  },
-  {
-    id: 14,
-    label: "Sample 14",
-    desc: "A middle-aged white male engineer in manufacturing with a Slavic background. High school educated and detail-oriented."
-  },
-  {
-    id: 15,
-    label: "Sample 15",
-    desc: "A young Asian female artist with a bachelor's degree, living in Hawaii. Creative, introspective, and culturally diverse."
-  },
-  {
-    id: 16,
-    label: "Sample 16",
-    desc: "A Hispanic teenage male soccer coach currently unemployed and living in Puerto Rico. Speaks Spanish and thrives on teamwork and youth mentorship."
-  },
-  {
-    id: 17,
-    label: "Sample 17",
-    desc: "A white male sales representative in his 20s with a high school diploma, based in the Midwest. Energetic, persuasive, and always on the move."
-  },
-  {
-    id: 18,
-    label: "Sample 18",
-    desc: "A Black female HR manager in Texas, fluent in French and holding a bachelor's degree. Values structure, diplomacy, and inclusion in the workplace."
-  },
-  {
-    id: 19,
-    label: "Sample 19",
-    desc: "A white male in his early 30s with a high school diploma working in manufacturing in the rural Midwest. Speaks English and values hands-on experience over formal education."
-  },
-  {
-    id: 20,
-    label: "Sample 20",
-    desc: "A Chinese male accountant in his 40s living in the Pacific Northwest. Holds a bachelor's degree and approaches life with precision and discipline."
-  }
-];
+// Samples are now fetched from Supabase dynamically
 
 interface UserData {
   user_email: string;
@@ -151,6 +54,8 @@ export default function SimulationPage() {
   const [selectedColor, setSelectedColor] = useState<string>('#3b82f6');
   const [measures, setMeasures] = useState<Measure[]>([]);
   const [loadingMeasures, setLoadingMeasures] = useState(false);
+  const [samples, setSamples] = useState<Sample[]>([]);
+  const [loadingSamples, setLoadingSamples] = useState(false);
   const [contentLoaded, setContentLoaded] = useState(false);
   const reactFlowRef = useRef<ReactFlowRef>(null);
 
@@ -198,6 +103,41 @@ export default function SimulationPage() {
     } finally {
       setLoadingMeasures(false);
       setContentLoaded(true);
+    }
+  };
+
+  const getSamples = async (userId: string) => {
+    setLoadingSamples(true);
+    try {
+      const { data, error } = await supabase
+        .from("samples")
+        .select("*")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching samples:", error);
+        setSamples([]);
+        return;
+      }
+
+      // Transform Supabase data to match our interface
+      const formattedSamples: Sample[] = data.map((sample: any) => ({
+        id: sample.id,
+        name: sample.name,
+        desc: `Sample created on ${new Date(sample.created_at).toLocaleDateString()} with ${Array.isArray(sample.attributes) ? sample.attributes.length : 0} attribute(s)`,
+        user_id: sample.user_id,
+        created_at: sample.created_at,
+        attributes: sample.attributes,
+        persona: sample.persona || ""
+      }));
+
+      setSamples(formattedSamples);
+    } catch (error) {
+      console.error("Error processing samples data:", error);
+      setSamples([]);
+    } finally {
+      setLoadingSamples(false);
     }
   };
 
@@ -358,6 +298,12 @@ export default function SimulationPage() {
       alert("Validation failed:\n" + validation.errors.join('\n'));
       return;
     }
+
+    // Validate that a sample is selected
+    if (!selectedSample) {
+      alert("Please select a sample before submitting the simulation.");
+      return;
+    }
     
     // If validation passes, proceed with submission
     
@@ -380,6 +326,12 @@ export default function SimulationPage() {
         throw new Error("No Supabase access token found");
       }
       
+      // Get the selected sample details
+      const selectedSampleDetails = getSelectedSampleDetails();
+      if (!selectedSampleDetails) {
+        throw new Error("Selected sample not found. Please refresh and try again.");
+      }
+      
       // Convert React Flow nodes to the expected format
       const orderedSteps = convertFlowNodesToSteps(flowNodes, flowEdges);
       
@@ -391,6 +343,14 @@ export default function SimulationPage() {
         temperature: 0.5,
         user_id: parsedUser.id,
         title: processTitle || "Simulation Flow",
+        sample: {
+          id: selectedSampleDetails.id,
+          name: selectedSampleDetails.name,
+          user_id: selectedSampleDetails.user_id,
+          created_at: selectedSampleDetails.created_at,
+          attributes: selectedSampleDetails.attributes,
+          persona: selectedSampleDetails.persona
+        }
       };
       
       // Define backend URL based on environment
@@ -444,10 +404,15 @@ export default function SimulationPage() {
     setFlowEdges(edges);
   };
 
+  const getSelectedSampleDetails = () => {
+    return samples.find(sample => sample.id === selectedSample);
+  };
+
   useEffect(() => {
     if (user && isAuthenticated) {
       getUserData(user.user_id);
       getMeasures(user.user_id);
+      getSamples(user.user_id);
     }
   }, [user, isAuthenticated]);
 
@@ -584,18 +549,35 @@ export default function SimulationPage() {
               <h3 className="text-sm font-semibold text-gray-700">Pick your sample</h3>
               <HelpCircle className="w-3 h-3 text-gray-400" />
             </div>
-            <select 
-              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded text-sm"
-              value={selectedSample}
-              onChange={(e) => setSelectedSample(e.target.value)}
-              >
-             <option value="">Select a sample</option>
+            {loadingSamples ? (
+              <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded text-sm flex items-center justify-center">
+                <Spinner size="sm" />
+                <span className="ml-2 text-gray-500">Loading samples...</span>
+              </div>
+            ) : (
+              <select 
+                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded text-sm"
+                value={selectedSample}
+                onChange={(e) => setSelectedSample(e.target.value)}
+                >
+                <option value="">Select a sample</option>
                 {samples.map((s) => (
                   <option key={s.id} value={s.id}>
-                  {s.label}
-                </option>
+                    {s.name}
+                  </option>
                 ))}
-            </select>
+              </select>
+            )}
+            {!loadingSamples && samples.length === 0 && (
+              <p className="text-xs text-gray-500 mt-1">No samples found. Create samples in the Samples page.</p>
+            )}
+            {selectedSample && getSelectedSampleDetails() && (
+              <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
+                <div className="font-medium text-blue-900">Selected Sample:</div>
+                <div className="text-blue-700">{getSelectedSampleDetails()?.name}</div>
+                <div className="text-blue-600">{getSelectedSampleDetails()?.desc}</div>
+              </div>
+            )}
           </div>
         </div>
 

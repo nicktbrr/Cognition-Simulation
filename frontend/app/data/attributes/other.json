@@ -1,0 +1,277 @@
+[
+    {
+      "id": "jury_service",
+      "label": "Have you ever served on a jury?",
+      "category": "other",
+      "options": [
+        { "id": "yes", "label": "Yes" },
+        { "id": "no", "label": "No" },
+        { "id": "dont_know", "label": "Don't know" },
+        { "id": "rather_not_say", "label": "Rather not say" }
+      ]
+    },
+    {
+      "id": "eligible_voter_uk",
+      "label": "Eligible voter (UK)",
+      "category": "other",
+      "options": [
+        { "id": "yes", "label": "Y" },
+        { "id": "no", "label": "N" }
+      ]
+    },
+    {
+      "id": "ai_research_participation",
+      "label": "Prior Participation in AI Research Studies",
+      "category": "other",
+      "options": [
+        { "id": "none", "label": "None" },
+        { "id": "1_10", "label": "1-10" },
+        { "id": "11_50", "label": "11-50" },
+        { "id": "51_100", "label": "51-100" },
+        { "id": "100_plus", "label": "100+" }
+      ]
+    },
+    {
+      "id": "handedness",
+      "label": "Handedness",
+      "category": "other",
+      "options": [
+        { "id": "right_handed", "label": "Right-handed" },
+        { "id": "left_handed", "label": "Left-handed" },
+        { "id": "ambidextrous", "label": "Ambidextrous" }
+      ]
+    },
+    {
+      "id": "charity_affiliation",
+      "label": "Charity Affiliation",
+      "category": "other",
+      "options": [
+        { "id": "yes", "label": "Yes" },
+        { "id": "no", "label": "No" },
+        { "id": "rather_not_say", "label": "Rather not say" }
+      ]
+    },
+    {
+      "id": "driving_license",
+      "label": "Driving license",
+      "category": "other",
+      "options": [
+        { "id": "yes", "label": "Yes" },
+        { "id": "no", "label": "No" },
+        { "id": "learner_permit", "label": "Learner's / driver's permit or provisional license" },
+        { "id": "license_not_valid", "label": "License not currently valid" },
+        { "id": "prefer_not_say", "label": "Prefer not to say" }
+      ]
+    },
+    {
+      "id": "diet_restriction",
+      "label": "Diet Restriction",
+      "category": "other",
+      "options": [
+        { "id": "vegetarian", "label": "Vegetarian" },
+        { "id": "vegan", "label": "Vegan" },
+        { "id": "gluten_free", "label": "Gluten-free" },
+        { "id": "sugar_free", "label": "Sugar-free" },
+        { "id": "dairy_lactose_free", "label": "Dairy/lactose-free" },
+        { "id": "milk_allergy", "label": "Milk allergy" },
+        { "id": "eggs_allergy", "label": "Eggs allergy" },
+        { "id": "nut_allergy", "label": "Nut allergy" },
+        { "id": "soy_allergy", "label": "Soy allergy" },
+        { "id": "wheat_grain_allergy", "label": "Wheat or grain allergy" },
+        { "id": "fish_allergy", "label": "Fish allergy" },
+        { "id": "shellfish_allergy", "label": "Shellfish allergy" },
+        { "id": "other_food_allergies", "label": "Other food allergies" },
+        { "id": "other_dietary_restriction", "label": "Other dietary restriction" },
+        { "id": "none", "label": "None" },
+        { "id": "rather_not_say", "label": "Rather not say" }
+      ]
+    },
+    {
+      "id": "car_brand_ownership",
+      "label": "Car Brand Ownership",
+      "category": "other",
+      "options": [
+        { "id": "alfa_romeo", "label": "Alfa Romeo" },
+        { "id": "audi", "label": "Audi" },
+        { "id": "bmw", "label": "BMW" },
+        { "id": "buick", "label": "Buick" },
+        { "id": "cadillac", "label": "Cadillac" },
+        { "id": "chevrolet", "label": "Chevrolet" },
+        { "id": "citroen", "label": "Citroen" },
+        { "id": "daewoo", "label": "Daewoo" },
+        { "id": "fiat", "label": "Fiat" },
+        { "id": "ford", "label": "Ford" },
+        { "id": "gmc", "label": "GMC" },
+        { "id": "honda", "label": "Honda" },
+        { "id": "hyundai", "label": "Hyundai" },
+        { "id": "jaguar", "label": "Jaguar" },
+        { "id": "jeep", "label": "Jeep" },
+        { "id": "kia", "label": "Kia" },
+        { "id": "land_rover", "label": "Land Rover" },
+        { "id": "mercedes_benz", "label": "Mercedes-Benz" },
+        { "id": "mg", "label": "MG" },
+        { "id": "mini", "label": "Mini" },
+        { "id": "mitsubishi", "label": "Mitsubishi" },
+        { "id": "nissan", "label": "Nissan" },
+        { "id": "opel", "label": "Opel" },
+        { "id": "peugeot", "label": "Peugeot" },
+        { "id": "porsche", "label": "Porsche" },
+        { "id": "renault", "label": "Renault" },
+        { "id": "rolls_royce", "label": "Rolls-Royce" },
+        { "id": "seat", "label": "SEAT" },
+        { "id": "skoda", "label": "Skoda" },
+        { "id": "subaru", "label": "Subaru" },
+        { "id": "suzuki", "label": "Suzuki" },
+        { "id": "toyota", "label": "Toyota" },
+        { "id": "vauxhall", "label": "Vauxhall" },
+        { "id": "volkswagen", "label": "Volkswagen" },
+        { "id": "volvo", "label": "Volvo" },
+        { "id": "other", "label": "Other" },
+        { "id": "rather_not_say_na", "label": "Rather not say or N/A" }
+      ]
+    },
+    {
+      "id": "video_call_interview",
+      "label": "Video call interview",
+      "category": "other",
+      "options": [
+        { "id": "video_interview_yes", "label": "Yes, I would be willing to take part in a face to face video interview" },
+        { "id": "non_video_interview_yes", "label": "Yes, I would be willing to take part in a non-video interview" },
+        { "id": "video_focus_group_yes", "label": "Yes, I would be willing to take part in a video focus group" },
+        { "id": "non_video_focus_group_yes", "label": "Yes, I would be willing to take part in a non-video focus group" },
+        { "id": "no", "label": "No, I would not be willing to take part in an interview or focus group" }
+      ]
+    },
+    {
+      "id": "car_model_year",
+      "label": "Car Model Year",
+      "category": "other",
+      "options": [
+        { "id": "2023", "label": "2023" },
+        { "id": "2022", "label": "2022" },
+        { "id": "2021", "label": "2021" },
+        { "id": "2020", "label": "2020" },
+        { "id": "2019", "label": "2019" },
+        { "id": "2018", "label": "2018" },
+        { "id": "2017_or_earlier", "label": "2017 or earlier" }
+      ]
+    },
+    {
+      "id": "driving_frequency",
+      "label": "Driving Frequency (hr/week)",
+      "category": "other",
+      "options": [
+        { "id": "less_than_hour", "label": "Less than an hour" },
+        { "id": "1_7_hours", "label": "1 - 7 hours" },
+        { "id": "8_14_hours", "label": "8 - 14 hours" },
+        { "id": "15_20_hours", "label": "15 - 20 hours" },
+        { "id": "20_plus_hours", "label": "20+ hours" },
+        { "id": "do_not_drive", "label": "I do not drive" }
+      ]
+    },
+    {
+      "id": "future_car_ownership",
+      "label": "Future Car Ownership (10 years into future)",
+      "category": "other",
+      "options": [
+        { "id": "will_own", "label": "I will own a car in the future" },
+        { "id": "likely_own", "label": "I am likely to own a car in the future" },
+        { "id": "unlikely_own", "label": "I am unlikely to own a car in the future" },
+        { "id": "will_not_own", "label": "I will not own a car in the future" },
+        { "id": "dont_know", "label": "I don't know" },
+        { "id": "rather_not_say", "label": "Rather not say" }
+      ]
+    },
+    {
+      "id": "trips_abroad",
+      "label": "Trips Abroad",
+      "category": "other",
+      "options": [
+        { "id": "last_month", "label": "In the last month" },
+        { "id": "last_3_months", "label": "In the last 3 months" },
+        { "id": "last_6_months", "label": "In the last 6 months" },
+        { "id": "last_year", "label": "In the last year" },
+        { "id": "not_last_year", "label": "Not in the last year" },
+        { "id": "never", "label": "Never" }
+      ]
+    },
+    {
+      "id": "car_usage_monthly",
+      "label": "Car usage at least once a month",
+      "category": "other",
+      "options": [
+        { "id": "yes", "label": "Yes" },
+        { "id": "no", "label": "No" },
+        { "id": "rather_not_say", "label": "Rather not say" }
+      ]
+    },
+    {
+      "id": "listening_while_driving",
+      "label": "Listening habits while driving",
+      "category": "other",
+      "options": [
+        { "id": "am_fm_radio", "label": "AM/FM Radio" },
+        { "id": "spotify", "label": "Spotify" },
+        { "id": "pandora", "label": "Pandora" },
+        { "id": "siriusxm", "label": "SiriusXM" },
+        { "id": "apple_music", "label": "Apple Music" },
+        { "id": "amazon_music", "label": "Amazon Music" },
+        { "id": "youtube_music", "label": "Youtube+ Music" },
+        { "id": "audible", "label": "Audible" },
+        { "id": "none_of_the_above", "label": "None of the above" }
+      ]
+    },
+    {
+      "id": "ridesharing",
+      "label": "Ridesharing services",
+      "category": "other",
+      "options": [
+        { "id": "blablacar", "label": "BlaBlaCar" },
+        { "id": "carma", "label": "Carma" },
+        { "id": "curb", "label": "Curb" },
+        { "id": "didi", "label": "Didi" },
+        { "id": "flywheel", "label": "Flywheel" },
+        { "id": "lyft", "label": "Lyft" },
+        { "id": "shuddle", "label": "Shuddle" },
+        { "id": "uber", "label": "Uber" },
+        { "id": "other", "label": "Other" },
+        { "id": "rather_not_say", "label": "Rather not say" },
+        { "id": "none_of_the_above", "label": "None of the above" },
+        { "id": "waymo", "label": "Waymo" }
+      ]
+    },
+    {
+      "id": "never_crime_victim",
+      "label": "I have never been a victim of crime.",
+      "category": "other",
+      "options": [
+        { "id": "true", "label": "T" },
+        { "id": "false", "label": "F" },
+        { "id": "rather_not_say", "label": "Rather not say" }
+      ]
+    },
+    {
+      "id": "prison_experience",
+      "label": "Have you ever been in prison for committing a crime?",
+      "category": "other",
+      "options": [
+        { "id": "yes", "label": "Yes" },
+        { "id": "no", "label": "No" },
+        { "id": "dont_know_rather_not_say", "label": "Don't know/ Rather not say" }
+      ]
+    },
+    {
+      "id": "crime_elements",
+      "label": "The crime (or crimes) that happened to me included the following elements",
+      "category": "other",
+      "options": [
+        { "id": "theft_attempted_theft", "label": "Theft or attempted theft" },
+        { "id": "property_damage", "label": "Property damage" },
+        { "id": "threats_verbal_abuse", "label": "Threats, verbal abuse, harassment or emotional abuse" },
+        { "id": "violence_with_injury", "label": "Violence resulting in injury" },
+        { "id": "violence_no_injury", "label": "Violence not resulting in injury" },
+        { "id": "sexual_element", "label": "A sexual element" },
+        { "id": "other", "label": "Other" }
+      ]
+    }
+  ]
