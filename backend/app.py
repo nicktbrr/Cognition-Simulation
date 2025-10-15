@@ -86,6 +86,15 @@ def run_evaluation(uuid, data, key_g, jwt=None):
             "progress": 10,
         }).eq("experiment_id", uuid).execute()
 
+        # Check and generate personas for sample with 'NA' persona
+        sample = data.get('sample')
+        if sample and sample.get('persona', '').upper() == 'NA':
+            print("Checking sample for NA persona...")
+            from utils.evaluate import generate_persona_from_attributes
+            generated_persona = generate_persona_from_attributes(sample, key_g, supabase)
+            sample['persona'] = generated_persona
+            data['sample'] = sample
+
         # Generate baseline prompt and get token usage
         df, prompt_tokens = baseline_prompt(data, key_g)
 
@@ -188,6 +197,9 @@ class Evaluation(Resource):
                 jwt = auth_header.split("Bearer ")[1]
             uuid = request.get_json()['id']
             data = request.get_json()['data']
+
+
+            print("data", data)
             supabase: Client = create_client(url, key)
             if jwt:
                 supabase.auth.set_session(jwt, "")
