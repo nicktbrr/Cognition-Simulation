@@ -18,10 +18,11 @@ interface UserData {
 }
 
 interface Sample {
-  id: number;
+  id: string; // Changed to string for uuid
+  user_id: string;
+  created_at: string; // Changed to match Supabase field
   name: string;
-  createdDate: string;
-  attributes: number;
+  attributes: any; // JSON object from Supabase
   expanded?: boolean;
   selectedAttributes?: string[];
   attributeCategories?: {
@@ -35,48 +36,26 @@ interface Attribute {
   id: string;
   label: string;
   category: string;
+  options?: AttributeOption[];
+}
+
+interface AttributeOption {
+  id: string;
+  label: string;
+}
+
+interface AttributeSelection {
+  attributeId: string;
+  selectedOptions: string[];
 }
 
 export default function SamplesPage() {
   const { user, isLoading, isAuthenticated } = useAuth();
   const [userData, setUserData] = useState<UserData | null>(null);
   const [contentLoaded, setContentLoaded] = useState(false);
-  const [samples, setSamples] = useState<Sample[]>([
-    {
-      id: 1,
-      name: "Sample 1",
-      createdDate: "12/31/2024",
-      attributes: 2,
-      expanded: false,
-      attributeCategories: [
-        {
-          name: "Demographics",
-          attributeType: "Age",
-          values: ["18-24", "25-34"]
-        },
-        {
-          name: "Geography",
-          attributeType: "Region",
-          values: ["North America"]
-        }
-      ]
-    },
-    {
-      id: 2,
-      name: "Sample 2",
-      createdDate: "1/1/2025",
-      attributes: 1,
-      expanded: false,
-      attributeCategories: [
-        {
-          name: "Education",
-          attributeType: "Degree Level",
-          values: ["Bachelor's Degree"]
-        }
-      ]
-    }
-  ]);
+  const [samples, setSamples] = useState<Sample[]>([]);
   const [isNewSampleModalOpen, setIsNewSampleModalOpen] = useState(false);
+  const [isLoadingSamples, setIsLoadingSamples] = useState(false);
 
   const getUserData = async (userId: string) => {
     const { data, error } = await supabase
@@ -93,13 +72,108 @@ export default function SamplesPage() {
     setContentLoaded(true);
   };
 
+  const fetchSamples = async (userId: string) => {
+    const { data, error } = await supabase
+      .from("samples")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching samples:", error);
+      return [];
+    }
+
+    // Transform Supabase data to match our interface
+    return data.map((sample: any) => ({
+      ...sample,
+      expanded: false,
+      // Parse attributes if it's a JSON string
+      attributes: typeof sample.attributes === 'string' ? JSON.parse(sample.attributes) : sample.attributes,
+      // Convert created_at to a readable date format
+      createdDate: new Date(sample.created_at).toLocaleDateString(),
+      // Extract attribute categories for display
+      attributeCategories: extractAttributeCategories(sample.attributes)
+    }));
+  };
+
+  const insertSample = async (sampleData: { name: string; attributes: any; user_id: string }) => {
+    const { data, error } = await supabase
+      .from("samples")
+      .insert([sampleData])
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error inserting sample:", error);
+      throw error;
+    }
+
+    return data;
+  };
+
+  const extractAttributeCategories = (attributes: any) => {
+    if (!attributes || typeof attributes !== 'object') return [];
+    
+    // Check if attributes is already in the structured format (array of objects with label, category, values)
+    if (Array.isArray(attributes)) {
+      // Group attributes by category for display
+      const groupedByCategory = attributes.reduce((acc, attr) => {
+        if (!acc[attr.category]) {
+          acc[attr.category] = [];
+        }
+        acc[attr.category].push(attr);
+        return acc;
+      }, {} as Record<string, any[]>);
+
+      // Convert to display format
+      return Object.entries(groupedByCategory).map(([category, attrs]) => ({
+        name: category,
+        attributeType: (attrs as any[]).map((attr: any) => attr.label).join(', '),
+        values: (attrs as any[]).flatMap((attr: any) => attr.values)
+      }));
+    }
+    
+    // Handle legacy flat key-value format
+    // Group attributes by category
+    const groupedAttributes = Object.entries(attributes).reduce((acc, [key, value]) => {
+      // Extract category from attribute key (assuming format like "category_attributeType")
+      const [category, attributeType] = key.split('_');
+      if (!acc[category]) {
+        acc[category] = [];
+      }
+      acc[category].push({ attributeType, value });
+      return acc;
+    }, {} as Record<string, any[]>);
+
+    // Convert to category format
+    return Object.entries(groupedAttributes).map(([category, attrs]) => ({
+      name: category,
+      attributeType: attrs[0]?.attributeType || category,
+      values: attrs.map(attr => String(attr.value))
+    }));
+  };
+
   useEffect(() => {
     if (user && isAuthenticated) {
       getUserData(user.user_id);
+      loadSamples(user.user_id);
     }
   }, [user, isAuthenticated]);
 
-  const toggleSampleExpansion = (sampleId: number) => {
+  const loadSamples = async (userId: string) => {
+    setIsLoadingSamples(true);
+    try {
+      const fetchedSamples = await fetchSamples(userId);
+      setSamples(fetchedSamples);
+    } catch (error) {
+      console.error("Error loading samples:", error);
+    } finally {
+      setIsLoadingSamples(false);
+    }
+  };
+
+  const toggleSampleExpansion = (sampleId: string) => {
     setSamples(samples.map(sample => 
       sample.id === sampleId 
         ? { ...sample, expanded: !sample.expanded }
@@ -107,34 +181,52 @@ export default function SamplesPage() {
     ));
   };
 
-  const handleNewSample = (selectedAttributes: Attribute[]) => {
-    // Group attributes by category
-    const groupedAttributes = selectedAttributes.reduce((acc, attr) => {
-      if (!acc[attr.category]) {
-        acc[attr.category] = [];
-      }
-      acc[attr.category].push(attr.label);
-      return acc;
-    }, {} as Record<string, string[]>);
+  const handleNewSample = async (selectedAttributes: Attribute[], attributeSelections: AttributeSelection[]) => {
+    if (!user) return;
 
-    // Convert to category format
-    const attributeCategories = Object.entries(groupedAttributes).map(([category, values]) => ({
-      name: category,
-      attributeType: values[0]?.split(' - ')[0] || category, // Extract attribute type from label
-      values: values
-    }));
+    try {
+      // Process each selected attribute with its selected options
+      const attributesJson = selectedAttributes.map(attr => {
+        // Find the selections for this attribute
+        const selection = attributeSelections.find(sel => sel.attributeId === attr.id);
+        
+        // Get the actual option labels from the selected option IDs
+        const selectedValues = selection?.selectedOptions.map(optionId => {
+          const option = attr.options?.find(opt => opt.id === optionId);
+          return option?.label || optionId; // Fallback to ID if option not found
+        }) || [];
 
-    const newSample: Sample = {
-      id: samples.length + 1,
-      name: `Sample ${samples.length + 1}`,
-      createdDate: new Date().toLocaleDateString(),
-      attributes: selectedAttributes.length,
-      expanded: false,
-      selectedAttributes: selectedAttributes.map(attr => attr.label),
-      attributeCategories
-    };
-    
-    setSamples([newSample, ...samples]);
+        return {
+          label: attr.label, // The attribute name (e.g., "Age", "Gender")
+          category: attr.category, // The category (e.g., "demographics")
+          values: selectedValues // The actual selected option labels (e.g., ["25", "30", "35"])
+        };
+      });
+
+      // Insert into Supabase
+      const newSampleData = {
+        name: `Sample ${samples.length + 1}`,
+        attributes: attributesJson,
+        user_id: user.user_id
+      };
+
+      const insertedSample = await insertSample(newSampleData);
+
+      // Transform the inserted sample to match our interface
+      const transformedSample: Sample = {
+        ...insertedSample,
+        expanded: false,
+        createdDate: new Date(insertedSample.created_at).toLocaleDateString(),
+        attributeCategories: extractAttributeCategories(insertedSample.attributes),
+        selectedAttributes: selectedAttributes.map(attr => attr.label)
+      };
+
+      // Add to local state
+      setSamples([transformedSample, ...samples]);
+    } catch (error) {
+      console.error("Error creating new sample:", error);
+      // You might want to show an error message to the user here
+    }
   };
 
   // Show loading state while checking authentication
@@ -195,7 +287,16 @@ export default function SamplesPage() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {samples.length === 0 ? (
+                {isLoadingSamples ? (
+                  <tr>
+                    <td colSpan={3} className="px-6 py-12 text-center">
+                      <div className="flex flex-col items-center">
+                        <Spinner />
+                        <p className="text-gray-500 mt-4">Loading samples...</p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : samples.length === 0 ? (
                   <tr>
                     <td colSpan={3} className="px-6 py-12 text-center">
                       <div className="flex flex-col items-center">
@@ -232,10 +333,10 @@ export default function SamplesPage() {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {sample.createdDate}
+                          {new Date(sample.created_at).toLocaleDateString()}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {sample.attributes} attribute{sample.attributes !== 1 ? 's' : ''}
+                          {sample.attributeCategories?.length || 0} attribute{(sample.attributeCategories?.length || 0) !== 1 ? 's' : ''}
                         </td>
                       </tr>
                       {sample.expanded && (

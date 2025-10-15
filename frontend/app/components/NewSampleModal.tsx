@@ -37,7 +37,7 @@ interface AttributeSelection {
 interface NewSampleModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (selectedAttributes: Attribute[]) => void;
+  onSave: (selectedAttributes: Attribute[], attributeSelections: AttributeSelection[]) => void;
 }
 
 const demographicsAttributes: Attribute[] = demographicsAttributesData as Attribute[];
@@ -185,7 +185,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave }: NewSampleMod
   };
 
   const handleSave = () => {
-    onSave(selectedAttributes);
+    onSave(selectedAttributes, attributeSelections);
     setSelectedAttributes([]);
     setAttributeSelections([]);
     onClose();
