@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useRef, useCallback } from "react";
+import React, { useEffect, useState, useRef, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Save, Download, RotateCcw, RotateCw, HelpCircle, Sparkles, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -44,7 +44,7 @@ interface Measure {
   desiredValues: DesiredValue[];
 }
 
-export default function SimulationPage() {
+function SimulationPageContent() {
   const searchParams = useSearchParams();
   const modifyExperimentId = searchParams.get('modify');
   const { user, isLoading, isAuthenticated } = useAuth();
@@ -831,5 +831,13 @@ export default function SimulationPage() {
         )}
       </div>
     </AppLayout>
+  );
+}
+
+export default function SimulationPage() {
+  return (
+    <Suspense fallback={<AuthLoading message="Loading simulation..." />}>
+      <SimulationPageContent />
+    </Suspense>
   );
 }
