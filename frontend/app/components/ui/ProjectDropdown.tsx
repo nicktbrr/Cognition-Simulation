@@ -29,13 +29,10 @@ export default function ProjectDropdown({
 
   const handleToggle = (e: React.MouseEvent) => {
     e.stopPropagation();
-    console.log('Toggle clicked, current isOpen:', isOpen);
     
     if (isOpen) {
-      console.log('Closing dropdown');
       onToggle();
     } else {
-      console.log('Opening dropdown');
       const button = e.currentTarget as HTMLButtonElement;
       const rect = button.getBoundingClientRect();
       
@@ -58,19 +55,16 @@ export default function ProjectDropdown({
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      console.log('Click outside detected, isOpen:', isOpen);
       // Check if click is inside the dropdown or the toggle button
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node) &&
           buttonRef.current && !buttonRef.current.contains(event.target as Node)) {
         if (isOpen) {
-          console.log('Closing dropdown from outside click');
           onToggle();
         }
       }
     };
 
     if (isOpen) {
-      console.log('Adding click outside listener');
       document.addEventListener('mousedown', handleClickOutside);
     }
 
@@ -102,9 +96,13 @@ export default function ProjectDropdown({
           <div className="py-1">
             <button 
               onClick={(e) => {
+                e.preventDefault();
                 e.stopPropagation();
-                console.log('Rename button clicked in dropdown');
                 onRename?.();
+                onToggle(); // Close the dropdown
+              }}
+              onMouseDown={(e) => {
+                e.stopPropagation();
               }}
               className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
             >
@@ -119,7 +117,15 @@ export default function ProjectDropdown({
               Replicate
             </button>
             <button 
-              onClick={onModify}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onModify?.();
+                onToggle(); // Close the dropdown
+              }}
+              onMouseDown={(e) => {
+                e.stopPropagation();
+              }}
               className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
             >
               <Edit className="h-4 w-4" />
@@ -127,14 +133,12 @@ export default function ProjectDropdown({
             </button>
             <button 
               onClick={(e) => {
-                console.log('Delete button clicked!');
                 e.preventDefault();
                 e.stopPropagation();
                 onDelete?.();
                 onToggle(); // Close the dropdown
               }}
               onMouseDown={(e) => {
-                console.log('Delete button mousedown!');
                 e.stopPropagation();
               }}
               className="flex items-center gap-3 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"

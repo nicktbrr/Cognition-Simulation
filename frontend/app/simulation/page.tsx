@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { Save, Download, RotateCcw, RotateCw, HelpCircle, Sparkles, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "../utils/supabase";
@@ -43,7 +44,9 @@ interface Measure {
   desiredValues: DesiredValue[];
 }
 
-export default function SimulationPage() {
+function SimulationPageContent() {
+  const searchParams = useSearchParams();
+  const modifyExperimentId = searchParams.get('modify');
   const { user, isLoading, isAuthenticated } = useAuth();
   const [userData, setUserData] = useState<UserData | null>(null);
   const [processDescription, setProcessDescription] = useState("");
@@ -57,6 +60,7 @@ export default function SimulationPage() {
   const [samples, setSamples] = useState<Sample[]>([]);
   const [loadingSamples, setLoadingSamples] = useState(false);
   const [contentLoaded, setContentLoaded] = useState(false);
+  const [isLoadingExperiment, setIsLoadingExperiment] = useState(false);
   const reactFlowRef = useRef<ReactFlowRef>(null);
 
   const getUserData = async (userId: string) => {
@@ -160,8 +164,10 @@ export default function SimulationPage() {
       reactFlowRef.current.clearFlow();
     }
     
-    // Clear localStorage simulation-flow
+    // Clear localStorage
     localStorage.removeItem('simulation-flow');
+    localStorage.removeItem('simulation-title');
+    localStorage.removeItem('simulation-sample');
   };
 
   const convertFlowNodesToSteps = (nodes: Node[], edges: Edge[]) => {
@@ -408,6 +414,135 @@ export default function SimulationPage() {
     return samples.find(sample => sample.id === selectedSample);
   };
 
+  const handleNodeDelete = useCallback((nodeId: string) => {
+    setFlowNodes((nds: Node[]) => nds.filter((node: Node) => node.id !== nodeId));
+    setFlowEdges((eds: Edge[]) => eds.filter((edge: Edge) => edge.source !== nodeId && edge.target !== nodeId));
+  }, []);
+
+  const handleTitleChange = useCallback((nodeId: string, title: string) => {
+    setFlowNodes((nds: Node[]) =>
+      nds.map((node: Node) =>
+        node.id === nodeId ? { ...node, data: { ...node.data, title } } : node
+      )
+    );
+  }, []);
+
+  const handleDescriptionChange = useCallback((nodeId: string, description: string) => {
+    setFlowNodes((nds: Node[]) =>
+      nds.map((node: Node) =>
+        node.id === nodeId ? { ...node, data: { ...node.data, description } } : node
+      )
+    );
+  }, []);
+
+  const handleSliderChange = useCallback((nodeId: string, value: number) => {
+    setFlowNodes((nds: Node[]) =>
+      nds.map((node: Node) =>
+        node.id === nodeId ? { ...node, data: { ...node.data, sliderValue: value } } : node
+      )
+    );
+  }, []);
+
+  const handleMeasuresChange = useCallback((nodeId: string, selectedMeasures: string[]) => {
+    setFlowNodes((nds: Node[]) =>
+      nds.map((node: Node) =>
+        node.id === nodeId ? { ...node, data: { ...node.data, selectedMeasures } } : node
+      )
+    );
+  }, []);
+
+  const convertStepsToFlow = (steps: any[]): { nodes: Node[], edges: Edge[] } => {
+    const nodes: Node[] = [];
+    const edges: Edge[] = [];
+    
+    const nodeSpacing = 400; // Horizontal spacing between nodes
+    const startY = 200; // Y position for all nodes
+    const startX = 100; // Starting X position
+    
+    steps.forEach((step, index) => {
+      const nodeId = `${index + 1}`;
+      
+      // Create node with all required callbacks
+      nodes.push({
+        id: nodeId,
+        type: 'custom',
+        position: { x: startX + (index * nodeSpacing), y: startY },
+        data: {
+          title: step.label || '',
+          description: step.instructions || '',
+          sliderValue: (step.temperature || 0.5) * 100,
+          numDescriptionsChars: 500,
+          selectedMeasures: step.measures?.map((m: any) => m.id) || [],
+          measures: measures,
+          loadingMeasures: loadingMeasures,
+          onDelete: handleNodeDelete,
+          onTitleChange: handleTitleChange,
+          onDescriptionChange: handleDescriptionChange,
+          onSliderChange: handleSliderChange,
+          onMeasuresChange: handleMeasuresChange,
+        }
+      });
+      
+      // Create edge to next node (if not last node)
+      if (index < steps.length - 1) {
+        edges.push({
+          id: `edge-${nodeId}-${index + 2}`,
+          source: nodeId,
+          target: `${index + 2}`,
+          style: { stroke: '#3b82f6', strokeWidth: 2 },
+          markerEnd: {
+            type: 'ArrowClosed' as any,
+            color: '#3b82f6',
+          },
+        });
+      }
+    });
+    
+    return { nodes, edges };
+  };
+
+  const loadExperimentForModification = async (experimentId: string) => {
+    setIsLoadingExperiment(true);
+    try {
+      const { data, error } = await supabase
+        .from("experiments")
+        .select("*")
+        .eq("experiment_id", experimentId)
+        .single();
+
+      if (error) {
+        console.error("Error fetching experiment:", error);
+        alert("Error loading experiment for modification");
+        return;
+      }
+
+      const experimentData = data.experiment_data;
+      
+      // Prepopulate form fields
+      setProcessTitle(experimentData.title || "");
+      setSelectedSample(experimentData.sample?.id || "");
+      
+      // Convert steps to flow nodes and edges
+      if (experimentData.steps && experimentData.steps.length > 0) {
+        const { nodes, edges } = convertStepsToFlow(experimentData.steps);
+        
+        // Update the React Flow
+        if (reactFlowRef.current) {
+          reactFlowRef.current.setNodesAndEdges(nodes, edges);
+        }
+        
+        setFlowNodes(nodes);
+        setFlowEdges(edges);
+      }
+      
+    } catch (error) {
+      console.error("Error loading experiment:", error);
+      alert("Error loading experiment for modification");
+    } finally {
+      setIsLoadingExperiment(false);
+    }
+  };
+
   useEffect(() => {
     if (user && isAuthenticated) {
       getUserData(user.user_id);
@@ -415,6 +550,58 @@ export default function SimulationPage() {
       getSamples(user.user_id);
     }
   }, [user, isAuthenticated]);
+
+  // Load process title from localStorage on mount (only if not in modify mode)
+  useEffect(() => {
+    if (!modifyExperimentId) {
+      const savedTitle = localStorage.getItem('simulation-title');
+      if (savedTitle) {
+        setProcessTitle(savedTitle);
+      }
+    }
+  }, [modifyExperimentId]);
+
+  // Save process title to localStorage whenever it changes
+  useEffect(() => {
+    if (processTitle) {
+      localStorage.setItem('simulation-title', processTitle);
+    } else {
+      localStorage.removeItem('simulation-title');
+    }
+  }, [processTitle]);
+
+  // Load selected sample from localStorage on mount (only if not in modify mode)
+  useEffect(() => {
+    if (!modifyExperimentId && samples.length > 0) {
+      const savedSample = localStorage.getItem('simulation-sample');
+      if (savedSample) {
+        // Verify the saved sample still exists in the samples list
+        const sampleExists = samples.some(sample => sample.id === savedSample);
+        if (sampleExists) {
+          setSelectedSample(savedSample);
+        } else {
+          // Remove invalid sample from localStorage
+          localStorage.removeItem('simulation-sample');
+        }
+      }
+    }
+  }, [modifyExperimentId, samples.length]);
+
+  // Save selected sample to localStorage whenever it changes
+  useEffect(() => {
+    if (selectedSample) {
+      localStorage.setItem('simulation-sample', selectedSample);
+    } else {
+      localStorage.removeItem('simulation-sample');
+    }
+  }, [selectedSample]);
+
+  // Load experiment data when in modify mode
+  useEffect(() => {
+    if (modifyExperimentId && user && isAuthenticated && samples.length > 0 && measures.length > 0 && !isLoadingExperiment) {
+      loadExperimentForModification(modifyExperimentId);
+    }
+  }, [modifyExperimentId, user, isAuthenticated, samples.length, measures.length]);
 
   if (isLoading) {
     return <AuthLoading message="Loading simulation..." />;
@@ -644,5 +831,13 @@ export default function SimulationPage() {
         )}
       </div>
     </AppLayout>
+  );
+}
+
+export default function SimulationPage() {
+  return (
+    <Suspense fallback={<AuthLoading message="Loading simulation..." />}>
+      <SimulationPageContent />
+    </Suspense>
   );
 }

@@ -13,6 +13,31 @@ import random
 from .personas import personas
 
 
+def persona_dict_to_string(persona):
+    """
+    Convert a persona dictionary to a readable string format.
+    
+    Args:
+        persona (dict or str): The persona data to convert
+    
+    Returns:
+        str: A formatted string representation of the persona
+    
+    Example:
+        Input: {'Age': '42', 'Nationality (UK)': 'Northern Ireland', 'First Language': 'Somali'}
+        Output: "a person with Age: 42, Nationality (UK): Northern Ireland, First Language: Somali"
+    """
+    if isinstance(persona, str):
+        return persona
+    
+    if isinstance(persona, dict):
+        # Create a readable string from the dictionary
+        attributes = ", ".join([f"{key}: {value}" for key, value in persona.items()])
+        return f"a person with {attributes}"
+    
+    return str(persona)
+
+
 class BaseClass(typing.TypedDict, total=False):
     """
     TypedDict class defining the structure of the AI model's response.
@@ -35,13 +60,16 @@ def process_row_with_chat(row_idx, df, prompt, key_g, system_prompt, persona):
         prompt (list): List containing prompt configuration and steps
         key_g (str): Google AI API key
         system_prompt (str): System-level instructions for the AI model
-        persona (str): The persona to use for this row
+        persona (dict or str): The persona to use for this row (can be dict or string)
     
     Returns:
         tuple: (row_data, tokens_dict) where:
             - row_data (dict): Processed response data for the row
             - tokens_dict (dict): Token usage statistics
     """
+    # Convert persona to string if it's a dictionary
+    persona_str = persona_dict_to_string(persona)
+    
     # Initialize row data based on whether seed column exists
     if "seed" in df.columns:
         row_data = {'seed': df.iloc[row_idx]['seed']}
@@ -76,7 +104,7 @@ def process_row_with_chat(row_idx, df, prompt, key_g, system_prompt, persona):
 
             # Handle first column differently (initial prompt)
             if col_idx == 0:
-                llm_prompt = f"""You are {persona}, participating in a psychology study on cognitive processes. 
+                llm_prompt = f"""You are {persona_str}, participating in a psychology study on cognitive processes. 
                 Your task is to generate concise and structured responses for a step in the process, which is based on instructions from a researcher and may build on previous steps and responses.
                 Use judgement that is highly critical, focusing on direct and well-established semantic links, and disregard superficial or weak connections.
                 Please respond with ONLY the response and absolutely no additional text or explanation. Do not use any newline characters or separate your answer with new lines.
@@ -132,7 +160,7 @@ def process_row_with_chat(row_idx, df, prompt, key_g, system_prompt, persona):
             print(f"Warning: No matching step found for column {col_name}")
             row_data[col_name] = "No matching instructions found"
     
-    # Add persona information to the row data
+    # Add persona information to the row data (store the original persona, not the string version)
     row_data['persona'] = persona
 
     return row_data, tokens_dict
@@ -145,7 +173,7 @@ def baseline_prompt(prompt, key_g, sample=None):
     Args:
         prompt (list): List containing prompt configuration including seed, steps, and iterations
         key_g (str): Google AI API key
-        sample (dict): Sample data containing persona information
+        sample (dict): Sample data containing persona array (list of 10 persona dicts)
     
     Returns:
         tuple: (final_df, tokens_ls) where:
@@ -161,11 +189,19 @@ def baseline_prompt(prompt, key_g, sample=None):
     seed = prompt['seed']
     iterations = prompt['iters']
 
-    # Use the sample's persona for all iterations
-    sample_persona = sample.get('persona', '') if sample else ''
-
-    # Use the same persona for all iterations
-    selected_personas = [sample_persona] * iterations
+    # Get the persona array from the sample (should be a list of 10 persona dicts)
+    sample_persona_array = sample.get('persona', []) if sample else []
+    
+    # If persona is not an array or is empty, create default personas
+    if not isinstance(sample_persona_array, list) or len(sample_persona_array) == 0:
+        sample_persona_array = [{}] * iterations
+    
+    # Ensure we have enough personas for the iterations (should always be 10)
+    selected_personas = sample_persona_array[:iterations]
+    
+    # If we don't have enough personas, repeat the last one or use empty dict
+    while len(selected_personas) < iterations:
+        selected_personas.append(sample_persona_array[-1] if sample_persona_array else {})
 
     # Extract labels from the steps array
     steps = prompt['steps']

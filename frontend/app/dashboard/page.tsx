@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Play, Trash2 } from "lucide-react";
 import { createPortal } from "react-dom";
 import { supabase } from "../utils/supabase";
@@ -54,6 +55,7 @@ interface UserData {
 
 
 export default function DashboardHistory() {
+  const router = useRouter();
   const { user, isLoading, isAuthenticated } = useAuth();
   const [history, setHistory] = useState<SimulationHistoryItem[]>([]);
   const [userData, setUserData] = useState<UserData | null>(null);
@@ -62,6 +64,9 @@ export default function DashboardHistory() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
   const [contentLoaded, setContentLoaded] = useState(false);
+  const [showRenameModal, setShowRenameModal] = useState(false);
+  const [projectToRename, setProjectToRename] = useState<{ id: string; name: string } | null>(null);
+  const [newName, setNewName] = useState("");
 
   const getHistory = async (userId: string) => {
     const { data, error } = await supabase.from("dashboard").select("created_at, name, url").eq("user_id", userId);
@@ -103,7 +108,6 @@ export default function DashboardHistory() {
 
       const formattedProjects: Project[] = data.map((experiment: any, index: number) => {
         const experimentData = experiment.experiment_data || {};
-        console.log(experiment.experiment_id)
         return {
           name: experimentData.title || experiment.simulation_name || `Simulation ${index + 1}`,
           sample_name: experiment.sample_name || experiment.description || "No seed",
@@ -161,43 +165,71 @@ export default function DashboardHistory() {
     }
   };
 
-  const handleRename = async (projectId: string, newName: string) => {
+  const handleStartRename = (projectId: string, currentName: string) => {
+    setProjectToRename({ id: projectId, name: currentName });
+    setNewName(currentName);
+    setShowRenameModal(true);
+  };
+
+  const handleSaveRename = async () => {
+    if (!projectToRename || !newName.trim()) {
+      return;
+    }
+
     try {
       const { data, error } = await supabase
         .from("experiments")
         .select("experiment_data")
-        .eq("experiment_id", projectId)
+        .eq("experiment_id", projectToRename.id)
         .single();
 
       if (error) {
         console.error("Error fetching experiment:", error);
-        return false;
+        alert("Error renaming project. Please try again.");
+        return;
       }
 
       const updatedExperimentData = {
         ...data.experiment_data,
-        title: newName
+        title: newName.trim()
       };
 
       const { error: updateError } = await supabase
         .from("experiments")
         .update({ experiment_data: updatedExperimentData })
-        .eq("experiment_id", projectId);
+        .eq("experiment_id", projectToRename.id);
 
       if (updateError) {
         console.error("Error updating experiment:", updateError);
-        return false;
+        alert("Error renaming project. Please try again.");
+        return;
       }
 
       // Refresh projects after successful update
       if (user) {
         await getProjects(user.user_id);
       }
-      return true;
+      
+      // Close modal
+      setShowRenameModal(false);
+      setProjectToRename(null);
+      setNewName("");
     } catch (error) {
       console.error("Error in rename operation:", error);
-      return false;
+      alert("Error renaming project. Please try again.");
     }
+  };
+
+  const handleCancelRename = () => {
+    setShowRenameModal(false);
+    setProjectToRename(null);
+    setNewName("");
+  };
+
+  const handleModify = async (projectId: string) => {
+    // Redirect to simulation page with the experiment ID
+    router.push(`/simulation?modify=${projectId}`);
+    return true;
   };
 
   const handleDelete = async (projectId: string) => {
@@ -276,7 +308,7 @@ export default function DashboardHistory() {
       </SubHeader>
 
       {/* Content */}
-      <div className="flex-1 p-8 bg-gray-100">
+      <div className="flex-1 p-8 bg-gray-100 overflow-y-auto">
         {loadingProjects ? (
           <div className="flex items-center justify-center h-64">
             <div className="flex items-center gap-3 text-gray-500">
@@ -289,12 +321,60 @@ export default function DashboardHistory() {
             <ProjectsTable 
               projects={projects}
               onDownload={handleDownload}
-              onRename={handleRename}
+              onRename={handleStartRename}
+              onModify={handleModify}
               onDelete={handleDelete}
             />
           </div>
         )}
       </div>
+
+      {/* Rename Modal */}
+      {showRenameModal && createPortal(
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[99999]">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Rename Simulation</h3>
+            <div className="mb-6">
+              <label htmlFor="new-name" className="block text-sm font-medium text-gray-700 mb-2">
+                New Name
+              </label>
+              <input
+                id="new-name"
+                type="text"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleSaveRename();
+                  } else if (e.key === 'Escape') {
+                    handleCancelRename();
+                  }
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Enter simulation name"
+                autoFocus
+              />
+            </div>
+            <div className="flex gap-3 justify-end">
+              <Button
+                onClick={handleCancelRename}
+                variant="outline"
+                className="px-4 py-2"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSaveRename}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white"
+                disabled={!newName.trim()}
+              >
+                Save
+              </Button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && createPortal(

@@ -34,17 +34,16 @@ interface Project {
 interface ProjectsTableProps {
   projects: Project[];
   onDownload: (url: string, filename: string) => void;
-  onRename: (projectId: string, newName: string) => Promise<boolean>;
+  onRename: (projectId: string, currentName: string) => void;
+  onModify?: (projectId: string) => Promise<boolean>;
   onDelete?: (projectId: string) => Promise<boolean>;
 }
 
-export default function ProjectsTable({ projects, onDownload, onRename, onDelete }: ProjectsTableProps) {
+export default function ProjectsTable({ projects, onDownload, onRename, onModify, onDelete }: ProjectsTableProps) {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [projectDropdowns, setProjectDropdowns] = useState<Set<string>>(new Set());
   const [sortConfig, setSortConfig] = useState<{key: string, direction: 'asc' | 'desc'} | null>(null);
   const [sortedProjects, setSortedProjects] = useState(projects);
-  const [editingProject, setEditingProject] = useState<string | null>(null);
-  const [editName, setEditName] = useState("");
 
   // Update sortedProjects when projects prop changes
   React.useEffect(() => {
@@ -94,51 +93,8 @@ export default function ProjectsTable({ projects, onDownload, onRename, onDelete
   };
 
   const handleStartRename = (projectId: string, currentName: string) => {
-    console.log('Starting rename for projectId:', projectId, 'name:', currentName);
-    setEditingProject(projectId);
-    setEditName(currentName);
-    setProjectDropdowns(new Set());
+    onRename(projectId, currentName);
   };
-
-  const handleSaveRename = async (projectId: string) => {
-    if (editName.trim() && projectId) {
-      const success = await onRename(projectId, editName.trim());
-      if (success) {
-        setEditingProject(null);
-        setEditName("");
-      }
-    }
-  };
-
-  const handleCancelRename = () => {
-    setEditingProject(null);
-    setEditName("");
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent, projectId: string) => {
-    if (e.key === 'Enter') {
-      handleSaveRename(projectId);
-    } else if (e.key === 'Escape') {
-      handleCancelRename();
-    }
-  };
-
-  // Close dropdowns when clicking outside
-  React.useEffect(() => {
-    const handleClickOutside = () => {
-      if (projectDropdowns.size > 0) {
-        setProjectDropdowns(new Set());
-      }
-    };
-
-    if (projectDropdowns.size > 0) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [projectDropdowns]);
 
   return (
     <div className="rounded-lg border border-gray-200" style={{ backgroundColor: 'hsl(0, 0%, 100%)' }}>
@@ -177,46 +133,28 @@ export default function ProjectsTable({ projects, onDownload, onRename, onDelete
                 <tr className="hover:bg-gray-50">
                   <td className="px-6 py-4">
                     <div className="flex items-center justify-between">
-                      {/* Debug: editingProject={editingProject}, index={index} */}
-                      {editingProject === project.id ? (
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 flex items-center justify-center">
-                            <ChevronDown className="w-4 h-4" />
-                          </div>
-                          <input
-                            type="text"
-                            value={editName}
-                            onChange={(e) => setEditName(e.target.value)}
-                            onKeyDown={(e) => handleKeyPress(e, project.id!)}
-                            onBlur={() => handleSaveRename(project.id!)}
-                            className="font-medium text-gray-900 bg-white border border-blue-500 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            autoFocus
-                          />
-                        </div>
-                      ) : (
-                        <button 
-                          onClick={() => toggleRowExpansion(project.id!)}
-                          className="flex items-center gap-2 text-left"
+                      <button 
+                        onClick={() => toggleRowExpansion(project.id!)}
+                        className="flex items-center gap-2 text-left"
+                      >
+                        <div 
+                          className={`w-8 h-8 flex items-center justify-center transition-transform ${expandedRows.has(project.id!) ? 'rotate-180' : ''}`}
+                          style={{
+                            borderRadius: 'calc(var(--radius) - 2px)'
+                          }}
                         >
-                          <div 
-                            className={`w-8 h-8 flex items-center justify-center transition-transform ${expandedRows.has(project.id!) ? 'rotate-180' : ''}`}
-                            style={{
-                              borderRadius: 'calc(var(--radius) - 2px)'
-                            }}
-                          >
-                            <ChevronDown className="w-4 h-4" />
-                          </div>
-                          <span className="font-medium text-gray-900">{project.name}</span>
-                        </button>
-                      )}
+                          <ChevronDown className="w-4 h-4" />
+                        </div>
+                        <span className="font-medium text-gray-900">{project.name}</span>
+                      </button>
                       
                       <ProjectDropdown
                         isOpen={projectDropdowns.has(project.id!)}
                         onToggle={() => toggleProjectDropdown(project.id!)}
                         position={index >= sortedProjects.length - 2 ? 'top' : 'bottom'}
                         onRename={() => handleStartRename(project.id!, project.name)}
-                        onReplicate={() => console.log('Replicate', project.name)}
-                        onModify={() => console.log('Modify', project.name)}
+                        onReplicate={() => {}}
+                        onModify={() => onModify?.(project.id!)}
                         onDelete={() => onDelete?.(project.id!)}
                       />
                     </div>

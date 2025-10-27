@@ -19,13 +19,12 @@ export default function Sidebar({ currentPage }: SidebarProps) {
   return (
     <div className="w-64 bg-gray-100 border-r border-gray-200 flex flex-col">
       {/* Logo */}
-      <div className="p-6">
+      <div className="bg-gray-100 border-b border-gray-200 px-8 py-7">
         <h1 className="text-2xl font-bold text-blue-600">CogSim</h1>
       </div>
       
       {/* Navigation */}
-      <nav className="flex-1 px-4">
-        <div className="border-t border-gray-300 pt-4 mb-4"></div>
+      <nav className="flex-1 px-4 pt-4">
         <div className="space-y-2">
           {navItems.map((item) => {
             const Icon = item.icon;

@@ -48,6 +48,7 @@ interface ReactFlowAppProps {
 
 export interface ReactFlowRef {
   clearFlow: () => void;
+  setNodesAndEdges: (newNodes: Node[], newEdges: Edge[]) => void;
 }
 
 const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlowDataChange, selectedColor = '#3b82f6', measures = [], loadingMeasures = false }, ref) => {
@@ -80,7 +81,7 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
     loadFlowFromStorage()
   }, [])
 
-  // Expose clear function to parent component
+  // Expose clear function and setNodesAndEdges to parent component
   useImperativeHandle(ref, () => ({
     clearFlow: () => {
       setNodes([])
@@ -88,6 +89,16 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
       setSelectedNodeId(null)
       setViewport({ x: 0, y: 0, zoom: 1 })
       localStorage.removeItem(flowKey)
+    },
+    setNodesAndEdges: (newNodes: Node[], newEdges: Edge[]) => {
+      setNodes(newNodes)
+      setEdges(newEdges)
+      // Auto-fit the view to show all nodes
+      setTimeout(() => {
+        if (reactFlowInstance.current) {
+          reactFlowInstance.current.fitView({ padding: 0.2 })
+        }
+      }, 50)
     }
   }), [setNodes, setEdges, setViewport])
 
