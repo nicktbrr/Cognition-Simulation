@@ -19,6 +19,7 @@ from utils.prompts import *
 from utils.evaluate import *
 import threading
 import uuid
+import random
 
 
 # Load environment variables from .env file
@@ -76,6 +77,57 @@ key_g = os.environ.get('GEMINI_KEY')
 genai.configure(api_key=key_g)
 
 
+def generate_random_samples(attributes, num_samples=10):
+    """
+    Generate random samples from the attributes list.
+    
+    Args:
+        attributes: List of dictionaries, each containing 'label', 'category', and 'values'
+        num_samples: Number of samples to generate (default: 10)
+    
+    Returns:
+        List of sample dictionaries, each containing randomly selected values for each attribute
+    
+    Example input:
+        [
+            {'label': 'Age', 'category': 'demographics', 'values': ['18', '29']},
+            {'label': 'Nationality (UK)', 'category': 'demographics', 'values': ['England']},
+            {'label': 'Gender', 'category': 'demographics', 'values': ['Man (including Trans Male/Trans Man)']}
+        ]
+    
+    Example output:
+        [
+            {
+                'Age': '18',
+                'Nationality (UK)': 'England',
+                'Gender': 'Man (including Trans Male/Trans Man)'
+            },
+            {
+                'Age': '29',
+                'Nationality (UK)': 'England',
+                'Gender': 'Man (including Trans Male/Trans Man)'
+            },
+            ...
+        ]
+    """
+    samples = []
+    
+    for _ in range(num_samples):
+        sample = {}
+        for attribute in attributes:
+            label = attribute.get('label')
+            values = attribute.get('values', [])
+            
+            # Randomly select one value from the available values
+            if values:
+                selected_value = random.choice(values)
+                sample[label] = selected_value
+        
+        samples.append(sample)
+    
+    return samples
+
+
 def run_evaluation(uuid, data, key_g, jwt=None):
     fn = None  # Initialize fn variable for cleanup
     try:
@@ -87,19 +139,37 @@ def run_evaluation(uuid, data, key_g, jwt=None):
         }).eq("experiment_id", uuid).execute()
 
         # Check and generate persona for sample with 'NA' persona
-        sample = data.get('sample')
-        if sample and sample.get('persona', '').upper() == 'NA':
-            print("Sample has NA persona, generating new persona...")
-            from utils.evaluate import generate_persona_from_attributes
-            generated_persona = generate_persona_from_attributes(sample, key_g, supabase)
-            if generated_persona:
-                print(f"Generated persona: {generated_persona}")
-                # Update the sample in the data with the new persona
-                sample['persona'] = generated_persona
-                data['sample'] = sample
+        # sample = data.get('sample')
+        # if sample and sample.get('persona', '').upper() == 'NA':
+        #     print("Sample has NA persona, generating new persona...")
+        #     from utils.evaluate import generate_persona_from_attributes
+        #     generated_persona = generate_persona_from_attributes(sample, key_g, supabase)
+        #     if generated_persona:
+        #         print(f"Generated persona: {generated_persona}")
+        #         # Update the sample in the data with the new persona
+        #         sample['persona'] = generated_persona
+        #         data['sample'] = sample
+
+        # Extract attributes from the sample
+        attributes = data.get('sample')['attributes']
+        
+        # Generate 10 random samples from the attributes
+        random_samples = generate_random_samples(attributes, num_samples=10)
+
+        if supabase and random_samples:
+            try:
+                supabase.table("samples").update({
+                    "persona": random_samples
+                }).eq("id", data.get('sample')['id']).execute()
+                print(f"Updated personas for sample {data.get('sample')['id']}")
+            except Exception as e:
+                print(f"Error updating personas in database: {e}")
 
         # Generate baseline prompt and get token usage
         sample = data.get('sample')
+        # Add the generated personas to the sample object
+        sample['persona'] = random_samples
+
         df, prompt_tokens = baseline_prompt(data, key_g, sample)
 
         # Update progress to 30% - Baseline prompt generated
