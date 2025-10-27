@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { Save, Download, RotateCcw, RotateCw, HelpCircle, Sparkles, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "../utils/supabase";
@@ -44,6 +45,8 @@ interface Measure {
 }
 
 export default function SimulationPage() {
+  const searchParams = useSearchParams();
+  const modifyExperimentId = searchParams.get('modify');
   const { user, isLoading, isAuthenticated } = useAuth();
   const [userData, setUserData] = useState<UserData | null>(null);
   const [processDescription, setProcessDescription] = useState("");
@@ -57,6 +60,7 @@ export default function SimulationPage() {
   const [samples, setSamples] = useState<Sample[]>([]);
   const [loadingSamples, setLoadingSamples] = useState(false);
   const [contentLoaded, setContentLoaded] = useState(false);
+  const [isLoadingExperiment, setIsLoadingExperiment] = useState(false);
   const reactFlowRef = useRef<ReactFlowRef>(null);
 
   const getUserData = async (userId: string) => {
@@ -408,6 +412,147 @@ export default function SimulationPage() {
     return samples.find(sample => sample.id === selectedSample);
   };
 
+  const handleNodeDelete = useCallback((nodeId: string) => {
+    setFlowNodes((nds: Node[]) => nds.filter((node: Node) => node.id !== nodeId));
+    setFlowEdges((eds: Edge[]) => eds.filter((edge: Edge) => edge.source !== nodeId && edge.target !== nodeId));
+  }, []);
+
+  const handleTitleChange = useCallback((nodeId: string, title: string) => {
+    setFlowNodes((nds: Node[]) =>
+      nds.map((node: Node) =>
+        node.id === nodeId ? { ...node, data: { ...node.data, title } } : node
+      )
+    );
+  }, []);
+
+  const handleDescriptionChange = useCallback((nodeId: string, description: string) => {
+    setFlowNodes((nds: Node[]) =>
+      nds.map((node: Node) =>
+        node.id === nodeId ? { ...node, data: { ...node.data, description } } : node
+      )
+    );
+  }, []);
+
+  const handleSliderChange = useCallback((nodeId: string, value: number) => {
+    setFlowNodes((nds: Node[]) =>
+      nds.map((node: Node) =>
+        node.id === nodeId ? { ...node, data: { ...node.data, sliderValue: value } } : node
+      )
+    );
+  }, []);
+
+  const handleMeasuresChange = useCallback((nodeId: string, selectedMeasures: string[]) => {
+    setFlowNodes((nds: Node[]) =>
+      nds.map((node: Node) =>
+        node.id === nodeId ? { ...node, data: { ...node.data, selectedMeasures } } : node
+      )
+    );
+  }, []);
+
+  const convertStepsToFlow = (steps: any[]): { nodes: Node[], edges: Edge[] } => {
+    const nodes: Node[] = [];
+    const edges: Edge[] = [];
+    
+    const nodeSpacing = 400; // Horizontal spacing between nodes
+    const startY = 200; // Y position for all nodes
+    const startX = 100; // Starting X position
+    
+    steps.forEach((step, index) => {
+      const nodeId = `${index + 1}`;
+      
+      // Create node with all required callbacks
+      nodes.push({
+        id: nodeId,
+        type: 'custom',
+        position: { x: startX + (index * nodeSpacing), y: startY },
+        data: {
+          title: step.label || '',
+          description: step.instructions || '',
+          sliderValue: (step.temperature || 0.5) * 100,
+          numDescriptionsChars: 500,
+          selectedMeasures: step.measures?.map((m: any) => m.id) || [],
+          measures: measures,
+          loadingMeasures: loadingMeasures,
+          onDelete: handleNodeDelete,
+          onTitleChange: handleTitleChange,
+          onDescriptionChange: handleDescriptionChange,
+          onSliderChange: handleSliderChange,
+          onMeasuresChange: handleMeasuresChange,
+        }
+      });
+      
+      // Create edge to next node (if not last node)
+      if (index < steps.length - 1) {
+        edges.push({
+          id: `edge-${nodeId}-${index + 2}`,
+          source: nodeId,
+          target: `${index + 2}`,
+          style: { stroke: '#3b82f6', strokeWidth: 2 },
+          markerEnd: {
+            type: 'ArrowClosed' as any,
+            color: '#3b82f6',
+          },
+        });
+      }
+    });
+    
+    return { nodes, edges };
+  };
+
+  const loadExperimentForModification = async (experimentId: string) => {
+    console.log('[MODIFY] Starting to load experiment:', experimentId);
+    setIsLoadingExperiment(true);
+    try {
+      const { data, error } = await supabase
+        .from("experiments")
+        .select("*")
+        .eq("experiment_id", experimentId)
+        .single();
+
+      if (error) {
+        console.error("[MODIFY] Error fetching experiment:", error);
+        alert("Error loading experiment for modification");
+        return;
+      }
+
+      console.log('[MODIFY] Experiment data loaded:', data);
+      const experimentData = data.experiment_data;
+      
+      // Prepopulate form fields
+      setProcessTitle(experimentData.title || "");
+      setSelectedSample(experimentData.sample?.id || "");
+      console.log('[MODIFY] Set title and sample:', experimentData.title, experimentData.sample?.id);
+      
+      // Convert steps to flow nodes and edges
+      if (experimentData.steps && experimentData.steps.length > 0) {
+        console.log('[MODIFY] Converting steps to flow:', experimentData.steps.length, 'steps');
+        const { nodes, edges } = convertStepsToFlow(experimentData.steps);
+        console.log('[MODIFY] Created nodes:', nodes);
+        console.log('[MODIFY] Created edges:', edges);
+        
+        // Update the React Flow
+        if (reactFlowRef.current) {
+          console.log('[MODIFY] Setting nodes and edges in React Flow');
+          reactFlowRef.current.setNodesAndEdges(nodes, edges);
+        } else {
+          console.warn('[MODIFY] reactFlowRef.current is null!');
+        }
+        
+        setFlowNodes(nodes);
+        setFlowEdges(edges);
+        console.log('[MODIFY] Flow updated successfully');
+      } else {
+        console.warn('[MODIFY] No steps found in experiment data');
+      }
+      
+    } catch (error) {
+      console.error("[MODIFY] Error loading experiment:", error);
+      alert("Error loading experiment for modification");
+    } finally {
+      setIsLoadingExperiment(false);
+    }
+  };
+
   useEffect(() => {
     if (user && isAuthenticated) {
       getUserData(user.user_id);
@@ -415,6 +560,24 @@ export default function SimulationPage() {
       getSamples(user.user_id);
     }
   }, [user, isAuthenticated]);
+
+  // Load experiment data when in modify mode
+  useEffect(() => {
+    console.log('[MODIFY EFFECT] Checking conditions:', {
+      modifyExperimentId,
+      hasUser: !!user,
+      isAuthenticated,
+      samplesLength: samples.length,
+      measuresLength: measures.length,
+      isLoadingExperiment
+    });
+    
+    if (modifyExperimentId && user && isAuthenticated && samples.length > 0 && measures.length > 0 && !isLoadingExperiment) {
+      // Only load once
+      console.log('[MODIFY EFFECT] All conditions met, loading experiment');
+      loadExperimentForModification(modifyExperimentId);
+    }
+  }, [modifyExperimentId, user, isAuthenticated, samples.length, measures.length]);
 
   if (isLoading) {
     return <AuthLoading message="Loading simulation..." />;

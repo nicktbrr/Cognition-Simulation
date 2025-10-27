@@ -102,9 +102,15 @@ export default function ProjectDropdown({
           <div className="py-1">
             <button 
               onClick={(e) => {
+                console.log('Rename button clicked!');
+                e.preventDefault();
                 e.stopPropagation();
-                console.log('Rename button clicked in dropdown');
                 onRename?.();
+                onToggle(); // Close the dropdown
+              }}
+              onMouseDown={(e) => {
+                console.log('Rename button mousedown!');
+                e.stopPropagation();
               }}
               className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
             >
@@ -119,7 +125,17 @@ export default function ProjectDropdown({
               Replicate
             </button>
             <button 
-              onClick={onModify}
+              onClick={(e) => {
+                console.log('Modify button clicked!');
+                e.preventDefault();
+                e.stopPropagation();
+                onModify?.();
+                onToggle(); // Close the dropdown
+              }}
+              onMouseDown={(e) => {
+                console.log('Modify button mousedown!');
+                e.stopPropagation();
+              }}
               className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
             >
               <Edit className="h-4 w-4" />
