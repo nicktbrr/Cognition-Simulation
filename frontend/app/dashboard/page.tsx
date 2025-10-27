@@ -276,7 +276,7 @@ export default function DashboardHistory() {
       </SubHeader>
 
       {/* Content */}
-      <div className="flex-1 p-8 bg-gray-100">
+      <div className="flex-1 p-8 bg-gray-100 overflow-y-auto">
         {loadingProjects ? (
           <div className="flex items-center justify-center h-64">
             <div className="flex items-center gap-3 text-gray-500">
