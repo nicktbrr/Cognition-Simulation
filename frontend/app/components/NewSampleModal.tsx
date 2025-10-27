@@ -97,6 +97,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave }: NewSampleMod
   const [tempSelectedOptions, setTempSelectedOptions] = useState<string[]>([]);
   const [ageRange, setAgeRange] = useState({ min: 18, max: 82 });
   const [tempAgeRange, setTempAgeRange] = useState({ min: 18, max: 82 });
+  const [tempAgeInput, setTempAgeInput] = useState({ min: '18', max: '82' });
   const [panelPosition, setPanelPosition] = useState<{ top: number; left: number } | null>(null);
   const [categoryExpanded, setCategoryExpanded] = useState<{ [key: string]: boolean }>({
     "Demographics": true,
@@ -147,8 +148,10 @@ export default function NewSampleModal({ isOpen, onClose, onSave }: NewSampleMod
         const minAge = Math.min(parseInt(existingSelection.selectedOptions[0]), parseInt(existingSelection.selectedOptions[1]));
         const maxAge = Math.max(parseInt(existingSelection.selectedOptions[0]), parseInt(existingSelection.selectedOptions[1]));
         setTempAgeRange({ min: minAge, max: maxAge });
+        setTempAgeInput({ min: minAge.toString(), max: maxAge.toString() });
       } else {
         setTempAgeRange({ min: 18, max: 82 });
+        setTempAgeInput({ min: '18', max: '82' });
       }
     } else if (attribute.options) {
       // If attribute has options, open the detail panel
@@ -213,6 +216,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave }: NewSampleMod
         // Close panel
         setActiveAttributePanel(null);
         setTempAgeRange({ min: 18, max: 82 });
+        setTempAgeInput({ min: '18', max: '82' });
       } else if (tempSelectedOptions.length > 0) {
         // Handle regular options selection
         const newSelection: AttributeSelection = {
@@ -241,6 +245,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave }: NewSampleMod
     setActiveAttributePanel(null);
     setTempSelectedOptions([]);
     setTempAgeRange({ min: 18, max: 82 });
+    setTempAgeInput({ min: '18', max: '82' });
     setPanelPosition(null);
   };
 
@@ -257,6 +262,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave }: NewSampleMod
     setActiveAttributePanel(null);
     setTempSelectedOptions([]);
     setTempAgeRange({ min: 18, max: 82 });
+    setTempAgeInput({ min: '18', max: '82' });
     setPanelPosition(null);
     onClose();
   };
@@ -480,17 +486,23 @@ export default function NewSampleModal({ isOpen, onClose, onSave }: NewSampleMod
                         Minimum Age
                       </label>
                       <input
-                        type="number"
-                        min="18"
-                        max="82"
-                        value={tempAgeRange.min}
+                        type="text"
+                        placeholder="18"
+                        value={tempAgeInput.min}
                         onChange={(e) => {
-                          const value = Math.max(18, Math.min(82, parseInt(e.target.value) || 18));
-                          setTempAgeRange(prev => ({ 
-                            ...prev, 
-                            min: value,
-                            max: Math.max(value, prev.max)
-                          }));
+                          const inputValue = e.target.value;
+                          setTempAgeInput(prev => ({ ...prev, min: inputValue }));
+                          
+                          // Update the numeric range for validation
+                          const numValue = parseInt(inputValue);
+                          if (!isNaN(numValue)) {
+                            const validValue = Math.max(18, Math.min(82, numValue));
+                            setTempAgeRange(prev => ({ 
+                              ...prev, 
+                              min: validValue,
+                              max: Math.max(validValue, prev.max)
+                            }));
+                          }
                         }}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
@@ -500,17 +512,23 @@ export default function NewSampleModal({ isOpen, onClose, onSave }: NewSampleMod
                         Maximum Age
                       </label>
                       <input
-                        type="number"
-                        min="18"
-                        max="82"
-                        value={tempAgeRange.max}
+                        type="text"
+                        placeholder="82"
+                        value={tempAgeInput.max}
                         onChange={(e) => {
-                          const value = Math.max(18, Math.min(82, parseInt(e.target.value) || 82));
-                          setTempAgeRange(prev => ({ 
-                            ...prev, 
-                            max: value,
-                            min: Math.min(value, prev.min)
-                          }));
+                          const inputValue = e.target.value;
+                          setTempAgeInput(prev => ({ ...prev, max: inputValue }));
+                          
+                          // Update the numeric range for validation
+                          const numValue = parseInt(inputValue);
+                          if (!isNaN(numValue)) {
+                            const validValue = Math.max(18, Math.min(82, numValue));
+                            setTempAgeRange(prev => ({ 
+                              ...prev, 
+                              max: validValue,
+                              min: Math.min(validValue, prev.min)
+                            }));
+                          }
                         }}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
