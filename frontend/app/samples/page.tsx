@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronRight, Plus, Users } from "lucide-react";
+import { ChevronRight, Plus, Users, MoreHorizontal, Trash2, Edit2 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { supabase } from "../utils/supabase";
 import { useAuth } from "../hooks/useAuth";
@@ -56,6 +56,9 @@ export default function SamplesPage() {
   const [samples, setSamples] = useState<Sample[]>([]);
   const [isNewSampleModalOpen, setIsNewSampleModalOpen] = useState(false);
   const [isLoadingSamples, setIsLoadingSamples] = useState(false);
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const [renamingSample, setRenamingSample] = useState<string | null>(null);
+  const [newSampleName, setNewSampleName] = useState('');
 
   const getUserData = async (userId: string) => {
     const { data, error } = await supabase
@@ -161,6 +164,20 @@ export default function SamplesPage() {
     }
   }, [user, isAuthenticated]);
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => {
+      setOpenDropdown(null);
+    };
+
+    if (openDropdown) {
+      document.addEventListener('click', handleClickOutside);
+      return () => {
+        document.removeEventListener('click', handleClickOutside);
+      };
+    }
+  }, [openDropdown]);
+
   const loadSamples = async (userId: string) => {
     setIsLoadingSamples(true);
     try {
@@ -181,6 +198,81 @@ export default function SamplesPage() {
     ));
   };
 
+  const handleDeleteSample = async (sampleId: string) => {
+    if (!confirm('Are you sure you want to delete this sample? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('samples')
+        .delete()
+        .eq('id', sampleId);
+
+      if (error) {
+        console.error('Error deleting sample:', error);
+        alert('Failed to delete sample. Please try again.');
+        return;
+      }
+
+      // Remove the sample from the local state
+      setSamples(prev => prev.filter(sample => sample.id !== sampleId));
+      setOpenDropdown(null); // Close the dropdown
+    } catch (error) {
+      console.error('Error deleting sample:', error);
+      alert('Failed to delete sample. Please try again.');
+    }
+  };
+
+  const toggleDropdown = (sampleId: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent row expansion when clicking dropdown
+    setOpenDropdown(openDropdown === sampleId ? null : sampleId);
+  };
+
+  const handleRenameSample = (sampleId: string) => {
+    const sample = samples.find(s => s.id === sampleId);
+    if (sample) {
+      setRenamingSample(sampleId);
+      setNewSampleName(sample.name);
+      setOpenDropdown(null);
+    }
+  };
+
+  const saveRename = async () => {
+    if (!renamingSample || !newSampleName.trim()) return;
+
+    try {
+      const { error } = await supabase
+        .from('samples')
+        .update({ name: newSampleName.trim() })
+        .eq('id', renamingSample);
+
+      if (error) {
+        console.error('Error renaming sample:', error);
+        alert('Failed to rename sample. Please try again.');
+        return;
+      }
+
+      // Update the local state
+      setSamples(prev => prev.map(sample => 
+        sample.id === renamingSample 
+          ? { ...sample, name: newSampleName.trim() }
+          : sample
+      ));
+
+      setRenamingSample(null);
+      setNewSampleName('');
+    } catch (error) {
+      console.error('Error renaming sample:', error);
+      alert('Failed to rename sample. Please try again.');
+    }
+  };
+
+  const cancelRename = () => {
+    setRenamingSample(null);
+    setNewSampleName('');
+  };
+
   const handleNewSample = async (selectedAttributes: Attribute[], attributeSelections: AttributeSelection[]) => {
     if (!user) return;
 
@@ -190,7 +282,18 @@ export default function SamplesPage() {
         // Find the selections for this attribute
         const selection = attributeSelections.find(sel => sel.attributeId === attr.id);
         
-        // Get the actual option labels from the selected option IDs
+        // Special handling for Age attribute
+        if (attr.id === 'age' && selection?.selectedOptions.length === 2) {
+          const minAge = Math.min(parseInt(selection.selectedOptions[0]), parseInt(selection.selectedOptions[1]));
+          const maxAge = Math.max(parseInt(selection.selectedOptions[0]), parseInt(selection.selectedOptions[1]));
+          return {
+            label: attr.label,
+            category: attr.category,
+            values: [`${minAge} - ${maxAge} years old`] // Single range value
+          };
+        }
+        
+        // Get the actual option labels from the selected option IDs for other attributes
         const selectedValues = selection?.selectedOptions.map(optionId => {
           const option = attr.options?.find(opt => opt.id === optionId);
           return option?.label || optionId; // Fallback to ID if option not found
@@ -268,8 +371,8 @@ export default function SamplesPage() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 bg-gray-50 p-8">
-        <div className="bg-white rounded-lg border border-gray-200">
+      <div className="flex-1 bg-gray-50 p-8 overflow-y-auto" style={{ minHeight: 0 }}>
+        <div className="bg-white rounded-lg border border-gray-200" style={{ overflow: 'visible' }}>
           {/* Samples Overview Header */}
           <div className="px-6 py-4 border-b border-gray-200">
             <h2 className="text-xl font-semibold text-[#6366f1]">Samples Overview</h2>
@@ -277,7 +380,7 @@ export default function SamplesPage() {
           </div>
 
           {/* Table */}
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto" style={{ overflowY: 'visible' }}>
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
@@ -322,13 +425,72 @@ export default function SamplesPage() {
                             <ChevronRight 
                               className={`w-4 h-4 text-gray-400 mr-2 transition-transform ${sample.expanded ? 'rotate-90' : ''}`} 
                             />
-                            <span className="text-sm font-medium text-gray-900">{sample.name}</span>
-                            <div className="ml-auto">
-                              <button className="text-gray-400 hover:text-gray-600">
-                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                                  <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-                                </svg>
+{renamingSample === sample.id ? (
+                              <div className="flex items-center space-x-2">
+                                <input
+                                  type="text"
+                                  value={newSampleName}
+                                  onChange={(e) => setNewSampleName(e.target.value)}
+                                  className="text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  autoFocus
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      saveRename();
+                                    } else if (e.key === 'Escape') {
+                                      cancelRename();
+                                    }
+                                  }}
+                                />
+                                <button
+                                  onClick={saveRename}
+                                  className="text-green-600 hover:text-green-800 text-xs"
+                                >
+                                  Save
+                                </button>
+                                <button
+                                  onClick={cancelRename}
+                                  className="text-gray-500 hover:text-gray-700 text-xs"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-sm font-medium text-gray-900">{sample.name}</span>
+                            )}
+                            <div className="ml-auto relative">
+                              <button 
+                                onClick={(e) => toggleDropdown(sample.id, e)}
+                                className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100"
+                              >
+                                <MoreHorizontal className="w-4 h-4" />
                               </button>
+                              
+                              {openDropdown === sample.id && (
+                                <div className="absolute right-0 top-8 w-36 bg-white rounded-md shadow-lg border border-gray-200 py-1"
+                                     style={{ zIndex: 1000 }}>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleRenameSample(sample.id);
+                                    }}
+                                    className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                                  >
+                                    <Edit2 className="w-4 h-4 mr-3" />
+                                    Rename
+                                  </button>
+                                  <hr className="my-1 border-gray-100" />
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteSample(sample.id);
+                                    }}
+                                    className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                                  >
+                                    <Trash2 className="w-4 h-4 mr-3" />
+                                    Delete
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </td>
@@ -343,20 +505,42 @@ export default function SamplesPage() {
                         <tr>
                           <td colSpan={3} className="px-6 py-4 bg-gray-50">
                             <div className="text-sm text-gray-600">
-                              <p className="font-medium text-[#6366f1] mb-3">Selected Attributes:</p>
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <p className="font-medium text-[#6366f1] mb-4">Selected Attributes:</p>
+                              <div className="grid grid-cols-3 gap-4">
                                 {sample.attributeCategories?.map((category, categoryIndex) => (
-                                  <div key={categoryIndex} className="bg-white rounded-lg border border-gray-200 p-4">
-                                    <h4 className="font-semibold text-gray-900 mb-2">{category.name}</h4>
-                                    <div className="text-[#6366f1] text-sm mb-2">{category.attributeType}</div>
-                                    <ul className="space-y-1">
-                                      {category.values.map((value, valueIndex) => (
-                                        <li key={valueIndex} className="text-gray-700 text-sm flex items-center">
-                                          <span className="w-1 h-1 bg-gray-400 rounded-full mr-2"></span>
-                                          {value}
-                                        </li>
-                                      ))}
-                                    </ul>
+                                  <div key={categoryIndex} className="p-4 bg-gray-50 border border-gray-200 rounded-lg shadow-sm">
+                                    <div className="flex items-start justify-between mb-3">
+                                      <div className="flex-1 min-w-0">
+                                        <div className="text-sm font-medium text-gray-900 mb-1">{category.name}</div>
+                                        <div className="text-base font-semibold text-blue-600 truncate">{category.attributeType}</div>
+                                      </div>
+                                    </div>
+                                    
+                                    {category.values.length > 0 && (
+                                      <div className="space-y-2">
+                                        {category.values.slice(0, 8).map((value, valueIndex) => (
+                                          <div
+                                            key={valueIndex}
+                                            className="flex items-center space-x-2 text-sm text-gray-900"
+                                          >
+                                            <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
+                                              <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                              </svg>
+                                            </div>
+                                            <span className="truncate">{value}</span>
+                                          </div>
+                                        ))}
+                                        {category.values.length > 8 && (
+                                          <div className="flex items-center space-x-2 text-sm text-gray-500">
+                                            <div className="w-4 h-4 flex items-center justify-center flex-shrink-0">
+                                              <span className="text-xs">...</span>
+                                            </div>
+                                            <span className="text-xs">+{category.values.length - 8} more</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
                                   </div>
                                 ))}
                               </div>

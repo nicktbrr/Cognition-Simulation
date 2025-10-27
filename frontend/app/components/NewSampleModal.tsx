@@ -95,6 +95,10 @@ export default function NewSampleModal({ isOpen, onClose, onSave }: NewSampleMod
   const [attributeSelections, setAttributeSelections] = useState<AttributeSelection[]>([]);
   const [activeAttributePanel, setActiveAttributePanel] = useState<Attribute | null>(null);
   const [tempSelectedOptions, setTempSelectedOptions] = useState<string[]>([]);
+  const [ageRange, setAgeRange] = useState({ min: 18, max: 82 });
+  const [tempAgeRange, setTempAgeRange] = useState({ min: 18, max: 82 });
+  const [tempAgeInput, setTempAgeInput] = useState({ min: '18', max: '82' });
+  const [panelPosition, setPanelPosition] = useState<{ top: number; left: number } | null>(null);
   const [categoryExpanded, setCategoryExpanded] = useState<{ [key: string]: boolean }>({
     "Demographics": true,
     "Health": false,
@@ -113,8 +117,43 @@ export default function NewSampleModal({ isOpen, onClose, onSave }: NewSampleMod
 
   if (!isOpen) return null;
 
-  const handleAttributeClick = (attribute: Attribute) => {
-    if (attribute.options) {
+  const handleAttributeClick = (attribute: Attribute, event: React.MouseEvent) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const panelWidth = 384; // 24rem (w-96)
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    
+    // Calculate initial position to the right of the clicked element
+    let left = rect.right + 8;
+    let top = rect.top + window.scrollY;
+    
+    // If panel would go off the right edge, position it to the left of the element
+    if (left + panelWidth > viewportWidth) {
+      left = rect.left - panelWidth - 8;
+    }
+    
+    // Ensure the panel doesn't go off the left edge
+    if (left < 8) {
+      left = 8;
+    }
+    
+    const position = { top, left };
+    setPanelPosition(position);
+
+    if (attribute.id === 'age') {
+      // Handle age attribute specially with range inputs
+      setActiveAttributePanel(attribute);
+      const existingSelection = attributeSelections.find(sel => sel.attributeId === attribute.id);
+      if (existingSelection && existingSelection.selectedOptions.length >= 2) {
+        const minAge = Math.min(parseInt(existingSelection.selectedOptions[0]), parseInt(existingSelection.selectedOptions[1]));
+        const maxAge = Math.max(parseInt(existingSelection.selectedOptions[0]), parseInt(existingSelection.selectedOptions[1]));
+        setTempAgeRange({ min: minAge, max: maxAge });
+        setTempAgeInput({ min: minAge.toString(), max: maxAge.toString() });
+      } else {
+        setTempAgeRange({ min: 18, max: 82 });
+        setTempAgeInput({ min: '18', max: '82' });
+      }
+    } else if (attribute.options) {
       // If attribute has options, open the detail panel
       setActiveAttributePanel(attribute);
       const existingSelection = attributeSelections.find(sel => sel.attributeId === attribute.id);
@@ -156,32 +195,58 @@ export default function NewSampleModal({ isOpen, onClose, onSave }: NewSampleMod
   };
 
   const handleAddToSelection = () => {
-    if (activeAttributePanel && tempSelectedOptions.length > 0) {
-      // Update attribute selections
-      const newSelection: AttributeSelection = {
-        attributeId: activeAttributePanel.id,
-        selectedOptions: tempSelectedOptions
-      };
+    if (activeAttributePanel) {
+      if (activeAttributePanel.id === 'age') {
+        // Handle age range selection
+        const newSelection: AttributeSelection = {
+          attributeId: activeAttributePanel.id,
+          selectedOptions: [tempAgeRange.min.toString(), tempAgeRange.max.toString()]
+        };
 
-      setAttributeSelections(prev => {
-        const filtered = prev.filter(sel => sel.attributeId !== activeAttributePanel.id);
-        return [...filtered, newSelection];
-      });
+        setAttributeSelections(prev => {
+          const filtered = prev.filter(sel => sel.attributeId !== activeAttributePanel.id);
+          return [...filtered, newSelection];
+        });
 
-      // Add to selected attributes if not already there
-      if (!selectedAttributes.some(attr => attr.id === activeAttributePanel.id)) {
-        setSelectedAttributes(prev => [...prev, activeAttributePanel]);
+        // Add to selected attributes if not already there
+        if (!selectedAttributes.some(attr => attr.id === activeAttributePanel.id)) {
+          setSelectedAttributes(prev => [...prev, activeAttributePanel]);
+        }
+
+        // Close panel
+        setActiveAttributePanel(null);
+        setTempAgeRange({ min: 18, max: 82 });
+        setTempAgeInput({ min: '18', max: '82' });
+      } else if (tempSelectedOptions.length > 0) {
+        // Handle regular options selection
+        const newSelection: AttributeSelection = {
+          attributeId: activeAttributePanel.id,
+          selectedOptions: tempSelectedOptions
+        };
+
+        setAttributeSelections(prev => {
+          const filtered = prev.filter(sel => sel.attributeId !== activeAttributePanel.id);
+          return [...filtered, newSelection];
+        });
+
+        // Add to selected attributes if not already there
+        if (!selectedAttributes.some(attr => attr.id === activeAttributePanel.id)) {
+          setSelectedAttributes(prev => [...prev, activeAttributePanel]);
+        }
+
+        // Close panel
+        setActiveAttributePanel(null);
+        setTempSelectedOptions([]);
       }
-
-      // Close panel
-      setActiveAttributePanel(null);
-      setTempSelectedOptions([]);
     }
   };
 
   const handleCloseAttributePanel = () => {
     setActiveAttributePanel(null);
     setTempSelectedOptions([]);
+    setTempAgeRange({ min: 18, max: 82 });
+    setTempAgeInput({ min: '18', max: '82' });
+    setPanelPosition(null);
   };
 
   const handleSave = () => {
@@ -196,13 +261,36 @@ export default function NewSampleModal({ isOpen, onClose, onSave }: NewSampleMod
     setAttributeSelections([]);
     setActiveAttributePanel(null);
     setTempSelectedOptions([]);
+    setTempAgeRange({ min: 18, max: 82 });
+    setTempAgeInput({ min: '18', max: '82' });
+    setPanelPosition(null);
     onClose();
+  };
+
+  const getSelectedOptionsForAttribute = (attributeId: string) => {
+    const selection = attributeSelections.find(sel => sel.attributeId === attributeId);
+    if (!selection) return [];
+    
+    if (attributeId === 'age') {
+      // For age, create a display format for the range
+      if (selection.selectedOptions.length >= 2) {
+        const minAge = Math.min(parseInt(selection.selectedOptions[0]), parseInt(selection.selectedOptions[1]));
+        const maxAge = Math.max(parseInt(selection.selectedOptions[0]), parseInt(selection.selectedOptions[1]));
+        return [{ id: 'age-range', label: `${minAge} - ${maxAge} years old` }];
+      }
+      return [];
+    }
+    
+    const attribute = selectedAttributes.find(attr => attr.id === attributeId);
+    if (!attribute || !attribute.options) return [];
+    
+    return attribute.options.filter(option => selection.selectedOptions.includes(option.id));
   };
 
   return (
     <>
       <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-end z-50">
-        <div className="bg-white w-full max-w-2xl h-screen flex flex-col shadow-2xl">
+        <div className="bg-white h-screen flex flex-col shadow-2xl" style={{width: 'calc(100% - 224px)'}}>
           {/* Header */}
           <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0">
             <div>
@@ -221,79 +309,126 @@ export default function NewSampleModal({ isOpen, onClose, onSave }: NewSampleMod
             <h3 className="text-lg font-semibold text-blue-600">Explore Attributes</h3>
           </div>
 
-          {/* Scrollable Categories */}
-          <div className="flex-1 overflow-y-auto" style={{ minHeight: 0 }}>
-            <div className="p-6">
-              {allCategories.map((category) => (
-                <div key={category.name} className="mb-6">
-                  <button
-                    onClick={() => toggleCategoryExpansion(category.name)}
-                    className="flex items-center justify-between w-full text-left font-medium text-blue-600 mb-3 hover:text-blue-800 transition-colors"
-                  >
-                    <span>{category.name}</span>
-                    {categoryExpanded[category.name] ? (
-                      <ChevronUp className="w-4 h-4" />
-                    ) : (
-                      <ChevronDown className="w-4 h-4" />
+          {/* Main Content Area - Split into two halves */}
+          <div className="flex-1 flex flex-col" style={{ minHeight: 0 }}>
+            {/* Top Half - Scrollable Categories */}
+            <div className="flex-1 overflow-y-auto border-b border-gray-200" style={{ minHeight: 0 }}>
+              <div className="p-6">
+                {allCategories.map((category) => (
+                  <div key={category.name} className="mb-6">
+                    <button
+                      onClick={() => toggleCategoryExpansion(category.name)}
+                      className="flex items-center justify-between w-full text-left font-medium text-blue-600 mb-3 hover:text-blue-800 transition-colors"
+                    >
+                      <span>{category.name}</span>
+                      {categoryExpanded[category.name] ? (
+                        <ChevronUp className="w-4 h-4" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4" />
+                      )}
+                    </button>
+                    {categoryExpanded[category.name] && (
+                      <div className="grid grid-cols-2 gap-2 ml-4">
+                        {category.attributes.map((attribute) => {
+                          const isSelected = selectedAttributes.some(attr => attr.id === attribute.id);
+                          return (
+                            <div
+                              key={attribute.id}
+                              onClick={(e) => handleAttributeClick(attribute, e)}
+                              className={`p-3 rounded border cursor-pointer transition-colors text-sm ${isSelected
+                                ? 'border-blue-500 bg-blue-50 text-blue-700'
+                                : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                                }`}
+                            >
+                              {attribute.label}
+                            </div>
+                          );
+                        })}
+                      </div>
                     )}
-                  </button>
-                  {categoryExpanded[category.name] && (
-                    <div className="grid grid-cols-2 gap-2 ml-4">
-                      {category.attributes.map((attribute) => {
-                        const isSelected = selectedAttributes.some(attr => attr.id === attribute.id);
-                        return (
-                          <div
-                            key={attribute.id}
-                            onClick={() => handleAttributeClick(attribute)}
-                            className={`p-3 rounded border cursor-pointer transition-colors text-sm ${isSelected
-                              ? 'border-blue-500 bg-blue-50 text-blue-700'
-                              : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                              }`}
-                          >
-                            {attribute.label}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              ))}
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
 
-          {/* Selected Attributes Footer */}
-          <div className="border-t border-gray-200 p-6 flex-shrink-0 bg-white">
+            {/* Bottom Half - Selected Attributes */}
+            <div className="flex-1 p-6 bg-white overflow-y-auto" style={{ minHeight: 0 }}>
             <h3 className="text-lg font-semibold text-blue-600 mb-4">Selected Attributes</h3>
             {selectedAttributes.length === 0 ? (
               <div className="text-center text-gray-500 py-4">
                 <p className="text-sm">No attributes selected. Click attributes above to add them here.</p>
               </div>
             ) : (
-              <div className="max-h-40 overflow-y-auto mb-4">
-                <div className="space-y-2">
-                  {selectedAttributes.map((attribute) => (
-                    <div
-                      key={attribute.id}
-                      className="p-2 bg-blue-50 border border-blue-200 rounded flex items-center justify-between text-sm"
-                    >
-                      <span className="text-blue-700 flex-1 mr-2">{attribute.label}</span>
-                      <button
-                        onClick={() => {
-                          setSelectedAttributes(prev => prev.filter(attr => attr.id !== attribute.id));
-                          setAttributeSelections(prev => prev.filter(sel => sel.attributeId !== attribute.id));
-                        }}
-                        className="text-blue-500 hover:text-blue-700 flex-shrink-0"
+              <div className="flex-1 overflow-y-auto mb-4">
+                <div className="grid grid-cols-3 gap-4">
+                  {selectedAttributes.map((attribute) => {
+                    const selectedOptions = getSelectedOptionsForAttribute(attribute.id);
+                    return (
+                      <div
+                        key={attribute.id}
+                        className="p-4 bg-gray-50 border border-gray-200 rounded-lg shadow-sm"
                       >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-gray-900 mb-1">{attribute.category}</div>
+                            <div className="text-base font-semibold text-blue-600 truncate">{attribute.label}</div>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setSelectedAttributes(prev => prev.filter(attr => attr.id !== attribute.id));
+                              setAttributeSelections(prev => prev.filter(sel => sel.attributeId !== attribute.id));
+                            }}
+                            className="text-gray-400 hover:text-gray-600 flex-shrink-0 ml-2"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                        
+                        {selectedOptions.length > 0 && (
+                          <div className="space-y-2">
+                            {selectedOptions.slice(0, 8).map((option) => (
+                              <div
+                                key={option.id}
+                                className="flex items-center space-x-2 text-sm text-gray-900"
+                              >
+                                <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
+                                  <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                  </svg>
+                                </div>
+                                <span className="truncate">{option.label}</span>
+                              </div>
+                            ))}
+                            {selectedOptions.length > 8 && (
+                              <div className="flex items-center space-x-2 text-sm text-gray-500">
+                                <div className="w-4 h-4 flex items-center justify-center flex-shrink-0">
+                                  <span className="text-xs">...</span>
+                                </div>
+                                <span className="text-xs">+{selectedOptions.length - 8} more</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        
+                        {selectedOptions.length === 0 && !attribute.options && (
+                          <div className="flex items-center space-x-2 text-sm text-gray-900">
+                            <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
+                              <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                              </svg>
+                            </div>
+                            <span>Selected</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
 
             {/* Action Buttons */}
-            <div className="flex justify-end gap-3">
+            <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-gray-200">
               <Button
                 onClick={handleClose}
                 variant="outline"
@@ -309,14 +444,19 @@ export default function NewSampleModal({ isOpen, onClose, onSave }: NewSampleMod
               </Button>
             </div>
           </div>
+          </div>
         </div>
       </div>
 
       {/* Attribute Detail Tooltip */}
-      {activeAttributePanel && (
+      {activeAttributePanel && panelPosition && (
         <div className="fixed inset-0 z-[60]" onClick={handleCloseAttributePanel}>
           <div
-            className="absolute right-8 top-1/2 transform -translate-y-1/2 bg-white rounded-lg shadow-2xl border border-gray-200 w-96 max-h-[80vh] flex flex-col"
+            className="absolute bg-white rounded-lg shadow-2xl border border-gray-200 w-96 max-h-[80vh] flex flex-col"
+            style={{
+              top: `${panelPosition.top}px`,
+              left: `${panelPosition.left}px`
+            }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Tooltip Header */}
@@ -333,53 +473,129 @@ export default function NewSampleModal({ isOpen, onClose, onSave }: NewSampleMod
               </button>
             </div>
 
-            {/* Options List */}
+            {/* Options List / Age Range Inputs */}
             <div className="flex-1 overflow-y-auto p-4 min-h-0">
-              <div className="space-y-2">
-                {activeAttributePanel.options?.map((option) => (
-                  <label
-                    key={option.id}
-                    className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-2 rounded"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={tempSelectedOptions.includes(option.id)}
-                      onChange={() => handleOptionToggle(option.id)}
-                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                    />
-                    <span className="text-sm text-gray-900">{option.label}</span>
-                  </label>
-                ))}
-              </div>
+              {activeAttributePanel.id === 'age' ? (
+                <div className="space-y-4">
+                  <div className="text-sm text-gray-600 mb-4">
+                    Select the age range for your sample (18-82 years):
+                  </div>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Minimum Age
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="18"
+                        value={tempAgeInput.min}
+                        onChange={(e) => {
+                          const inputValue = e.target.value;
+                          setTempAgeInput(prev => ({ ...prev, min: inputValue }));
+                          
+                          // Update the numeric range for validation
+                          const numValue = parseInt(inputValue);
+                          if (!isNaN(numValue)) {
+                            const validValue = Math.max(18, Math.min(82, numValue));
+                            setTempAgeRange(prev => ({ 
+                              ...prev, 
+                              min: validValue,
+                              max: Math.max(validValue, prev.max)
+                            }));
+                          }
+                        }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Maximum Age
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="82"
+                        value={tempAgeInput.max}
+                        onChange={(e) => {
+                          const inputValue = e.target.value;
+                          setTempAgeInput(prev => ({ ...prev, max: inputValue }));
+                          
+                          // Update the numeric range for validation
+                          const numValue = parseInt(inputValue);
+                          if (!isNaN(numValue)) {
+                            const validValue = Math.max(18, Math.min(82, numValue));
+                            setTempAgeRange(prev => ({ 
+                              ...prev, 
+                              max: validValue,
+                              min: Math.min(validValue, prev.min)
+                            }));
+                          }
+                        }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      Selected range: {tempAgeRange.min} - {tempAgeRange.max} years old
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {activeAttributePanel.options?.map((option) => (
+                    <label
+                      key={option.id}
+                      className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-2 rounded"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={tempSelectedOptions.includes(option.id)}
+                        onChange={() => handleOptionToggle(option.id)}
+                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-900">{option.label}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Tooltip Footer */}
             <div className="border-t border-gray-200 p-4 flex-shrink-0 bg-white">
-              <div className="flex gap-2 mb-3">
+              {activeAttributePanel.id === 'age' ? (
                 <Button
-                  onClick={handleSelectAll}
-                  variant="outline"
-                  size="sm"
-                  className="flex-1"
+                  onClick={handleAddToSelection}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                 >
-                  Select All
+                  + Add Age Range to Selection
                 </Button>
-                <Button
-                  onClick={handleClearAll}
-                  variant="outline"
-                  size="sm"
-                  className="flex-1"
-                >
-                  Clear All
-                </Button>
-              </div>
-              <Button
-                onClick={handleAddToSelection}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-                disabled={tempSelectedOptions.length === 0}
-              >
-                + Add to Selection
-              </Button>
+              ) : (
+                <>
+                  <div className="flex gap-2 mb-3">
+                    <Button
+                      onClick={handleSelectAll}
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                    >
+                      Select All
+                    </Button>
+                    <Button
+                      onClick={handleClearAll}
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                    >
+                      Clear All
+                    </Button>
+                  </div>
+                  <Button
+                    onClick={handleAddToSelection}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                    disabled={tempSelectedOptions.length === 0}
+                  >
+                    + Add to Selection
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </div>
