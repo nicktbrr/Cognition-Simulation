@@ -93,7 +93,6 @@ export default function ProjectsTable({ projects, onDownload, onRename, onModify
   };
 
   const handleStartRename = (projectId: string, currentName: string) => {
-    console.log('Starting rename for projectId:', projectId, 'name:', currentName);
     onRename(projectId, currentName);
   };
 
@@ -154,7 +153,7 @@ export default function ProjectsTable({ projects, onDownload, onRename, onModify
                         onToggle={() => toggleProjectDropdown(project.id!)}
                         position={index >= sortedProjects.length - 2 ? 'top' : 'bottom'}
                         onRename={() => handleStartRename(project.id!, project.name)}
-                        onReplicate={() => console.log('Replicate', project.name)}
+                        onReplicate={() => {}}
                         onModify={() => onModify?.(project.id!)}
                         onDelete={() => onDelete?.(project.id!)}
                       />

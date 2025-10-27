@@ -164,8 +164,10 @@ export default function SimulationPage() {
       reactFlowRef.current.clearFlow();
     }
     
-    // Clear localStorage simulation-flow
+    // Clear localStorage
     localStorage.removeItem('simulation-flow');
+    localStorage.removeItem('simulation-title');
+    localStorage.removeItem('simulation-sample');
   };
 
   const convertFlowNodesToSteps = (nodes: Node[], edges: Edge[]) => {
@@ -500,7 +502,6 @@ export default function SimulationPage() {
   };
 
   const loadExperimentForModification = async (experimentId: string) => {
-    console.log('[MODIFY] Starting to load experiment:', experimentId);
     setIsLoadingExperiment(true);
     try {
       const { data, error } = await supabase
@@ -510,43 +511,32 @@ export default function SimulationPage() {
         .single();
 
       if (error) {
-        console.error("[MODIFY] Error fetching experiment:", error);
+        console.error("Error fetching experiment:", error);
         alert("Error loading experiment for modification");
         return;
       }
 
-      console.log('[MODIFY] Experiment data loaded:', data);
       const experimentData = data.experiment_data;
       
       // Prepopulate form fields
       setProcessTitle(experimentData.title || "");
       setSelectedSample(experimentData.sample?.id || "");
-      console.log('[MODIFY] Set title and sample:', experimentData.title, experimentData.sample?.id);
       
       // Convert steps to flow nodes and edges
       if (experimentData.steps && experimentData.steps.length > 0) {
-        console.log('[MODIFY] Converting steps to flow:', experimentData.steps.length, 'steps');
         const { nodes, edges } = convertStepsToFlow(experimentData.steps);
-        console.log('[MODIFY] Created nodes:', nodes);
-        console.log('[MODIFY] Created edges:', edges);
         
         // Update the React Flow
         if (reactFlowRef.current) {
-          console.log('[MODIFY] Setting nodes and edges in React Flow');
           reactFlowRef.current.setNodesAndEdges(nodes, edges);
-        } else {
-          console.warn('[MODIFY] reactFlowRef.current is null!');
         }
         
         setFlowNodes(nodes);
         setFlowEdges(edges);
-        console.log('[MODIFY] Flow updated successfully');
-      } else {
-        console.warn('[MODIFY] No steps found in experiment data');
       }
       
     } catch (error) {
-      console.error("[MODIFY] Error loading experiment:", error);
+      console.error("Error loading experiment:", error);
       alert("Error loading experiment for modification");
     } finally {
       setIsLoadingExperiment(false);
@@ -561,20 +551,54 @@ export default function SimulationPage() {
     }
   }, [user, isAuthenticated]);
 
+  // Load process title from localStorage on mount (only if not in modify mode)
+  useEffect(() => {
+    if (!modifyExperimentId) {
+      const savedTitle = localStorage.getItem('simulation-title');
+      if (savedTitle) {
+        setProcessTitle(savedTitle);
+      }
+    }
+  }, [modifyExperimentId]);
+
+  // Save process title to localStorage whenever it changes
+  useEffect(() => {
+    if (processTitle) {
+      localStorage.setItem('simulation-title', processTitle);
+    } else {
+      localStorage.removeItem('simulation-title');
+    }
+  }, [processTitle]);
+
+  // Load selected sample from localStorage on mount (only if not in modify mode)
+  useEffect(() => {
+    if (!modifyExperimentId && samples.length > 0) {
+      const savedSample = localStorage.getItem('simulation-sample');
+      if (savedSample) {
+        // Verify the saved sample still exists in the samples list
+        const sampleExists = samples.some(sample => sample.id === savedSample);
+        if (sampleExists) {
+          setSelectedSample(savedSample);
+        } else {
+          // Remove invalid sample from localStorage
+          localStorage.removeItem('simulation-sample');
+        }
+      }
+    }
+  }, [modifyExperimentId, samples.length]);
+
+  // Save selected sample to localStorage whenever it changes
+  useEffect(() => {
+    if (selectedSample) {
+      localStorage.setItem('simulation-sample', selectedSample);
+    } else {
+      localStorage.removeItem('simulation-sample');
+    }
+  }, [selectedSample]);
+
   // Load experiment data when in modify mode
   useEffect(() => {
-    console.log('[MODIFY EFFECT] Checking conditions:', {
-      modifyExperimentId,
-      hasUser: !!user,
-      isAuthenticated,
-      samplesLength: samples.length,
-      measuresLength: measures.length,
-      isLoadingExperiment
-    });
-    
     if (modifyExperimentId && user && isAuthenticated && samples.length > 0 && measures.length > 0 && !isLoadingExperiment) {
-      // Only load once
-      console.log('[MODIFY EFFECT] All conditions met, loading experiment');
       loadExperimentForModification(modifyExperimentId);
     }
   }, [modifyExperimentId, user, isAuthenticated, samples.length, measures.length]);

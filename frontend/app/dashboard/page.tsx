@@ -108,7 +108,6 @@ export default function DashboardHistory() {
 
       const formattedProjects: Project[] = data.map((experiment: any, index: number) => {
         const experimentData = experiment.experiment_data || {};
-        console.log(experiment.experiment_id)
         return {
           name: experimentData.title || experiment.simulation_name || `Simulation ${index + 1}`,
           sample_name: experiment.sample_name || experiment.description || "No seed",
