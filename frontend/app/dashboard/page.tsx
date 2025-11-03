@@ -38,6 +38,7 @@ interface SimulationStep {
 interface Project {
   name: string;
   sample_name: string;
+  sample_size?: number; // Sample size for the simulation
   status: string;
   progress?: number; // Progress percentage for running simulations
   downloads: Download[];
@@ -131,6 +132,7 @@ export default function DashboardHistory() {
         return {
           name: experimentData.title || experiment.simulation_name || `Simulation ${index + 1}`,
           sample_name: experiment.sample_name || experiment.description || "No seed",
+          sample_size: experiment.sample_size ?? experiment.experiment_data?.sample_size ?? 10, // Default to 10
           status: status,
           progress: progress,
           created_at: experiment.created_at,

@@ -25,6 +25,7 @@ interface SimulationStep {
 interface Project {
   name: string;
   sample_name: string;
+  sample_size?: number; // Sample size for the simulation
   status: string;
   progress?: number; // Progress percentage for running simulations
   downloads: Download[];
@@ -123,6 +124,7 @@ export default function ProjectsTable({ projects, onDownload, onRename, onModify
             <tr>
               <SortableTableHeader label="Simulation Name" sortKey="name" onSort={handleSort} />
               <SortableTableHeader label="Sample Name" sortKey="sample_name" onSort={handleSort} />
+              <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Sample Size</th>
               <SortableTableHeader label="Status" sortKey="status" onSort={handleSort} />
               <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Data Downloads</th>
               <th className="px-6 py-3 text-left text-sm font-medium text-gray-700"></th>
@@ -165,6 +167,9 @@ export default function ProjectsTable({ projects, onDownload, onRename, onModify
                       {project.sample_name}
                     </Link>
                   </td>
+                  <td className="px-6 py-4 text-sm text-gray-900">
+                    {project.sample_size ?? 10}
+                  </td>
                   <td className="px-6 py-4">
                     <StatusBadge status={project.status} progress={project.progress} />
                   </td>
@@ -184,7 +189,7 @@ export default function ProjectsTable({ projects, onDownload, onRename, onModify
                 
                 {expandedRows.has(project.id!) && (
                   <tr>
-                    <td colSpan={5} className="px-6 py-4 bg-gray-50">
+                    <td colSpan={6} className="px-6 py-4 bg-gray-50">
                       <div className="flex gap-6" style={{marginLeft: '40px'}}>
                         <SimulationSteps steps={project.steps} />
                       </div>
