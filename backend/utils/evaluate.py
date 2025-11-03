@@ -187,12 +187,39 @@ def dataframe_to_excel(df_response, df_gemini, steps=None):
             steps_df = pd.DataFrame(steps_data)
             steps_df.to_excel(writer, sheet_name='Simulation Steps', index=False)
         
-        # Add responses sheet
-        df_response.to_excel(writer, sheet_name='Responses', index=False)
+        # Create Personas sheet
+        personas_data = []
+        if 'persona' in df_response.columns:
+            for idx in range(len(df_response)):
+                persona = df_response.iloc[idx]['persona']
+                # Convert persona to readable string if it's a dict
+                if isinstance(persona, dict):
+                    persona_str = ', '.join([f"{key}: {value}" for key, value in persona.items()])
+                else:
+                    persona_str = str(persona) if persona else 'N/A'
+                
+                personas_data.append({
+                    'ID': idx + 1,
+                    'Persona': persona_str
+                })
         
-        # Add metrics sheet
+        if personas_data:
+            personas_df = pd.DataFrame(personas_data)
+            personas_df.to_excel(writer, sheet_name='Personas', index=False)
+        
+        # Add ID column to responses sheet (1-10, matching persona index)
+        # Remove persona column from Responses sheet (it's in Personas sheet)
+        df_response_with_id = df_response.copy()
+        if 'persona' in df_response_with_id.columns:
+            df_response_with_id = df_response_with_id.drop(columns=['persona'])
+        df_response_with_id.insert(0, 'ID', range(1, len(df_response) + 1))
+        df_response_with_id.to_excel(writer, sheet_name='Responses', index=False)
+        
+        # Add ID column to metrics sheet (1-10, matching persona index)
         if not df_gemini.empty:
-            df_gemini.to_excel(writer, sheet_name='Metrics', index=False)
+            df_gemini_with_id = df_gemini.copy()
+            df_gemini_with_id.insert(0, 'ID', range(1, len(df_gemini) + 1))
+            df_gemini_with_id.to_excel(writer, sheet_name='Metrics', index=False)
     
     return fn
 

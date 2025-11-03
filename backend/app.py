@@ -150,20 +150,36 @@ def run_evaluation(uuid, data, key_g, jwt=None):
         #         sample['persona'] = generated_persona
         #         data['sample'] = sample
 
-        # Extract attributes from the sample
-        attributes = data.get('sample')['attributes']
-        
-        # Generate 10 random samples from the attributes
-        random_samples = generate_random_samples(attributes, num_samples=10)
-
-        if supabase and random_samples:
-            try:
-                supabase.table("samples").update({
-                    "persona": random_samples
-                }).eq("id", data.get('sample')['id']).execute()
-                print(f"Updated personas for sample {data.get('sample')['id']}")
-            except Exception as e:
-                print(f"Error updating personas in database: {e}")
+        # Check if persona already exists in the database
+        sample_id = data.get('sample')['id']
+        try:
+            # Fetch the current sample from database to check persona
+            sample_response = supabase.table("samples").select("persona").eq("id", sample_id).execute()
+            
+            # Check if persona exists and is not null
+            if sample_response.data and sample_response.data[0].get('persona') is not None:
+                # Persona exists, use it from the database
+                random_samples = sample_response.data[0]['persona']
+                print(f"Using existing personas for sample {sample_id}")
+            else:
+                # Persona is null, generate new ones
+                attributes = data.get('sample')['attributes']
+                random_samples = generate_random_samples(attributes, num_samples=10)
+                
+                # Update the database with the new personas
+                if supabase and random_samples:
+                    try:
+                        supabase.table("samples").update({
+                            "persona": random_samples
+                        }).eq("id", sample_id).execute()
+                        print(f"Generated and updated personas for sample {sample_id}")
+                    except Exception as e:
+                        print(f"Error updating personas in database: {e}")
+        except Exception as e:
+            print(f"Error checking/updating personas: {e}")
+            # Fallback: generate new samples if database check fails
+            attributes = data.get('sample')['attributes']
+            random_samples = generate_random_samples(attributes, num_samples=10)
 
         # Generate baseline prompt and get token usage
         sample = data.get('sample')
