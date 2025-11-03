@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
-import { ChevronRight, Plus, Users, MoreHorizontal, Trash2, Edit2 } from "lucide-react";
+import { ChevronRight, Plus, Users, MoreHorizontal, Trash2, Edit2, Copy } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { supabase } from "../utils/supabase";
 import { useAuth } from "../hooks/useAuth";
@@ -59,6 +60,11 @@ export default function SamplesPage() {
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [renamingSample, setRenamingSample] = useState<string | null>(null);
   const [newSampleName, setNewSampleName] = useState('');
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0 });
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const buttonRefs = useRef<Record<string, HTMLButtonElement>>({});
+  const [editingSample, setEditingSample] = useState<Sample | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const getUserData = async (userId: string) => {
     const { data, error } = await supabase
@@ -166,16 +172,34 @@ export default function SamplesPage() {
 
   // Close dropdown when clicking outside
   useEffect(() => {
-    const handleClickOutside = () => {
-      setOpenDropdown(null);
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!openDropdown) return;
+
+      const target = event.target as Node;
+      
+      // Check if click is inside the dropdown
+      if (dropdownRef.current && dropdownRef.current.contains(target)) {
+        return;
+      }
+
+      // Check if click is on any dropdown toggle button
+      const clickedButton = Object.values(buttonRefs.current).find(
+        button => button && button.contains(target)
+      );
+      
+      if (!clickedButton) {
+        setOpenDropdown(null);
+      }
     };
 
     if (openDropdown) {
+      // Use click event in bubble phase so button onClick processes first
       document.addEventListener('click', handleClickOutside);
-      return () => {
-        document.removeEventListener('click', handleClickOutside);
-      };
     }
+
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
   }, [openDropdown]);
 
   const loadSamples = async (userId: string) => {
@@ -226,7 +250,20 @@ export default function SamplesPage() {
 
   const toggleDropdown = (sampleId: string, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent row expansion when clicking dropdown
-    setOpenDropdown(openDropdown === sampleId ? null : sampleId);
+    
+    if (openDropdown === sampleId) {
+      setOpenDropdown(null);
+    } else {
+      const button = buttonRefs.current[sampleId];
+      if (button) {
+        const rect = button.getBoundingClientRect();
+        setDropdownPosition({
+          top: rect.bottom + 4,
+          right: window.innerWidth - rect.right
+        });
+      }
+      setOpenDropdown(sampleId);
+    }
   };
 
   const handleRenameSample = (sampleId: string) => {
@@ -235,6 +272,99 @@ export default function SamplesPage() {
       setRenamingSample(sampleId);
       setNewSampleName(sample.name);
       setOpenDropdown(null);
+    }
+  };
+
+  const handleEditSample = (sampleId: string) => {
+    const sample = samples.find(s => s.id === sampleId);
+    if (sample) {
+      setEditingSample(sample);
+      setIsEditModalOpen(true);
+      setOpenDropdown(null);
+    }
+  };
+
+  const handleDuplicateSample = async (sampleId: string) => {
+    const sample = samples.find(s => s.id === sampleId);
+    if (!sample || !user) return;
+
+    try {
+      const duplicateData = {
+        name: `${sample.name} (Copy)`,
+        attributes: sample.attributes,
+        user_id: user.user_id
+      };
+
+      const insertedSample = await insertSample(duplicateData);
+      const transformedSample: Sample = {
+        ...insertedSample,
+        expanded: false,
+        createdDate: new Date(insertedSample.created_at).toLocaleDateString(),
+        attributeCategories: extractAttributeCategories(insertedSample.attributes)
+      };
+
+      setSamples([transformedSample, ...samples]);
+      setOpenDropdown(null);
+    } catch (error) {
+      console.error('Error duplicating sample:', error);
+      alert('Failed to duplicate sample. Please try again.');
+    }
+  };
+
+  const toggleAttributeValue = async (sampleId: string, categoryIndex: number, valueIndex: number) => {
+    const sample = samples.find(s => s.id === sampleId);
+    if (!sample || !sample.attributeCategories) return;
+
+    const category = sample.attributeCategories[categoryIndex];
+    if (!category || !category.values[valueIndex]) return;
+
+    const valueToToggle = category.values[valueIndex];
+    
+    // Update the attributes array
+    const updatedAttributes = Array.isArray(sample.attributes) ? [...sample.attributes] : [];
+    
+    // Find the attribute that contains this value
+    const attrIndex = updatedAttributes.findIndex(
+      (attr: any) => attr.category === category.name && attr.values?.includes(valueToToggle)
+    );
+
+    if (attrIndex !== -1) {
+      const attribute = updatedAttributes[attrIndex];
+      const valueIndexInAttr = attribute.values.indexOf(valueToToggle);
+      
+      if (valueIndexInAttr !== -1) {
+        // Remove the value
+        attribute.values = attribute.values.filter((v: string) => v !== valueToToggle);
+        
+        // If no values left, remove the attribute entirely
+        if (attribute.values.length === 0) {
+          updatedAttributes.splice(attrIndex, 1);
+        }
+      }
+    }
+
+    // Update in database
+    try {
+      const { error } = await supabase
+        .from('samples')
+        .update({ attributes: updatedAttributes })
+        .eq('id', sampleId);
+
+      if (error) {
+        console.error('Error updating sample:', error);
+        alert('Failed to update sample. Please try again.');
+        return;
+      }
+
+      // Update local state
+      setSamples(prev => prev.map(s => 
+        s.id === sampleId 
+          ? { ...s, attributes: updatedAttributes, attributeCategories: extractAttributeCategories(updatedAttributes) }
+          : s
+      ));
+    } catch (error) {
+      console.error('Error updating sample:', error);
+      alert('Failed to update sample. Please try again.');
     }
   };
 
@@ -329,6 +459,70 @@ export default function SamplesPage() {
     } catch (error) {
       console.error("Error creating new sample:", error);
       // You might want to show an error message to the user here
+    }
+  };
+
+  const handleUpdateSample = async (selectedAttributes: Attribute[], attributeSelections: AttributeSelection[]) => {
+    if (!user || !editingSample) return;
+
+    try {
+      // Process each selected attribute with its selected options
+      const attributesJson = selectedAttributes.map(attr => {
+        // Find the selections for this attribute
+        const selection = attributeSelections.find(sel => sel.attributeId === attr.id);
+        
+        // Special handling for Age attribute
+        if (attr.id === 'age' && selection?.selectedOptions.length === 2) {
+          const minAge = Math.min(parseInt(selection.selectedOptions[0]), parseInt(selection.selectedOptions[1]));
+          const maxAge = Math.max(parseInt(selection.selectedOptions[0]), parseInt(selection.selectedOptions[1]));
+          return {
+            label: attr.label,
+            category: attr.category,
+            values: [`${minAge} - ${maxAge} years old`] // Single range value
+          };
+        }
+        
+        // Get the actual option labels from the selected option IDs for other attributes
+        const selectedValues = selection?.selectedOptions.map(optionId => {
+          const option = attr.options?.find(opt => opt.id === optionId);
+          return option?.label || optionId; // Fallback to ID if option not found
+        }) || [];
+
+        return {
+          label: attr.label,
+          category: attr.category,
+          values: selectedValues
+        };
+      });
+
+      // Update in Supabase
+      const { error } = await supabase
+        .from('samples')
+        .update({ attributes: attributesJson })
+        .eq('id', editingSample.id);
+
+      if (error) {
+        console.error('Error updating sample:', error);
+        alert('Failed to update sample. Please try again.');
+        return;
+      }
+
+      // Update local state
+      setSamples(prev => prev.map(sample => 
+        sample.id === editingSample.id 
+          ? { 
+              ...sample, 
+              attributes: attributesJson,
+              attributeCategories: extractAttributeCategories(attributesJson)
+            }
+          : sample
+      ));
+
+      setIsEditModalOpen(false);
+      setEditingSample(null);
+    } catch (error) {
+      console.error("Error updating sample:", error);
+      alert('Failed to update sample. Please try again.');
     }
   };
 
@@ -459,38 +653,18 @@ export default function SamplesPage() {
                             )}
                             <div className="ml-auto relative">
                               <button 
+                                ref={(el) => {
+                                  if (el) {
+                                    buttonRefs.current[sample.id] = el;
+                                  } else {
+                                    delete buttonRefs.current[sample.id];
+                                  }
+                                }}
                                 onClick={(e) => toggleDropdown(sample.id, e)}
                                 className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100"
                               >
                                 <MoreHorizontal className="w-4 h-4" />
                               </button>
-                              
-                              {openDropdown === sample.id && (
-                                <div className="absolute right-0 top-8 w-36 bg-white rounded-md shadow-lg border border-gray-200 py-1"
-                                     style={{ zIndex: 1000 }}>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleRenameSample(sample.id);
-                                    }}
-                                    className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                                  >
-                                    <Edit2 className="w-4 h-4 mr-3" />
-                                    Rename
-                                  </button>
-                                  <hr className="my-1 border-gray-100" />
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleDeleteSample(sample.id);
-                                    }}
-                                    className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
-                                  >
-                                    <Trash2 className="w-4 h-4 mr-3" />
-                                    Delete
-                                  </button>
-                                </div>
-                              )}
                             </div>
                           </div>
                         </td>
@@ -557,12 +731,97 @@ export default function SamplesPage() {
         </div>
       </div>
 
+      {/* Portal-based Dropdown */}
+      {openDropdown && createPortal(
+        <div 
+          ref={dropdownRef}
+          className="fixed w-40 bg-white rounded-md shadow-lg border border-gray-200 py-1 z-[99999]"
+          style={{
+            top: dropdownPosition.top,
+            right: dropdownPosition.right
+          }}
+        >
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleEditSample(openDropdown);
+            }}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+            }}
+            className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+          >
+            <Edit2 className="w-4 h-4 mr-3" />
+            Edit
+          </button>
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleDuplicateSample(openDropdown);
+            }}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+            }}
+            className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+          >
+            <Copy className="w-4 h-4 mr-3" />
+            Duplicate
+          </button>
+          <hr className="my-1 border-gray-100" />
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleRenameSample(openDropdown);
+            }}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+            }}
+            className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+          >
+            <Edit2 className="w-4 h-4 mr-3" />
+            Rename
+          </button>
+          <hr className="my-1 border-gray-100" />
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleDeleteSample(openDropdown);
+            }}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+            }}
+            className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+          >
+            <Trash2 className="w-4 h-4 mr-3" />
+            Delete
+          </button>
+        </div>,
+        document.body
+      )}
+
       {/* New Sample Modal */}
       <NewSampleModal
         isOpen={isNewSampleModalOpen}
         onClose={() => setIsNewSampleModalOpen(false)}
         onSave={handleNewSample}
       />
+
+      {/* Edit Sample Modal */}
+      {editingSample && (
+        <NewSampleModal
+          isOpen={isEditModalOpen}
+          onClose={() => {
+            setIsEditModalOpen(false);
+            setEditingSample(null);
+          }}
+          onSave={handleUpdateSample}
+          initialSample={editingSample}
+        />
+      )}
     </AppLayout>
   );
 }

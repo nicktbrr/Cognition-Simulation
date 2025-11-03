@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { X, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "./ui/button";
 import otherAttributesData from "../data/attributes/other.json";
@@ -34,10 +34,17 @@ interface AttributeSelection {
   selectedOptions: string[];
 }
 
+interface Sample {
+  id: string;
+  name: string;
+  attributes: any;
+}
+
 interface NewSampleModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (selectedAttributes: Attribute[], attributeSelections: AttributeSelection[]) => void;
+  initialSample?: Sample | null;
 }
 
 const demographicsAttributes: Attribute[] = demographicsAttributesData as Attribute[];
@@ -90,7 +97,7 @@ const allCategories = [
   { name: "Other", attributes: otherAttributes, expanded: false },
 ];
 
-export default function NewSampleModal({ isOpen, onClose, onSave }: NewSampleModalProps) {
+export default function NewSampleModal({ isOpen, onClose, onSave, initialSample }: NewSampleModalProps) {
   const [selectedAttributes, setSelectedAttributes] = useState<Attribute[]>([]);
   const [attributeSelections, setAttributeSelections] = useState<AttributeSelection[]>([]);
   const [activeAttributePanel, setActiveAttributePanel] = useState<Attribute | null>(null);
@@ -99,6 +106,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave }: NewSampleMod
   const [tempAgeRange, setTempAgeRange] = useState({ min: 18, max: 82 });
   const [tempAgeInput, setTempAgeInput] = useState({ min: '18', max: '82' });
   const [panelPosition, setPanelPosition] = useState<{ top: number; left: number } | null>(null);
+  const [checkedOptions, setCheckedOptions] = useState<Set<string>>(new Set());
   const [categoryExpanded, setCategoryExpanded] = useState<{ [key: string]: boolean }>({
     "Demographics": true,
     "Health": false,
@@ -114,6 +122,78 @@ export default function NewSampleModal({ isOpen, onClose, onSave }: NewSampleMod
     "Languages": false,
     "Other": false,
   });
+
+  // Initialize with initialSample data when in edit mode
+  useEffect(() => {
+    if (isOpen && initialSample && Array.isArray(initialSample.attributes)) {
+      const allAttributesFlat = allCategories.flatMap(cat => cat.attributes);
+      const preSelectedAttributes: Attribute[] = [];
+      const preSelections: AttributeSelection[] = [];
+
+      initialSample.attributes.forEach((attrData: any) => {
+        const attribute = allAttributesFlat.find(attr => 
+          attr.id === attrData.label?.toLowerCase().replace(/\s+/g, '-') || 
+          attr.label === attrData.label ||
+          (attr.category.toLowerCase() === attrData.category?.toLowerCase() && attr.label === attrData.label)
+        );
+
+        if (attribute) {
+          preSelectedAttributes.push(attribute);
+
+          if (attribute.id === 'age' && attrData.values && attrData.values.length > 0) {
+            // Parse age range from string like "18 - 24 years old"
+            const ageValue = attrData.values[0];
+            const match = ageValue.match(/(\d+)\s*-\s*(\d+)/);
+            if (match) {
+              const min = parseInt(match[1]);
+              const max = parseInt(match[2]);
+              preSelections.push({
+                attributeId: 'age',
+                selectedOptions: [min.toString(), max.toString()]
+              });
+            }
+          } else if (attribute.options && attrData.values) {
+            // Match values to option IDs
+            const selectedOptionIds: string[] = [];
+            attrData.values.forEach((value: string) => {
+              const option = attribute.options?.find(opt => opt.label === value);
+              if (option) {
+                selectedOptionIds.push(option.id);
+              }
+            });
+            
+            if (selectedOptionIds.length > 0) {
+              preSelections.push({
+                attributeId: attribute.id,
+                selectedOptions: selectedOptionIds
+              });
+            }
+          }
+        }
+      });
+
+      setSelectedAttributes(preSelectedAttributes);
+      setAttributeSelections(preSelections);
+      
+      // Initialize all options as checked
+      const allCheckedKeys = new Set<string>();
+      preSelections.forEach(selection => {
+        if (selection.attributeId === 'age') {
+          allCheckedKeys.add(`${selection.attributeId}-age-range`);
+        } else {
+          selection.selectedOptions.forEach(optionId => {
+            allCheckedKeys.add(`${selection.attributeId}-${optionId}`);
+          });
+        }
+      });
+      setCheckedOptions(allCheckedKeys);
+    } else if (isOpen && !initialSample) {
+      // Reset when creating new sample
+      setSelectedAttributes([]);
+      setAttributeSelections([]);
+      setCheckedOptions(new Set());
+    }
+  }, [isOpen, initialSample]);
 
   if (!isOpen) return null;
 
@@ -213,6 +293,9 @@ export default function NewSampleModal({ isOpen, onClose, onSave }: NewSampleMod
           setSelectedAttributes(prev => [...prev, activeAttributePanel]);
         }
 
+        // Mark age range as checked
+        setCheckedOptions(prev => new Set(prev).add(`${activeAttributePanel.id}-age-range`));
+
         // Close panel
         setActiveAttributePanel(null);
         setTempAgeRange({ min: 18, max: 82 });
@@ -234,6 +317,11 @@ export default function NewSampleModal({ isOpen, onClose, onSave }: NewSampleMod
           setSelectedAttributes(prev => [...prev, activeAttributePanel]);
         }
 
+        // Mark all selected options as checked
+        tempSelectedOptions.forEach(optionId => {
+          setCheckedOptions(prev => new Set(prev).add(`${activeAttributePanel.id}-${optionId}`));
+        });
+
         // Close panel
         setActiveAttributePanel(null);
         setTempSelectedOptions([]);
@@ -249,10 +337,69 @@ export default function NewSampleModal({ isOpen, onClose, onSave }: NewSampleMod
     setPanelPosition(null);
   };
 
+  const handleToggleOption = (attributeId: string, optionId: string) => {
+    const key = `${attributeId}-${optionId}`;
+    setCheckedOptions(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(key)) {
+        newSet.delete(key);
+      } else {
+        newSet.add(key);
+      }
+      return newSet;
+    });
+  };
+
+  const handleToggleAgeRange = (attributeId: string) => {
+    const key = `${attributeId}-age-range`;
+    setCheckedOptions(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(key)) {
+        newSet.delete(key);
+      } else {
+        newSet.add(key);
+      }
+      return newSet;
+    });
+  };
+
+  const isOptionChecked = (attributeId: string, optionId: string) => {
+    const key = `${attributeId}-${optionId}`;
+    return checkedOptions.has(key);
+  };
+
   const handleSave = () => {
-    onSave(selectedAttributes, attributeSelections);
+    // Filter selections to only include checked options
+    const filteredSelections = attributeSelections.map(selection => {
+      if (selection.attributeId === 'age') {
+        const isChecked = checkedOptions.has(`${selection.attributeId}-age-range`);
+        return isChecked ? selection : null;
+      } else {
+        const checkedOptionsForAttr = selection.selectedOptions.filter(optionId => 
+          checkedOptions.has(`${selection.attributeId}-${optionId}`)
+        );
+        return checkedOptionsForAttr.length > 0 
+          ? { ...selection, selectedOptions: checkedOptionsForAttr }
+          : null;
+      }
+    }).filter((sel): sel is AttributeSelection => sel !== null);
+
+    // Filter attributes to include:
+    // 1. Those with checked selections
+    // 2. Those without options (always included)
+    const filteredAttributes = selectedAttributes.filter(attr => {
+      // Attributes without options are always included
+      if (!attr.options) {
+        return true;
+      }
+      // Attributes with options must have checked selections
+      return filteredSelections.some(sel => sel.attributeId === attr.id);
+    });
+
+    onSave(filteredAttributes, filteredSelections);
     setSelectedAttributes([]);
     setAttributeSelections([]);
+    setCheckedOptions(new Set());
     onClose();
   };
 
@@ -264,6 +411,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave }: NewSampleMod
     setTempAgeRange({ min: 18, max: 82 });
     setTempAgeInput({ min: '18', max: '82' });
     setPanelPosition(null);
+    setCheckedOptions(new Set());
     onClose();
   };
 
@@ -294,7 +442,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave }: NewSampleMod
           {/* Header */}
           <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0">
             <div>
-              <h2 className="text-xl font-semibold text-blue-600">New Sample</h2>
+              <h2 className="text-xl font-semibold text-blue-600">{initialSample ? 'Edit Sample' : 'New Sample'}</h2>
             </div>
             <button
               onClick={handleClose}
@@ -386,19 +534,35 @@ export default function NewSampleModal({ isOpen, onClose, onSave }: NewSampleMod
                         
                         {selectedOptions.length > 0 && (
                           <div className="space-y-2">
-                            {selectedOptions.slice(0, 8).map((option) => (
-                              <div
-                                key={option.id}
-                                className="flex items-center space-x-2 text-sm text-gray-900"
-                              >
-                                <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
-                                  <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                  </svg>
+                            {selectedOptions.slice(0, 8).map((option) => {
+                              const optionKey = attribute.id === 'age' ? 'age-range' : option.id;
+                              const isChecked = isOptionChecked(attribute.id, optionKey);
+                              return (
+                                <div
+                                  key={option.id}
+                                  onClick={() => {
+                                    if (attribute.id === 'age' || option.id === 'age-range') {
+                                      handleToggleAgeRange(attribute.id);
+                                    } else {
+                                      handleToggleOption(attribute.id, option.id);
+                                    }
+                                  }}
+                                  className="flex items-center space-x-2 text-sm text-gray-900 cursor-pointer hover:bg-gray-100 rounded px-2 py-1 -mx-2 -my-1 transition-colors"
+                                >
+                                  {isChecked ? (
+                                    <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0 cursor-pointer">
+                                      <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                      </svg>
+                                    </div>
+                                  ) : (
+                                    <div className="w-4 h-4 border-2 border-gray-300 rounded-full flex items-center justify-center flex-shrink-0 cursor-pointer bg-white">
+                                    </div>
+                                  )}
+                                  <span className="truncate">{option.label}</span>
                                 </div>
-                                <span className="truncate">{option.label}</span>
-                              </div>
-                            ))}
+                              );
+                            })}
                             {selectedOptions.length > 8 && (
                               <div className="flex items-center space-x-2 text-sm text-gray-500">
                                 <div className="w-4 h-4 flex items-center justify-center flex-shrink-0">
@@ -440,7 +604,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave }: NewSampleMod
                 className="bg-blue-600 hover:bg-blue-700 text-white"
                 disabled={selectedAttributes.length === 0}
               >
-                Create Sample
+                {initialSample ? 'Update Sample' : 'Create Sample'}
               </Button>
             </div>
           </div>
