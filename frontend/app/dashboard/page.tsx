@@ -38,11 +38,14 @@ interface SimulationStep {
 interface Project {
   name: string;
   sample_name: string;
+  sample_size?: number; // Sample size for the simulation
   status: string;
+  progress?: number; // Progress percentage for running simulations
   downloads: Download[];
   steps: SimulationStep[];
   created_at?: string;
   id?: string;
+  experiment_id?: string; // Backend experiment ID for polling
 }
 
 interface UserData {
@@ -108,12 +111,33 @@ export default function DashboardHistory() {
 
       const formattedProjects: Project[] = data.map((experiment: any, index: number) => {
         const experimentData = experiment.experiment_data || {};
+        // Determine status and progress
+        let status = experiment.status || "Draft";
+        let progress: number | undefined = undefined;
+        
+        // Normalize status and check for progress
+        const statusLower = status.toLowerCase();
+        if (statusLower === 'running' || statusLower === 'started' || statusLower === 'in_progress') {
+          status = 'Running';
+          // Progress might be stored in experiment.progress, experiment.progress_percent, or calculated
+          progress = experiment.progress !== undefined ? experiment.progress : 
+                     experiment.progress_percent !== undefined ? experiment.progress_percent : 
+                     0;
+        } else if (statusLower === 'completed' || statusLower === 'done' || statusLower === 'finished') {
+          status = 'Completed';
+        } else if (statusLower === 'failed' || statusLower === 'error') {
+          status = 'Failed';
+        }
+        
         return {
           name: experimentData.title || experiment.simulation_name || `Simulation ${index + 1}`,
           sample_name: experiment.sample_name || experiment.description || "No seed",
-          status: experiment.status || "Draft",
+          sample_size: experiment.sample_size ?? experiment.experiment_data?.sample_size ?? 10, // Default to 10
+          status: status,
+          progress: progress,
           created_at: experiment.created_at,
           id: experiment.experiment_id,
+          experiment_id: experiment.experiment_id,
           downloads: experiment.url ? [
             {
               date: new Date(experiment.created_at).toLocaleString(),
@@ -270,6 +294,80 @@ export default function DashboardHistory() {
     setProjectToDelete(null);
   };
 
+  // Function to check progress for a running simulation
+  const checkProgress = async (experimentId: string, userId: string) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const accessToken = session?.access_token;
+      if (!accessToken) {
+        return;
+      }
+
+      const prod = process.env.NEXT_PUBLIC_DEV || "production";
+      const url =
+        prod === "development"
+          ? `http://127.0.0.1:5000/api/progress?task_id=${experimentId}&user_id=${userId}`
+          : `https://cognition-backend-81313456654.us-west1.run.app/api/progress?task_id=${experimentId}&user_id=${userId}`;
+
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.progress) {
+          const progressData = result.progress;
+          
+          // Normalize progress to 0-100 range (backend might return 0-1 or 0-100)
+          let progressPercent = progressData.progress || 0;
+          if (progressPercent <= 1) {
+            progressPercent = progressPercent * 100;
+          }
+          
+          // Update the project with new progress
+          setProjects(prev => prev.map(project => {
+            if (project.experiment_id === experimentId) {
+              // Only change to Completed when progress reaches 100% AND backend confirms completion
+              // Keep showing Running with percentage until then to prevent flickering
+              const shouldShowCompleted = progressPercent >= 100 && 
+                                         (progressData.status === 'completed' || progressData.status === 'Completed');
+              
+              return {
+                ...project,
+                status: progressData.status === 'failed' ? 'Failed' : 
+                       shouldShowCompleted ? 'Completed' : 'Running',
+                // Keep showing progress until we confirm completion
+                progress: progressPercent >= 100 && shouldShowCompleted ? undefined : progressPercent
+              };
+            }
+            return project;
+          }));
+
+          // If completed or failed, refresh the projects list after a delay
+          if (progressPercent >= 100 && (progressData.status === 'completed' || progressData.status === 'Completed')) {
+            setTimeout(() => {
+              if (user) {
+                getProjects(user.user_id);
+              }
+            }, 1000);
+          } else if (progressData.status === 'failed') {
+            setTimeout(() => {
+              if (user) {
+                getProjects(user.user_id);
+              }
+            }, 1000);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error checking progress:", error);
+    }
+  };
+
   useEffect(() => {
     if (user && isAuthenticated) {
       getUserData(user.user_id);
@@ -277,6 +375,29 @@ export default function DashboardHistory() {
       getProjects(user.user_id);
     }
   }, [user, isAuthenticated]);
+
+  // Poll for progress on running simulations
+  useEffect(() => {
+    if (!user || !isAuthenticated) return;
+
+    // Include projects that are Running OR have progress but status might be transitioning
+    const runningProjects = projects.filter(p => 
+      (p.status === 'Running' || (p.progress !== undefined && p.progress < 100)) && p.experiment_id
+    );
+
+    if (runningProjects.length === 0) return;
+
+    // Poll every half second (500ms) for each running project
+    const interval = setInterval(() => {
+      runningProjects.forEach(project => {
+        if (project.experiment_id && user.user_id) {
+          checkProgress(project.experiment_id, user.user_id);
+        }
+      });
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, [projects, user, isAuthenticated]);
 
 
   // Show loading state while checking authentication
