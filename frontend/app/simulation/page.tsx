@@ -61,6 +61,7 @@ function SimulationPageContent() {
   const [loadingSamples, setLoadingSamples] = useState(false);
   const [contentLoaded, setContentLoaded] = useState(false);
   const [isLoadingExperiment, setIsLoadingExperiment] = useState(false);
+  const [isGeneratingSteps, setIsGeneratingSteps] = useState(false);
   const reactFlowRef = useRef<ReactFlowRef>(null);
 
   const getUserData = async (userId: string) => {
@@ -145,8 +146,173 @@ function SimulationPageContent() {
     }
   };
 
-  const handleGenerateSteps = () => {
-    // TODO: Implement generate steps functionality
+  const handleGenerateSteps = async () => {
+    const requestId = `frontend-${Date.now()}`;
+    console.log(`[${requestId}] handleGenerateSteps called`);
+    
+    // Validate that process description is provided
+    if (!processDescription || processDescription.trim() === '') {
+      console.warn(`[${requestId}] Validation failed: process description is empty`);
+      alert("Please enter a process description before generating steps.");
+      return;
+    }
+
+    console.log(`[${requestId}] Process description length: ${processDescription.length} characters`);
+    setIsGeneratingSteps(true);
+    
+    try {
+      // Get the user's Supabase access token
+      console.log(`[${requestId}] Getting Supabase session`);
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) {
+        console.error(`[${requestId}] Error getting session:`, sessionError);
+        throw new Error(`Session error: ${sessionError.message}`);
+      }
+      
+      const accessToken = session?.access_token;
+      if (!accessToken) {
+        console.error(`[${requestId}] No access token found`);
+        throw new Error("No Supabase access token found");
+      }
+      
+      console.log(`[${requestId}] Access token obtained (length: ${accessToken.length} characters)`);
+
+      // Define backend URL based on environment
+      const prod = process.env.NEXT_PUBLIC_DEV || "production";
+      const url =
+        prod === "development"
+          ? "http://127.0.0.1:5000/api/generate-steps"
+          : "https://cognition-backend-81313456654.us-west1.run.app/api/generate-steps";
+
+      console.log(`[${requestId}] Calling backend API: ${url}`);
+      console.log(`[${requestId}] Request payload:`, { prompt: processDescription.substring(0, 100) + "..." });
+
+      // Call the backend API
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ prompt: processDescription }),
+      });
+
+      console.log(`[${requestId}] Response status: ${response.status} ${response.statusText}`);
+      console.log(`[${requestId}] Response headers:`, Object.fromEntries(response.headers.entries()));
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[${requestId}] Response not OK. Status: ${response.status}, Body:`, errorText);
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+      }
+
+      const result = await response.json();
+      console.log(`[${requestId}] Response received:`, { 
+        status: result.status, 
+        hasData: !!result.data,
+        dataKeys: result.data ? Object.keys(result.data) : []
+      });
+
+      if (result.status === "success" && result.data) {
+        console.log(`[${requestId}] Processing successful response`);
+        
+        // Convert the backend response to the format expected by convertStepsToFlow
+        const stepsData = result.data;
+        console.log(`[${requestId}] Steps data keys:`, Object.keys(stepsData));
+        
+        const convertedSteps: Array<{
+          label: string;
+          instructions: string;
+          temperature: number;
+          measures: Measure[];
+        }> = [];
+
+        // Extract all step keys (step01, step02, etc.) and sort them
+        const stepKeys = Object.keys(stepsData)
+          .filter(key => key.startsWith('step'))
+          .sort((a, b) => {
+            // Extract numbers from step01, step02, etc. and sort numerically
+            const numA = parseInt(a.replace('step', '')) || 0;
+            const numB = parseInt(b.replace('step', '')) || 0;
+            return numA - numB;
+          });
+
+        console.log(`[${requestId}] Found ${stepKeys.length} step keys:`, stepKeys);
+
+        // Convert each step to the expected format
+        stepKeys.forEach((stepKey, index) => {
+          const step = stepsData[stepKey];
+          console.log(`[${requestId}] Processing ${stepKey}:`, { 
+            hasStep: !!step, 
+            hasTitle: !!(step?.title), 
+            hasInstructions: !!(step?.instructions) 
+          });
+          
+          if (step && step.title && step.instructions) {
+            convertedSteps.push({
+              label: step.title,
+              instructions: step.instructions,
+              temperature: 0.5, // Default temperature
+              measures: [], // Empty measures array - user can add measures later
+            });
+            console.log(`[${requestId}] Added step ${index + 1}: ${step.title}`);
+          } else {
+            console.warn(`[${requestId}] Skipping invalid step ${stepKey}:`, step);
+          }
+        });
+
+        console.log(`[${requestId}] Converted ${convertedSteps.length} valid steps`);
+
+        if (convertedSteps.length > 0) {
+          console.log(`[${requestId}] Converting steps to flow nodes`);
+          // Convert steps to flow nodes and edges
+          const { nodes, edges } = convertStepsToFlow(convertedSteps);
+          console.log(`[${requestId}] Created ${nodes.length} nodes and ${edges.length} edges`);
+          
+          // Update the React Flow
+          if (reactFlowRef.current) {
+            console.log(`[${requestId}] Updating React Flow`);
+            reactFlowRef.current.setNodesAndEdges(nodes, edges);
+          }
+          
+          setFlowNodes(nodes);
+          setFlowEdges(edges);
+
+          // Optionally set the title from study context if available
+          if (stepsData.study_context_and_instructions?.context && !processTitle) {
+            console.log(`[${requestId}] Setting suggested title from study context`);
+            // Extract a title from the context or use it as-is
+            const context = stepsData.study_context_and_instructions.context;
+            // Try to use first sentence or first 50 characters
+            const suggestedTitle = context.split('.')[0].trim().substring(0, 50);
+            if (suggestedTitle) {
+              setProcessTitle(suggestedTitle);
+            }
+          }
+
+          console.log(`[${requestId}] Successfully generated ${convertedSteps.length} step(s)`);
+          alert(`Successfully generated ${convertedSteps.length} step(s)!`);
+        } else {
+          console.warn(`[${requestId}] No valid steps were generated`);
+          alert("No valid steps were generated. Please try again with a more detailed description.");
+        }
+      } else {
+        console.error(`[${requestId}] Response indicates failure:`, result);
+        throw new Error(result.message || 'Failed to generate steps');
+      }
+    } catch (error) {
+      console.error(`[${requestId}] Error generating steps:`, error);
+      if (error instanceof Error) {
+        console.error(`[${requestId}] Error name: ${error.name}`);
+        console.error(`[${requestId}] Error message: ${error.message}`);
+        console.error(`[${requestId}] Error stack:`, error.stack);
+      }
+      alert(`Error generating steps: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      console.log(`[${requestId}] handleGenerateSteps completed`);
+      setIsGeneratingSteps(false);
+    }
   };
 
   const handleSaveDraft = () => {
@@ -784,16 +950,27 @@ function SimulationPageContent() {
                       placeholder="Describe the process you want to simulate..."
                       value={processDescription}
                       onChange={(e) => setProcessDescription(e.target.value)}
-                      className="w-full h-24 px-4 py-3 bg-white border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      disabled={isGeneratingSteps}
+                      className="w-full h-24 px-4 py-3 bg-white border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
                     />
                   </div>
                   <Button 
                     onClick={handleGenerateSteps}
                     variant="outline"
-                    className="flex items-center gap-2"
+                    disabled={isGeneratingSteps}
+                    className="flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <Sparkles className="w-4 h-4" />
-                    Generate Steps
+                    {isGeneratingSteps ? (
+                      <>
+                        <Spinner size="sm" />
+                        <span>Generating...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4" />
+                        Generate Steps
+                      </>
+                    )}
                   </Button>
                 </div>
               </div>

@@ -20,6 +20,18 @@ from utils.evaluate import *
 import threading
 import uuid
 import random
+import json
+import logging
+import typing_extensions as typing
+from datetime import datetime
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger(__name__)
 
 
 # Load environment variables from .env file
@@ -150,20 +162,36 @@ def run_evaluation(uuid, data, key_g, jwt=None):
         #         sample['persona'] = generated_persona
         #         data['sample'] = sample
 
-        # Extract attributes from the sample
-        attributes = data.get('sample')['attributes']
-        
-        # Generate 10 random samples from the attributes
-        random_samples = generate_random_samples(attributes, num_samples=10)
-
-        if supabase and random_samples:
-            try:
-                supabase.table("samples").update({
-                    "persona": random_samples
-                }).eq("id", data.get('sample')['id']).execute()
-                print(f"Updated personas for sample {data.get('sample')['id']}")
-            except Exception as e:
-                print(f"Error updating personas in database: {e}")
+        # Check if persona already exists in the database
+        sample_id = data.get('sample')['id']
+        try:
+            # Fetch the current sample from database to check persona
+            sample_response = supabase.table("samples").select("persona").eq("id", sample_id).execute()
+            
+            # Check if persona exists and is not null
+            if sample_response.data and sample_response.data[0].get('persona') is not None:
+                # Persona exists, use it from the database
+                random_samples = sample_response.data[0]['persona']
+                print(f"Using existing personas for sample {sample_id}")
+            else:
+                # Persona is null, generate new ones
+                attributes = data.get('sample')['attributes']
+                random_samples = generate_random_samples(attributes, num_samples=10)
+                
+                # Update the database with the new personas
+                if supabase and random_samples:
+                    try:
+                        supabase.table("samples").update({
+                            "persona": random_samples
+                        }).eq("id", sample_id).execute()
+                        print(f"Generated and updated personas for sample {sample_id}")
+                    except Exception as e:
+                        print(f"Error updating personas in database: {e}")
+        except Exception as e:
+            print(f"Error checking/updating personas: {e}")
+            # Fallback: generate new samples if database check fails
+            attributes = data.get('sample')['attributes']
+            random_samples = generate_random_samples(attributes, num_samples=10)
 
         # Generate baseline prompt and get token usage
         sample = data.get('sample')
@@ -344,9 +372,205 @@ class Progress(Resource):
             return jsonify({"status": "error", "message": str(e)}), 500
 
 
+class GenerateSteps(Resource):
+    """
+    Resource for generating simulation steps from a user prompt using Gemini.
+    """
+    
+    def post(self):
+        """
+        Handle POST requests for generating simulation steps.
+        
+        Request body:
+        - prompt: The user's description of a cognitive task, behavior, or goal
+        
+        Returns:
+            JSON response containing generated simulation steps in structured format
+        """
+        request_id = datetime.now().strftime('%Y%m%d%H%M%S%f')
+        logger.info(f"[{request_id}] GenerateSteps POST request received")
+        
+        try:
+            data = request.get_json()
+            logger.debug(f"[{request_id}] Request data received: {json.dumps(data, indent=2)[:500]}")  # Log first 500 chars
+            
+            user_prompt = data.get('prompt')
+            logger.info(f"[{request_id}] User prompt length: {len(user_prompt) if user_prompt else 0} characters")
+            
+            if not user_prompt:
+                logger.warning(f"[{request_id}] Missing 'prompt' in request body")
+                return jsonify({"status": "error", "message": "Missing 'prompt' in request body"}), 400
+            
+            # System prompt for the cognitive science researcher
+            system_prompt = """Act as a cognitive science researcher who is an expert in building and testing human cognition processes. You design experiments and analyze data to understand the underlying mechanisms of cognition. You are a world expert in simulation research, allowing you to contribute to advancements in many fields of social science.
+
+Cognitive processes are the mental operations that allow people to acquire, process, store, and use information. Cognitive researchers often build computer models that mimic or simulate human cognition. Core purpose: To design and test theories of how cognition might work systematically.
+
+Your goal: Receive a description as user input and convert it into a more specific and detailed cognitive model that matches the level of rigor typically found in the field of cognition. You do this by generating a sequence of steps that guide the participants of a study to perform a set of instructions for each step, which will generate data for the said study.
+
+### Input specifications:
+
+The input should be a description of a cognitive task, behavior, or goal to accomplish. It may be poorly worded, theoretically incomplete, or overly general, in which case you should use your expertise as a cognitive scientist to add more detail and rigor.
+
+### Output specifications:
+
+The Output should lay out the following:
+
+1. Study introduction and context:
+    1.1. A very brief welcome message that states the high level purpose of the study without risk of biasing the participants
+    1.2. A set of general instructions for participants to learn how to complete the task.
+
+2. Set of steps to follow. Each step should have a one-or-two-word title and a set of instructions for the participant to follow. If the step instructions include some form of external stimulus, include those external stimuli in a following step. The steps should be logically ordered and build on each other. Each step should be concise and clear, avoiding unnecessary jargon or complexity. Remember your main goal is to convert the user input into a sequence of steps representing a cognitive model or process for participants to follow. There's no limit to the number of steps, and each step should represent one discrete and atomic activity at a time until it reaches the end goal.
+
+Generate the output in JSON format with the following EXACT structure (use "instructions" not "description" for steps):
+{
+  "step01": {
+    "title": "step title (one or two words)",
+    "instructions": "instructions for participants to follow in this step"
+  },
+  "step02": {
+    "title": "step title (one or two words)",
+    "instructions": "instructions for participants to follow in this step"
+  }
+  ...
+}
+
+IMPORTANT: All steps must use "instructions" (not "description") as the field name AND no more than 10 steps."""
+
+            # User prompt
+            full_prompt = f"Given the following user input, generate simulation steps:\n\n{user_prompt}"
+            logger.debug(f"[{request_id}] Full prompt prepared (length: {len(full_prompt)} characters)")
+            
+            # Configure Gemini API
+            logger.info(f"[{request_id}] Configuring Gemini API")
+            genai.configure(api_key=key_g)
+            model = genai.GenerativeModel(
+                "gemini-2.0-flash",
+                system_instruction=system_prompt
+            )
+            
+            # Generate structured JSON response using TypedDict schema (like evaluate.py)
+            logger.info(f"[{request_id}] Calling Gemini API with response_schema")
+            try:
+                gemini_response = model.generate_content(
+                    full_prompt,
+                    generation_config=genai.types.GenerationConfig(
+                        temperature=0.7,
+                        response_mime_type="application/json",
+                    )
+                )
+                logger.info(f"[{request_id}] Gemini API call successful")
+            except Exception as api_error:
+                error_msg = str(api_error)
+                error_type = type(api_error).__name__
+                logger.error(f"[{request_id}] Error calling Gemini API: {error_type}: {error_msg}", exc_info=True)
+                return jsonify({
+                    "status": "error",
+                    "message": f"Failed to call Gemini API: {error_msg}"
+                }), 500
+            
+            # Parse JSON response - use the same pattern as other code in the codebase
+            logger.info(f"[{request_id}] Parsing Gemini response")
+            try:
+                response_text = gemini_response._result.candidates[0].content.parts[0].text
+                logger.info(f"[{request_id}] ========== FULL GEMINI RESPONSE ==========")
+                logger.info(f"[{request_id}] Response text length: {len(response_text)} characters")
+                logger.info(f"[{request_id}] Full response:\n{response_text}")
+                logger.info(f"[{request_id}] ==========================================")
+                
+                steps_data = json.loads(response_text)
+                logger.info(f"[{request_id}] JSON parsing successful")
+                logger.info(f"[{request_id}] Parsed data structure:")
+                logger.info(f"[{request_id}] {json.dumps(steps_data, indent=2)}")
+                logger.debug(f"[{request_id}] Parsed data keys: {list(steps_data.keys())}")
+            except (AttributeError, KeyError, IndexError) as parse_error:
+                error_msg = str(parse_error)
+                error_type = type(parse_error).__name__
+                logger.error(f"[{request_id}] Error accessing Gemini response: {error_type}: {error_msg}", exc_info=True)
+                try:
+                    logger.error(f"[{request_id}] Response object: {gemini_response}")
+                    logger.error(f"[{request_id}] Response has _result: {hasattr(gemini_response, '_result')}")
+                    if hasattr(gemini_response, '_result'):
+                        logger.error(f"[{request_id}] Response _result: {gemini_response._result}")
+                except:
+                    pass
+                return jsonify({
+                    "status": "error",
+                    "message": f"Failed to access Gemini response: {error_msg}"
+                }), 500
+            except json.JSONDecodeError as parse_error:
+                error_msg = str(parse_error)
+                logger.error(f"[{request_id}] JSON decode error: {error_msg}", exc_info=True)
+                try:
+                    logger.error(f"[{request_id}] Response text that failed to parse: {response_text[:500]}")
+                except:
+                    pass
+                return jsonify({
+                    "status": "error",
+                    "message": f"Failed to parse JSON response from Gemini: {error_msg}"
+                }), 500
+            
+            # Validate basic structure - just needs to be a dict with at least one step
+            logger.info(f"[{request_id}] Validating response structure")
+            if not isinstance(steps_data, dict):
+                logger.error(f"[{request_id}] Invalid response format: expected dict, got {type(steps_data)}")
+                return jsonify({
+                    "status": "error",
+                    "message": "Invalid response format: expected a JSON object"
+                }), 500
+            
+            # Validate and normalize step structure - check for "description" vs "instructions"
+            step_keys = [k for k in steps_data.keys() if k.startswith('step')]
+            if not step_keys:
+                logger.error(f"[{request_id}] No steps found in response")
+                logger.error(f"[{request_id}] Available keys: {list(steps_data.keys())}")
+                return jsonify({
+                    "status": "error",
+                    "message": "Response must contain at least one step (step01, step02, etc.)"
+                }), 500
+            logger.info(f"[{request_id}] Found {len(step_keys)} step(s)")
+            logger.debug(f"[{request_id}] Step keys: {step_keys}")
+            
+            # Normalize any steps that use "description" instead of "instructions"
+            for step_key in step_keys:
+                step = steps_data[step_key]
+                if isinstance(step, dict):
+                    if "description" in step and "instructions" not in step:
+                        logger.warning(f"[{request_id}] Step {step_key} uses 'description' instead of 'instructions', normalizing...")
+                        step["instructions"] = step.pop("description")
+                    elif "description" in step and "instructions" in step:
+                        logger.warning(f"[{request_id}] Step {step_key} has both 'description' and 'instructions', removing 'description'")
+                        step.pop("description")
+            
+            logger.info(f"[{request_id}] Response validated and normalized successfully")
+            
+            # steps_data is already a dict with all dynamic step fields, ready to return
+            output_dict = steps_data
+            
+            # Return the structured data (output_dict already contains all dynamic step fields)
+            logger.info(f"[{request_id}] Returning successful response")
+            return jsonify({
+                "status": "success",
+                "data": output_dict
+            })
+            
+        except Exception as e:
+            # Catch-all for any unexpected errors
+            error_msg = str(e)
+            error_type = type(e).__name__
+            logger.error(f"[{request_id}] Unexpected error in GenerateSteps: {error_type}: {error_msg}", exc_info=True)
+            import traceback
+            logger.error(f"[{request_id}] Traceback: {traceback.format_exc()}")
+            return jsonify({
+                "status": "error",
+                "message": f"An unexpected error occurred: {error_msg}"
+            }), 500
+
+
 # Register the resources with the API
 api.add_resource(Evaluation, "/evaluate")
 api.add_resource(Progress, "/progress")
+api.add_resource(GenerateSteps, "/generate-steps")
 
 # Register the API blueprint with the Flask application
 app.register_blueprint(api_bp, url_prefix="/api")
