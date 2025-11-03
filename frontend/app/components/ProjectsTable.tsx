@@ -26,6 +26,7 @@ interface Project {
   name: string;
   sample_name: string;
   status: string;
+  progress?: number; // Progress percentage for running simulations
   downloads: Download[];
   steps: SimulationStep[];
   id?: string;
@@ -165,7 +166,7 @@ export default function ProjectsTable({ projects, onDownload, onRename, onModify
                     </Link>
                   </td>
                   <td className="px-6 py-4">
-                    <StatusBadge status={project.status} />
+                    <StatusBadge status={project.status} progress={project.progress} />
                   </td>
                   <td className="px-6 py-4">
                     <div className="space-y-1">
