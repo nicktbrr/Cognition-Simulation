@@ -70,6 +70,16 @@ export default function DashboardHistory() {
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [projectToRename, setProjectToRename] = useState<{ id: string; name: string } | null>(null);
   const [newName, setNewName] = useState("");
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Helper function to check if a project was created within the last 20 minutes
+  const isRecentProject = (createdAt: string | undefined): boolean => {
+    if (!createdAt) return false;
+    const createdTime = new Date(createdAt).getTime();
+    const now = Date.now();
+    const twentyMinutesAgo = now - (20 * 60 * 1000); // 20 minutes in milliseconds
+    return createdTime >= twentyMinutesAgo;
+  };
 
   const getHistory = async (userId: string) => {
     const { data, error } = await supabase.from("dashboard").select("created_at, name, url").eq("user_id", userId);
@@ -294,73 +304,67 @@ export default function DashboardHistory() {
     setProjectToDelete(null);
   };
 
-  // Function to check progress for a running simulation
+  // Function to check progress for a running simulation by querying Supabase directly
   const checkProgress = async (experimentId: string, userId: string) => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const accessToken = session?.access_token;
-      if (!accessToken) {
+      console.log(`[Polling] Checking progress for experiment: ${experimentId}`);
+      // Query Supabase directly for the experiment progress
+      const { data, error } = await supabase
+        .from("experiments")
+        .select("progress, status, url")
+        .eq("experiment_id", experimentId)
+        .eq("user_id", userId)
+        .single();
+
+      if (error) {
+        console.error("Error checking progress:", error);
         return;
       }
 
-      const prod = process.env.NEXT_PUBLIC_DEV || "production";
-      const url =
-        prod === "development"
-          ? `http://127.0.0.1:5000/api/progress?task_id=${experimentId}&user_id=${userId}`
-          : `https://cognition-backend-81313456654.us-west1.run.app/api/progress?task_id=${experimentId}&user_id=${userId}`;
-
-      const response = await fetch(url, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        if (result.progress) {
-          const progressData = result.progress;
-          
-          // Normalize progress to 0-100 range (backend might return 0-1 or 0-100)
-          let progressPercent = progressData.progress || 0;
-          if (progressPercent <= 1) {
-            progressPercent = progressPercent * 100;
+      if (data) {
+        const progressData = data;
+        
+        // Normalize progress to 0-100 range (backend might return 0-1 or 0-100)
+        let progressPercent = progressData.progress || 0;
+        if (progressPercent <= 1 && progressPercent > 0) {
+          progressPercent = progressPercent * 100;
+        }
+        
+        // Normalize status
+        const status = progressData.status || '';
+        const statusLower = status.toLowerCase();
+        
+        // Update the project with new progress
+        setProjects(prev => prev.map(project => {
+          if (project.experiment_id === experimentId) {
+            // Stop polling immediately when progress reaches 100%
+            const isFailed = statusLower === 'failed';
+            const isComplete = progressPercent >= 100 || statusLower === 'completed';
+            
+            // If progress >= 100, mark as completed immediately to stop polling
+            const shouldStopPolling = progressPercent >= 100 || isComplete;
+            
+            return {
+              ...project,
+              status: isFailed ? 'Failed' : 
+                     isComplete ? 'Completed' : 'Running',
+              // Clear progress when >= 100 to stop polling
+              progress: shouldStopPolling ? undefined : progressPercent
+            };
           }
-          
-          // Update the project with new progress
-          setProjects(prev => prev.map(project => {
-            if (project.experiment_id === experimentId) {
-              // Only change to Completed when progress reaches 100% AND backend confirms completion
-              // Keep showing Running with percentage until then to prevent flickering
-              const shouldShowCompleted = progressPercent >= 100 && 
-                                         (progressData.status === 'completed' || progressData.status === 'Completed');
-              
-              return {
-                ...project,
-                status: progressData.status === 'failed' ? 'Failed' : 
-                       shouldShowCompleted ? 'Completed' : 'Running',
-                // Keep showing progress until we confirm completion
-                progress: progressPercent >= 100 && shouldShowCompleted ? undefined : progressPercent
-              };
+          return project;
+        }));
+
+        // If completed or failed, refresh the projects list after a delay
+        if (progressPercent >= 100 || statusLower === 'completed' || statusLower === 'failed') {
+          console.log(`[Polling] Experiment ${experimentId} completed (progress: ${progressPercent}%, status: ${status}). Polling will stop.`);
+          setTimeout(() => {
+            if (user) {
+              getProjects(user.user_id);
             }
-            return project;
-          }));
-
-          // If completed or failed, refresh the projects list after a delay
-          if (progressPercent >= 100 && (progressData.status === 'completed' || progressData.status === 'Completed')) {
-            setTimeout(() => {
-              if (user) {
-                getProjects(user.user_id);
-              }
-            }, 1000);
-          } else if (progressData.status === 'failed') {
-            setTimeout(() => {
-              if (user) {
-                getProjects(user.user_id);
-              }
-            }, 1000);
-          }
+          }, 1000);
+        } else {
+          console.log(`[Polling] Experiment ${experimentId} progress: ${progressPercent}%, status: ${status}`);
         }
       }
     } catch (error) {
@@ -378,25 +382,101 @@ export default function DashboardHistory() {
 
   // Poll for progress on running simulations
   useEffect(() => {
-    if (!user || !isAuthenticated) return;
+    if (!user || !isAuthenticated) {
+      // Clear interval if user is not authenticated
+      if (pollingIntervalRef.current) {
+        console.log('[Polling] User not authenticated. Stopping polling interval.');
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+      return;
+    }
 
-    // Include projects that are Running OR have progress but status might be transitioning
-    const runningProjects = projects.filter(p => 
-      (p.status === 'Running' || (p.progress !== undefined && p.progress < 100)) && p.experiment_id
+    const pollInterval = () => {
+      // Check current state on each poll to avoid closure issues
+      setProjects(currentProjects => {
+        // Only poll projects that are Running with progress < 100 AND created within last 20 minutes
+        // Exclude Completed/Failed statuses (they stop polling)
+        // Exclude old/stuck simulations (older than 20 minutes)
+        // If progress is undefined, still poll (might be just started)
+        // But if progress is a number >= 100, don't poll
+        const allRunningProjects = currentProjects.filter(p => 
+          p.experiment_id && 
+          p.status === 'Running' && 
+          (p.progress === undefined || (typeof p.progress === 'number' && p.progress < 100))
+        );
+        
+        const runningProjects = allRunningProjects.filter(p => isRecentProject(p.created_at));
+        
+        // Log if we filtered out any old projects
+        const oldProjects = allRunningProjects.filter(p => !isRecentProject(p.created_at));
+        if (oldProjects.length > 0) {
+          oldProjects.forEach(p => {
+            const ageMinutes = p.created_at 
+              ? Math.floor((Date.now() - new Date(p.created_at).getTime()) / (1000 * 60))
+              : 'unknown';
+            console.log(`[Polling] Skipping old project ${p.experiment_id} (created ${ageMinutes} minutes ago, older than 20 minutes)`);
+          });
+        }
+
+        // If no running projects, stop polling
+        if (runningProjects.length === 0) {
+          if (pollingIntervalRef.current) {
+            console.log('[Polling] No recent running projects found (within last 20 minutes). Stopping polling interval.');
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+          }
+          return currentProjects;
+        }
+
+        console.log(`[Polling] Polling ${runningProjects.length} running project(s)`);
+        // Poll each running project
+        runningProjects.forEach(project => {
+          if (project.experiment_id && user.user_id) {
+            checkProgress(project.experiment_id, user.user_id);
+          }
+        });
+
+        // Return unchanged state (we're just reading it)
+        return currentProjects;
+      });
+    };
+
+    // Clear any existing interval before starting a new one
+    if (pollingIntervalRef.current) {
+      console.log('[Polling] Clearing existing polling interval');
+      clearInterval(pollingIntervalRef.current);
+    }
+
+    // Check if there are any running projects (created within last 20 minutes) before starting polling
+    const hasRunningProjects = projects.some(p => 
+      p.experiment_id && 
+      p.status === 'Running' && 
+      (p.progress === undefined || (typeof p.progress === 'number' && p.progress < 100)) &&
+      isRecentProject(p.created_at)
     );
 
-    if (runningProjects.length === 0) return;
+    // Only start polling if there are running projects
+    if (hasRunningProjects) {
+      const runningCount = projects.filter(p => 
+        p.experiment_id && 
+        p.status === 'Running' && 
+        (p.progress === undefined || (typeof p.progress === 'number' && p.progress < 100)) &&
+        isRecentProject(p.created_at)
+      ).length;
+      console.log(`[Polling] Starting polling interval for ${runningCount} running project(s) (created within last 20 minutes)`);
+      pollingIntervalRef.current = setInterval(pollInterval, 500);
+    } else {
+      console.log('[Polling] No running projects (created within last 20 minutes). Polling not started.');
+    }
 
-    // Poll every half second (500ms) for each running project
-    const interval = setInterval(() => {
-      runningProjects.forEach(project => {
-        if (project.experiment_id && user.user_id) {
-          checkProgress(project.experiment_id, user.user_id);
-        }
-      });
-    }, 500);
-
-    return () => clearInterval(interval);
+    return () => {
+      if (pollingIntervalRef.current) {
+        console.log('[Polling] Component unmounting or dependencies changed. Cleaning up polling interval.');
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
   }, [projects, user, isAuthenticated]);
 
 

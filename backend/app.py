@@ -361,6 +361,15 @@ class Progress(Resource):
             
             if response.data:
                 progress_data = response.data[0]
+                
+                # Check if experiment is already completed - return early to avoid unnecessary processing
+                status = progress_data.get('status', '').lower()
+                progress = progress_data.get('progress', 0)
+                
+                # If completed or failed, log a warning if still being polled (this shouldn't happen)
+                if status in ['completed', 'failed'] or (isinstance(progress, (int, float)) and progress >= 100):
+                    logger.debug(f"Progress check for completed experiment {task_id} (status: {status}, progress: {progress})")
+                
                 return jsonify({
                     "status": "success",
                     "progress": progress_data
@@ -369,6 +378,7 @@ class Progress(Resource):
                 return jsonify({"status": "not_found", "message": "Progress not found"}), 404
                 
         except Exception as e:
+            logger.error(f"Error in Progress endpoint: {str(e)}")
             return jsonify({"status": "error", "message": str(e)}), 500
 
 
@@ -420,7 +430,14 @@ The Output should lay out the following:
     1.1. A very brief welcome message that states the high level purpose of the study without risk of biasing the participants
     1.2. A set of general instructions for participants to learn how to complete the task.
 
-2. Set of steps to follow. Each step should have a one-or-two-word title and a set of instructions for the participant to follow. If the step instructions include some form of external stimulus, include those external stimuli in a following step. The steps should be logically ordered and build on each other. Each step should be concise and clear, avoiding unnecessary jargon or complexity. Remember your main goal is to convert the user input into a sequence of steps representing a cognitive model or process for participants to follow. There's no limit to the number of steps, and each step should represent one discrete and atomic activity at a time until it reaches the end goal.
+2. A set of steps with the following characteristics:
+  - Each step should have a one-or-two-word title
+  - Each step should have a set of clear instructions for the participant to follow
+  - Step instruction should be aligned with the title of the step
+  - The steps should be logically ordered and build on each other
+  - Each step should be concise and clear, avoiding unnecessary jargon or complexity
+  - There's no limit to the number of steps, and each step should represent one discrete and atomic activity at a time until it reaches the end goal
+  - Remember your main goal is to convert the user input into a sequence of steps representing a cognitive model or process for participants to follow
 
 Generate the output in JSON format with the following EXACT structure (use "instructions" not "description" for steps):
 {
