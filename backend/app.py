@@ -21,6 +21,7 @@ import threading
 import uuid
 import random
 import json
+import re
 import logging
 import typing_extensions as typing
 from datetime import datetime
@@ -89,6 +90,36 @@ key_g = os.environ.get('GEMINI_KEY')
 genai.configure(api_key=key_g)
 
 
+def parse_age_range(age_range_str):
+    """
+    Parse an age range string and return a random age within that range.
+    
+    Args:
+        age_range_str: String like "18 - 35 years old" or "18-35"
+    
+    Returns:
+        str: A random age within the range as a string, or the original string if parsing fails
+    """
+    try:
+        # Extract numbers from the string using regex
+        numbers = re.findall(r'\d+', age_range_str)
+        if len(numbers) >= 2:
+            min_age = int(numbers[0])
+            max_age = int(numbers[1])
+            # Select a random age within the range
+            random_age = random.randint(min_age, max_age)
+            return str(random_age)
+        elif len(numbers) == 1:
+            # Only one number found, return it as is
+            return numbers[0]
+        else:
+            # No numbers found, return original string
+            return age_range_str
+    except Exception as e:
+        print(f"Error parsing age range '{age_range_str}': {e}")
+        return age_range_str
+
+
 def generate_random_samples(attributes, num_samples=10):
     """
     Generate random samples from the attributes list.
@@ -99,10 +130,11 @@ def generate_random_samples(attributes, num_samples=10):
     
     Returns:
         List of sample dictionaries, each containing randomly selected values for each attribute
+        and a 'number' field (1-10) for consistent ordering
     
     Example input:
         [
-            {'label': 'Age', 'category': 'demographics', 'values': ['18', '29']},
+            {'label': 'Age', 'category': 'demographics', 'values': ['18 - 35 years old']},
             {'label': 'Nationality (UK)', 'category': 'demographics', 'values': ['England']},
             {'label': 'Gender', 'category': 'demographics', 'values': ['Man (including Trans Male/Trans Man)']}
         ]
@@ -110,12 +142,14 @@ def generate_random_samples(attributes, num_samples=10):
     Example output:
         [
             {
-                'Age': '18',
+                'number': 1,
+                'Age': '24',
                 'Nationality (UK)': 'England',
                 'Gender': 'Man (including Trans Male/Trans Man)'
             },
             {
-                'Age': '29',
+                'number': 2,
+                'Age': '31',
                 'Nationality (UK)': 'England',
                 'Gender': 'Man (including Trans Male/Trans Man)'
             },
@@ -124,8 +158,8 @@ def generate_random_samples(attributes, num_samples=10):
     """
     samples = []
     
-    for _ in range(num_samples):
-        sample = {}
+    for i in range(num_samples):
+        sample = {'number': i + 1}  # Add number field (1-10)
         for attribute in attributes:
             label = attribute.get('label')
             values = attribute.get('values', [])
@@ -133,6 +167,11 @@ def generate_random_samples(attributes, num_samples=10):
             # Randomly select one value from the available values
             if values:
                 selected_value = random.choice(values)
+                
+                # Special handling for Age attribute: parse range and select random age
+                if label == 'Age' and isinstance(selected_value, str):
+                    selected_value = parse_age_range(selected_value)
+                
                 sample[label] = selected_value
         
         samples.append(sample)
@@ -172,11 +211,17 @@ def run_evaluation(uuid, data, key_g, jwt=None):
             if sample_response.data and sample_response.data[0].get('persona') is not None:
                 # Persona exists, use it from the database
                 random_samples = sample_response.data[0]['persona']
+                # Sort personas by number field to ensure consistent ordering
+                if isinstance(random_samples, list):
+                    random_samples = sorted(random_samples, key=lambda x: x.get('number', 0))
                 print(f"Using existing personas for sample {sample_id}")
             else:
                 # Persona is null, generate new ones
                 attributes = data.get('sample')['attributes']
                 random_samples = generate_random_samples(attributes, num_samples=10)
+                # Sort personas by number field to ensure consistent ordering
+                if isinstance(random_samples, list):
+                    random_samples = sorted(random_samples, key=lambda x: x.get('number', 0))
                 
                 # Update the database with the new personas
                 if supabase and random_samples:
@@ -192,6 +237,9 @@ def run_evaluation(uuid, data, key_g, jwt=None):
             # Fallback: generate new samples if database check fails
             attributes = data.get('sample')['attributes']
             random_samples = generate_random_samples(attributes, num_samples=10)
+            # Sort personas by number field to ensure consistent ordering
+            if isinstance(random_samples, list):
+                random_samples = sorted(random_samples, key=lambda x: x.get('number', 0))
 
         # Generate baseline prompt and get token usage
         sample = data.get('sample')
