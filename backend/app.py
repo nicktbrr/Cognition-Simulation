@@ -360,7 +360,7 @@ class Evaluation(Resource):
                 "experiment_id": uuid,
                 "progress": 0,
                 "status": "Started",
-                "sample_name": "test",
+                "sample_name": data['sample']['name'],
                 "user_id": data['user_id'],
                 "simulation_name": data['title'],
                 "experiment_data": data,
