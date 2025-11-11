@@ -481,7 +481,10 @@ function SimulationPageContent() {
       return;
     }
     
-    // If validation passes, proceed with submission
+    // If validation passes, immediately disable button and show progress
+    // This happens before waiting for the backend (cold start)
+    setIsSimulationRunning(true);
+    setSimulationProgress(0);
     
     try {
       // Get the user from local storage
@@ -570,10 +573,8 @@ function SimulationPageContent() {
         // Save task_id to localStorage
         localStorage.setItem('simulation-task-id', taskId);
         
-        // Set state for polling
+        // Set task ID for polling (progress and running state already set above)
         setSimulationTaskId(taskId);
-        setSimulationProgress(0);
-        setIsSimulationRunning(true);
         
         // Don't show alert, let the button show progress instead
         console.log("Simulation submitted successfully! Task ID: " + taskId);
@@ -582,6 +583,10 @@ function SimulationPageContent() {
       }
       
     } catch (error) {
+      // Reset state on error so user can try again
+      setIsSimulationRunning(false);
+      setSimulationProgress(null);
+      setSimulationTaskId(null);
       alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };

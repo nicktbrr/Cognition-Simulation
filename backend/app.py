@@ -99,6 +99,7 @@ def generate_random_samples(attributes, num_samples=10):
     
     Returns:
         List of sample dictionaries, each containing randomly selected values for each attribute
+        and a 'number' field (1-10) for consistent ordering
     
     Example input:
         [
@@ -110,11 +111,13 @@ def generate_random_samples(attributes, num_samples=10):
     Example output:
         [
             {
+                'number': 1,
                 'Age': '18',
                 'Nationality (UK)': 'England',
                 'Gender': 'Man (including Trans Male/Trans Man)'
             },
             {
+                'number': 2,
                 'Age': '29',
                 'Nationality (UK)': 'England',
                 'Gender': 'Man (including Trans Male/Trans Man)'
@@ -124,8 +127,8 @@ def generate_random_samples(attributes, num_samples=10):
     """
     samples = []
     
-    for _ in range(num_samples):
-        sample = {}
+    for i in range(num_samples):
+        sample = {'number': i + 1}  # Add number field (1-10)
         for attribute in attributes:
             label = attribute.get('label')
             values = attribute.get('values', [])
@@ -172,11 +175,17 @@ def run_evaluation(uuid, data, key_g, jwt=None):
             if sample_response.data and sample_response.data[0].get('persona') is not None:
                 # Persona exists, use it from the database
                 random_samples = sample_response.data[0]['persona']
+                # Sort personas by number field to ensure consistent ordering
+                if isinstance(random_samples, list):
+                    random_samples = sorted(random_samples, key=lambda x: x.get('number', 0))
                 print(f"Using existing personas for sample {sample_id}")
             else:
                 # Persona is null, generate new ones
                 attributes = data.get('sample')['attributes']
                 random_samples = generate_random_samples(attributes, num_samples=10)
+                # Sort personas by number field to ensure consistent ordering
+                if isinstance(random_samples, list):
+                    random_samples = sorted(random_samples, key=lambda x: x.get('number', 0))
                 
                 # Update the database with the new personas
                 if supabase and random_samples:
@@ -192,6 +201,9 @@ def run_evaluation(uuid, data, key_g, jwt=None):
             # Fallback: generate new samples if database check fails
             attributes = data.get('sample')['attributes']
             random_samples = generate_random_samples(attributes, num_samples=10)
+            # Sort personas by number field to ensure consistent ordering
+            if isinstance(random_samples, list):
+                random_samples = sorted(random_samples, key=lambda x: x.get('number', 0))
 
         # Generate baseline prompt and get token usage
         sample = data.get('sample')
