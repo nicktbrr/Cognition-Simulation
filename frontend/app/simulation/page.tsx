@@ -61,6 +61,11 @@ function SimulationPageContent() {
   const [loadingSamples, setLoadingSamples] = useState(false);
   const [contentLoaded, setContentLoaded] = useState(false);
   const [isLoadingExperiment, setIsLoadingExperiment] = useState(false);
+  const [isGeneratingSteps, setIsGeneratingSteps] = useState(false);
+  const [simulationTaskId, setSimulationTaskId] = useState<string | null>(null);
+  const [simulationProgress, setSimulationProgress] = useState<number | null>(null);
+  const [isSimulationRunning, setIsSimulationRunning] = useState(false);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const reactFlowRef = useRef<ReactFlowRef>(null);
 
   const getUserData = async (userId: string) => {
@@ -145,8 +150,173 @@ function SimulationPageContent() {
     }
   };
 
-  const handleGenerateSteps = () => {
-    // TODO: Implement generate steps functionality
+  const handleGenerateSteps = async () => {
+    const requestId = `frontend-${Date.now()}`;
+    console.log(`[${requestId}] handleGenerateSteps called`);
+    
+    // Validate that process description is provided
+    if (!processDescription || processDescription.trim() === '') {
+      console.warn(`[${requestId}] Validation failed: process description is empty`);
+      alert("Please enter a process description before generating steps.");
+      return;
+    }
+
+    console.log(`[${requestId}] Process description length: ${processDescription.length} characters`);
+    setIsGeneratingSteps(true);
+    
+    try {
+      // Get the user's Supabase access token
+      console.log(`[${requestId}] Getting Supabase session`);
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) {
+        console.error(`[${requestId}] Error getting session:`, sessionError);
+        throw new Error(`Session error: ${sessionError.message}`);
+      }
+      
+      const accessToken = session?.access_token;
+      if (!accessToken) {
+        console.error(`[${requestId}] No access token found`);
+        throw new Error("No Supabase access token found");
+      }
+      
+      console.log(`[${requestId}] Access token obtained (length: ${accessToken.length} characters)`);
+
+      // Define backend URL based on environment
+      const prod = process.env.NEXT_PUBLIC_DEV || "production";
+      const url =
+        prod === "development"
+          ? "http://127.0.0.1:5000/api/generate-steps"
+          : "https://cognition-backend-81313456654.us-west1.run.app/api/generate-steps";
+
+      console.log(`[${requestId}] Calling backend API: ${url}`);
+      console.log(`[${requestId}] Request payload:`, { prompt: processDescription.substring(0, 100) + "..." });
+
+      // Call the backend API
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ prompt: processDescription }),
+      });
+
+      console.log(`[${requestId}] Response status: ${response.status} ${response.statusText}`);
+      console.log(`[${requestId}] Response headers:`, Object.fromEntries(response.headers.entries()));
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[${requestId}] Response not OK. Status: ${response.status}, Body:`, errorText);
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+      }
+
+      const result = await response.json();
+      console.log(`[${requestId}] Response received:`, { 
+        status: result.status, 
+        hasData: !!result.data,
+        dataKeys: result.data ? Object.keys(result.data) : []
+      });
+
+      if (result.status === "success" && result.data) {
+        console.log(`[${requestId}] Processing successful response`);
+        
+        // Convert the backend response to the format expected by convertStepsToFlow
+        const stepsData = result.data;
+        console.log(`[${requestId}] Steps data keys:`, Object.keys(stepsData));
+        
+        const convertedSteps: Array<{
+          label: string;
+          instructions: string;
+          temperature: number;
+          measures: Measure[];
+        }> = [];
+
+        // Extract all step keys (step01, step02, etc.) and sort them
+        const stepKeys = Object.keys(stepsData)
+          .filter(key => key.startsWith('step'))
+          .sort((a, b) => {
+            // Extract numbers from step01, step02, etc. and sort numerically
+            const numA = parseInt(a.replace('step', '')) || 0;
+            const numB = parseInt(b.replace('step', '')) || 0;
+            return numA - numB;
+          });
+
+        console.log(`[${requestId}] Found ${stepKeys.length} step keys:`, stepKeys);
+
+        // Convert each step to the expected format
+        stepKeys.forEach((stepKey, index) => {
+          const step = stepsData[stepKey];
+          console.log(`[${requestId}] Processing ${stepKey}:`, { 
+            hasStep: !!step, 
+            hasTitle: !!(step?.title), 
+            hasInstructions: !!(step?.instructions) 
+          });
+          
+          if (step && step.title && step.instructions) {
+            convertedSteps.push({
+              label: step.title,
+              instructions: step.instructions,
+              temperature: 0.5, // Default temperature
+              measures: [], // Empty measures array - user can add measures later
+            });
+            console.log(`[${requestId}] Added step ${index + 1}: ${step.title}`);
+          } else {
+            console.warn(`[${requestId}] Skipping invalid step ${stepKey}:`, step);
+          }
+        });
+
+        console.log(`[${requestId}] Converted ${convertedSteps.length} valid steps`);
+
+        if (convertedSteps.length > 0) {
+          console.log(`[${requestId}] Converting steps to flow nodes`);
+          // Convert steps to flow nodes and edges
+          const { nodes, edges } = convertStepsToFlow(convertedSteps);
+          console.log(`[${requestId}] Created ${nodes.length} nodes and ${edges.length} edges`);
+          
+          // Update the React Flow
+          if (reactFlowRef.current) {
+            console.log(`[${requestId}] Updating React Flow`);
+            reactFlowRef.current.setNodesAndEdges(nodes, edges);
+          }
+          
+          setFlowNodes(nodes);
+          setFlowEdges(edges);
+
+          // Optionally set the title from study context if available
+          if (stepsData.study_context_and_instructions?.context && !processTitle) {
+            console.log(`[${requestId}] Setting suggested title from study context`);
+            // Extract a title from the context or use it as-is
+            const context = stepsData.study_context_and_instructions.context;
+            // Try to use first sentence or first 50 characters
+            const suggestedTitle = context.split('.')[0].trim().substring(0, 50);
+            if (suggestedTitle) {
+              setProcessTitle(suggestedTitle);
+            }
+          }
+
+          console.log(`[${requestId}] Successfully generated ${convertedSteps.length} step(s)`);
+          alert(`Successfully generated ${convertedSteps.length} step(s)!`);
+        } else {
+          console.warn(`[${requestId}] No valid steps were generated`);
+          alert("No valid steps were generated. Please try again with a more detailed description.");
+        }
+      } else {
+        console.error(`[${requestId}] Response indicates failure:`, result);
+        throw new Error(result.message || 'Failed to generate steps');
+      }
+    } catch (error) {
+      console.error(`[${requestId}] Error generating steps:`, error);
+      if (error instanceof Error) {
+        console.error(`[${requestId}] Error name: ${error.name}`);
+        console.error(`[${requestId}] Error message: ${error.message}`);
+        console.error(`[${requestId}] Error stack:`, error.stack);
+      }
+      alert(`Error generating steps: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      console.log(`[${requestId}] handleGenerateSteps completed`);
+      setIsGeneratingSteps(false);
+    }
   };
 
   const handleSaveDraft = () => {
@@ -311,7 +481,10 @@ function SimulationPageContent() {
       return;
     }
     
-    // If validation passes, proceed with submission
+    // If validation passes, immediately disable button and show progress
+    // This happens before waiting for the backend (cold start)
+    setIsSimulationRunning(true);
+    setSimulationProgress(0);
     
     try {
       // Get the user from local storage
@@ -395,12 +568,25 @@ function SimulationPageContent() {
       const result = await response.json();
       
       if (result.status === "started") {
-        alert("Simulation submitted successfully! Task ID: " + result.task_id);
+        const taskId = result.task_id;
+        
+        // Save task_id to localStorage
+        localStorage.setItem('simulation-task-id', taskId);
+        
+        // Set task ID for polling (progress and running state already set above)
+        setSimulationTaskId(taskId);
+        
+        // Don't show alert, let the button show progress instead
+        console.log("Simulation submitted successfully! Task ID: " + taskId);
       } else {
         throw new Error(result.message || 'Simulation failed to start');
       }
       
     } catch (error) {
+      // Reset state on error so user can try again
+      setIsSimulationRunning(false);
+      setSimulationProgress(null);
+      setSimulationTaskId(null);
       alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
@@ -409,6 +595,73 @@ function SimulationPageContent() {
     setFlowNodes(nodes);
     setFlowEdges(edges);
   };
+
+  // Function to check progress for a running simulation by querying Supabase directly
+  const checkSimulationProgress = useCallback(async (experimentId: string, userId: string) => {
+    try {
+      console.log(`[Simulation Polling] Checking progress for experiment: ${experimentId}`);
+      // Query Supabase directly for the experiment progress
+      const { data, error } = await supabase
+        .from("experiments")
+        .select("progress, status, url")
+        .eq("experiment_id", experimentId)
+        .eq("user_id", userId)
+        .single();
+
+      if (error) {
+        console.error("Error checking progress:", error);
+        return;
+      }
+
+      if (data) {
+        const progressData = data;
+        
+        // Normalize progress to 0-100 range (backend might return 0-1 or 0-100)
+        let progressPercent = progressData.progress || 0;
+        if (progressPercent <= 1 && progressPercent > 0) {
+          progressPercent = progressPercent * 100;
+        }
+        
+        // Normalize status
+        const status = progressData.status || '';
+        const statusLower = status.toLowerCase();
+        
+        // Update progress state
+        setSimulationProgress(progressPercent);
+        
+        // Check if simulation is complete or failed
+        const isFailed = statusLower === 'failed';
+        const isComplete = progressPercent >= 100 || statusLower === 'completed' || statusLower === 'done' || statusLower === 'finished';
+        
+        if (isComplete || isFailed) {
+          console.log(`[Simulation Polling] Experiment ${experimentId} ${isFailed ? 'failed' : 'completed'} (progress: ${progressPercent}%, status: ${status}). Polling will stop.`);
+          
+          // Stop polling
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+          }
+          
+          // Clear state and localStorage
+          setIsSimulationRunning(false);
+          setSimulationTaskId(null);
+          setSimulationProgress(null);
+          localStorage.removeItem('simulation-task-id');
+          
+          // Show completion message
+          if (isFailed) {
+            alert("Simulation failed. Please check your experiment settings and try again.");
+          } else {
+            alert("Simulation completed successfully! You can view the results in the Dashboard.");
+          }
+        } else {
+          console.log(`[Simulation Polling] Experiment ${experimentId} progress: ${progressPercent}%, status: ${status}`);
+        }
+      }
+    } catch (error) {
+      console.error("Error checking progress:", error);
+    }
+  }, []);
 
   const getSelectedSampleDetails = () => {
     return samples.find(sample => sample.id === selectedSample);
@@ -504,6 +757,16 @@ function SimulationPageContent() {
   const loadExperimentForModification = async (experimentId: string) => {
     setIsLoadingExperiment(true);
     try {
+      // Clear any running simulation state when modifying an experiment
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+      setIsSimulationRunning(false);
+      setSimulationTaskId(null);
+      setSimulationProgress(null);
+      localStorage.removeItem('simulation-task-id');
+
       const { data, error } = await supabase
         .from("experiments")
         .select("*")
@@ -603,6 +866,53 @@ function SimulationPageContent() {
     }
   }, [modifyExperimentId, user, isAuthenticated, samples.length, measures.length]);
 
+  // Load simulation task_id from localStorage on mount (only if not in modify mode)
+  useEffect(() => {
+    if (user && isAuthenticated && !modifyExperimentId) {
+      const savedTaskId = localStorage.getItem('simulation-task-id');
+      if (savedTaskId) {
+        setSimulationTaskId(savedTaskId);
+        setIsSimulationRunning(true);
+        setSimulationProgress(0);
+      }
+    }
+  }, [user, isAuthenticated, modifyExperimentId]);
+
+  // Poll for simulation progress
+  useEffect(() => {
+    if (!user || !isAuthenticated || !simulationTaskId || !isSimulationRunning) {
+      // Clear interval if conditions not met
+      if (pollingIntervalRef.current) {
+        console.log('[Simulation Polling] Stopping polling interval.');
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+      return;
+    }
+
+    // Clear any existing interval before starting a new one
+    if (pollingIntervalRef.current) {
+      console.log('[Simulation Polling] Clearing existing polling interval');
+      clearInterval(pollingIntervalRef.current);
+    }
+
+    // Start polling every 500ms
+    console.log(`[Simulation Polling] Starting polling interval for task: ${simulationTaskId}`);
+    pollingIntervalRef.current = setInterval(() => {
+      if (simulationTaskId && user.user_id) {
+        checkSimulationProgress(simulationTaskId, user.user_id);
+      }
+    }, 500);
+
+    return () => {
+      if (pollingIntervalRef.current) {
+        console.log('[Simulation Polling] Component unmounting or dependencies changed. Cleaning up polling interval.');
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, [simulationTaskId, isSimulationRunning, user, isAuthenticated, checkSimulationProgress]);
+
   if (isLoading) {
     return <AuthLoading message="Loading simulation..." />;
   }
@@ -632,10 +942,14 @@ function SimulationPageContent() {
           </Button>
           <Button 
             onClick={handleSubmitSimulation}
-            className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2"
+            disabled={isSimulationRunning}
+            className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Download className="w-4 h-4" />
-            Submit for Simulation
+            {isSimulationRunning 
+              ? `Simulation in progress: ${simulationProgress !== null ? Math.round(simulationProgress) : 0}%`
+              : "Submit for Simulation"
+            }
           </Button>
         </div>
       </SubHeader>
@@ -784,16 +1098,27 @@ function SimulationPageContent() {
                       placeholder="Describe the process you want to simulate..."
                       value={processDescription}
                       onChange={(e) => setProcessDescription(e.target.value)}
-                      className="w-full h-24 px-4 py-3 bg-white border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      disabled={isGeneratingSteps}
+                      className="w-full h-24 px-4 py-3 bg-white border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
                     />
                   </div>
                   <Button 
                     onClick={handleGenerateSteps}
                     variant="outline"
-                    className="flex items-center gap-2"
+                    disabled={isGeneratingSteps}
+                    className="flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <Sparkles className="w-4 h-4" />
-                    Generate Steps
+                    {isGeneratingSteps ? (
+                      <>
+                        <Spinner size="sm" />
+                        <span>Generating...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4" />
+                        Generate Steps
+                      </>
+                    )}
                   </Button>
                 </div>
               </div>

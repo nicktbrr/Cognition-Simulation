@@ -235,6 +235,21 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
     )
   }, [setNodes])
 
+  const handleResize = useCallback((nodeId: string, width: number, height: number) => {
+    setNodes((nds: Node[]) =>
+      nds.map((node: Node) =>
+        node.id === nodeId 
+          ? { 
+              ...node, 
+              width: width,
+              height: height,
+              data: { ...node.data, width, height } 
+            } 
+          : node
+      )
+    )
+  }, [setNodes])
+
   // Generate the next sequential node ID
   const getNextNodeId = useCallback((currentNodes: Node[]) => {
     // Extract all node IDs and find the highest number
@@ -285,6 +300,8 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
         x: snappedX,
         y: snappedY,
       },
+      width: 400,
+      height: 600, // Set explicit initial height to prevent auto-sizing loop
       data: {
         title: '',
         description: '',
@@ -293,29 +310,37 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
         selectedMeasures: [],
         measures: measures,
         loadingMeasures: loadingMeasures,
+        width: 400,
+        height: 600,
         onDelete: handleNodeDelete,
         onTitleChange: handleTitleChange,
         onDescriptionChange: handleDescriptionChange,
         onSliderChange: handleSliderChange,
         onMeasuresChange: handleMeasuresChange,
+        onResize: handleResize,
       },
     }
     setNodes((nds: Node[]) => [...nds, newNode])
-  }, [setNodes, handleNodeDelete, handleTitleChange, handleDescriptionChange, handleSliderChange, handleMeasuresChange, dimensions, nodes, getNextNodeId, measures, loadingMeasures])
+  }, [setNodes, handleNodeDelete, handleTitleChange, handleDescriptionChange, handleSliderChange, handleMeasuresChange, handleResize, dimensions, nodes, getNextNodeId, measures, loadingMeasures])
 
   // Update node data with handlers and highlighting
   const nodesWithHandlers = nodes.map((node: Node) => ({
     ...node,
+    width: node.width || node.data?.width || 400,
+    height: node.height || node.data?.height || 600, // Default height to prevent auto-sizing
     data: {
       ...node.data,
       measures: measures,
       loadingMeasures: loadingMeasures,
       selectedMeasures: node.data?.selectedMeasures || [],
+      width: node.width || node.data?.width || 400,
+      height: node.height || node.data?.height || 600, // Default height to prevent auto-sizing
       onDelete: handleNodeDelete,
       onTitleChange: handleTitleChange,
       onDescriptionChange: handleDescriptionChange,
       onSliderChange: handleSliderChange,
       onMeasuresChange: handleMeasuresChange,
+      onResize: handleResize,
     },
     style: {
       ...node.style,

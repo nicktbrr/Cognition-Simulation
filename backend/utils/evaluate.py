@@ -187,12 +187,86 @@ def dataframe_to_excel(df_response, df_gemini, steps=None):
             steps_df = pd.DataFrame(steps_data)
             steps_df.to_excel(writer, sheet_name='Simulation Steps', index=False)
         
-        # Add responses sheet
-        df_response.to_excel(writer, sheet_name='Responses', index=False)
+        # Determine sort order based on persona "number" field
+        sort_indices = None
+        if 'persona' in df_response.columns:
+            # Extract persona numbers and create sort order
+            persona_numbers = []
+            for idx in range(len(df_response)):
+                persona = df_response.iloc[idx]['persona']
+                if isinstance(persona, dict) and 'number' in persona:
+                    persona_numbers.append((idx, persona['number']))
+                else:
+                    # If no number field, use index + 1 as fallback
+                    persona_numbers.append((idx, idx + 1))
+            
+            # Sort by number and get the sorted indices
+            persona_numbers.sort(key=lambda x: x[1])
+            sort_indices = [x[0] for x in persona_numbers]
         
-        # Add metrics sheet
-        if not df_gemini.empty:
-            df_gemini.to_excel(writer, sheet_name='Metrics', index=False)
+        # Sort dataframes by persona number order
+        if sort_indices:
+            df_response_sorted = df_response.iloc[sort_indices].reset_index(drop=True)
+            if not df_gemini.empty and len(df_gemini) == len(df_response):
+                df_gemini_sorted = df_gemini.iloc[sort_indices].reset_index(drop=True)
+            else:
+                df_gemini_sorted = df_gemini.copy()
+        else:
+            df_response_sorted = df_response.copy()
+            df_gemini_sorted = df_gemini.copy()
+        
+        # Create Personas sheet
+        personas_data = []
+        all_keys = set()
+        
+        if 'persona' in df_response_sorted.columns:
+            # First pass: collect all unique keys from all personas (excluding 'number')
+            for idx in range(len(df_response_sorted)):
+                persona = df_response_sorted.iloc[idx]['persona']
+                if isinstance(persona, dict):
+                    # Collect all keys except 'number' since we'll remove it from display
+                    keys = {k for k in persona.keys() if k != 'number'}
+                    all_keys.update(keys)
+            
+            # Second pass: build rows with all columns
+            for idx in range(len(df_response_sorted)):
+                persona = df_response_sorted.iloc[idx]['persona']
+                row = {'ID': idx + 1}
+                
+                if isinstance(persona, dict):
+                    # Add each attribute as its own column (excluding 'number')
+                    for key in all_keys:
+                        row[key] = persona.get(key, 'N/A')
+                else:
+                    # If persona is not a dict, put it in a single column
+                    row['Persona'] = str(persona) if persona else 'N/A'
+                
+                personas_data.append(row)
+        
+        if personas_data:
+            # Ensure consistent column order: ID first, then sorted attribute keys (excluding 'number')
+            if all_keys:
+                column_order = ['ID'] + sorted(all_keys)
+                personas_df = pd.DataFrame(personas_data)
+                # Reorder columns to match desired order
+                personas_df = personas_df.reindex(columns=column_order, fill_value='N/A')
+            else:
+                personas_df = pd.DataFrame(personas_data)
+            personas_df.to_excel(writer, sheet_name='Personas', index=False)
+        
+        # Add ID column to responses sheet (1-10, matching persona index)
+        # Remove persona column from Responses sheet (it's in Personas sheet)
+        df_response_with_id = df_response_sorted.copy()
+        if 'persona' in df_response_with_id.columns:
+            df_response_with_id = df_response_with_id.drop(columns=['persona'])
+        df_response_with_id.insert(0, 'ID', range(1, len(df_response_sorted) + 1))
+        df_response_with_id.to_excel(writer, sheet_name='Responses', index=False)
+        
+        # Add ID column to metrics sheet (1-10, matching persona index)
+        if not df_gemini_sorted.empty:
+            df_gemini_with_id = df_gemini_sorted.copy()
+            df_gemini_with_id.insert(0, 'ID', range(1, len(df_gemini_sorted) + 1))
+            df_gemini_with_id.to_excel(writer, sheet_name='Metrics', index=False)
     
     return fn
 
@@ -212,6 +286,9 @@ def process_row(row_idx, df_row, steps):
             - dict: Token usage statistics
     """
 
+    print(f"[DEBUG PROCESS_ROW] Row {row_idx} data: {df_row}")
+    print(f"[DEBUG PROCESS_ROW] Steps: {steps}")
+
     row_scores = {}
     all_token_usage = {}
     
@@ -227,7 +304,7 @@ def process_row(row_idx, df_row, steps):
     # Process each column individually
     for col in range(1, len(df_row)):
         step_label = df_row.index[col]
-        step_instructions = df_row.iloc[col]
+        step_output = df_row.iloc[col]  # This is the actual output/response
         
         # Get the step index (col - 1 because first column is usually ID)
         step_idx = col - 1
@@ -235,57 +312,124 @@ def process_row(row_idx, df_row, steps):
         if step_idx < len(steps):
             current_step = steps[step_idx]
             current_measures = current_step.get('measures', [])
+            step_instructions = current_step.get('instructions', '')  # Get actual step instructions from steps
             
-            # Build measures string for this specific step only
+            # Build measures string for this specific step only with detailed scoring guidance
             measures = ""
             for measure in current_measures:
+                range_str = measure['range']
+                # Parse range to extract min and max (e.g., "0 - 10" or "1-5")
+                try:
+                    if ' - ' in range_str:
+                        min_val, max_val = map(float, range_str.split(' - '))
+                    elif '-' in range_str:
+                        min_val, max_val = map(float, range_str.split('-'))
+                    else:
+                        min_val, max_val = 0, 10  # Default fallback
+                except:
+                    min_val, max_val = 0, 10  # Default fallback
+                
                 measures += f"\n### {measure['title']}\n"
                 measures += f"**Description:** {measure['description']}\n"
-                measures += f"**Range:** {measure['range']}\n"
-                for desiredValue in measure['desiredValues']:
-                    measures += f"**Scoring Reference Point:** label: {desiredValue['label']}, value: {desiredValue['value']}\n"
+                measures += f"**Range:** {measure['range']} (minimum: {min_val}, maximum: {max_val})\n"
+                if measure.get('desiredValues'):
+                    measures += f"**Scoring Reference Points:**\n"
+                    for desiredValue in measure['desiredValues']:
+                        measures += f"  - {desiredValue['label']}: Use value {desiredValue['value']} as an anchor point for this quality level\n"
+                else:
+                    measures += f"**Scoring:** Use the full range from {min_val} to {max_val} based on quality\n"
             
             # Create user prompt for this specific step
             step_measures_list = ""
             for idx, measure in enumerate(current_measures):
                 step_measures_list += f"{idx + 1}. {measure['title']}\n"
             
-            user_prompt = f"""Step: {step_label}
-Instructions: {step_instructions}
+            user_prompt = f"""Step Title: {step_label}
+
+Step Instructions: {step_instructions}
+
+Output/Response: {step_output}
 
 Measures to use for evaluation: 
 {step_measures_list}
 
-Please evaluate this response against the measures defined for this step, using the specified ranges and reference points to guide your scoring."""
+Please evaluate this response against the measures defined for this step. Provide scores that accurately reflect the quality of the response relative to the step instructions and measure criteria. Use the full range of scores available - do not default to middle values."""
             
             # Create system prompt with only relevant measures for this step
             system_prompt = f"""# Instruction
 You are an expert evaluator. Your task is to evaluate the quality of responses based on specific simulation steps and their associated measures.
 
 You will be provided with:
-1. The simulation step instructions
-2. The response for that step
-3. Specific measures and their reference points for evaluation
+1. The simulation step title and instructions
+2. The actual response/output for that step
+3. Specific measures with their ranges and reference points for evaluation
 
-Your task is to evaluate how well theresponse aligns with the step requirements and meets the specified measures.
+Your task is to evaluate how well the response aligns with the step requirements and meets the specified measures.
 
 # Measures used for evaluation
 {measures}
 
-## Scoring Rubric
-For each measure, use the specified range to score the response.
+## Scoring Rubric - CRITICAL INSTRUCTIONS
 
-## Evaluation Steps
+For each measure, you MUST:
+
+1. **Use the FULL range of scores available** - The range shows the minimum and maximum possible scores. Scores should vary based on actual quality assessment.
+
+2. **Interpret the range correctly**:
+   - The minimum value represents the lowest quality (e.g., completely missing requirements, off-topic, or poor quality)
+   - The maximum value represents the highest quality (e.g., exceeds requirements, excellent quality, fully addresses the measure)
+   - Intermediate values represent gradations of quality
+
+3. **Use Reference Points as Anchors** (if provided):
+   - Reference points show what specific score values represent in terms of quality levels
+   - Use these as anchor points to guide your scoring
+   - If the response quality falls between reference points, interpolate appropriately
+   - If no reference points are provided, use your judgment to assign scores across the full range
+
+4. **Score Differentiation**:
+   - Different responses should receive different scores based on their actual quality
+   - If a response is excellent, use the higher end of the range
+   - If a response is poor, use the lower end of the range
+   - If a response is average, use middle values
+   - DO NOT assign the same score to all measures or all responses unless they are genuinely equivalent in quality
+
+## Evaluation Process
+
 For each measure, follow these steps:
 
-STEP 1: Analyze the response against the step instructions and measure requirements.
-- Consider how well the response follows the step instructions
-- Evaluate alignment with the measure's description and reference points
-- Identify strengths and weaknesses
+STEP 1: Analyze the response against the step instructions
+- Does the response follow the step instructions?
+- Does it address what the step asked for?
+- Is it relevant and on-topic?
 
-At the end, provide a structured evaluation with each measure and its corresponding score.
+STEP 2: Evaluate against the measure criteria
+- How well does the response meet the measure's description?
+- Compare against any provided reference points
+- Identify specific strengths and weaknesses
 
-MAKE SURE THAT EACH STEP HAS A SCORE FOR EACH MEASURE. IF A MEASURE IS NOT APPLICABLE, SCORE IT AS 0."""
+STEP 3: Assign a score
+- Determine where the response falls within the range
+- Use reference points as anchors if provided
+- Assign a specific numeric score that reflects the quality
+- Ensure scores vary appropriately based on quality differences
+
+STEP 4: Verify your score
+- Does this score accurately reflect the quality?
+- Is it using the appropriate part of the range?
+- Would a different response receive a different score?
+
+## Output Format
+
+Provide a JSON response with:
+- "metric": array of measure titles in the exact order they appear
+- "score": array of numeric scores (one per measure) within the specified ranges
+
+IMPORTANT: 
+- Each measure MUST have a score
+- Scores MUST be within the specified range for each measure
+- Scores MUST vary based on actual quality assessment
+- If a measure is truly not applicable, score it as the minimum value (not 0 unless that's the minimum)
+- DO NOT default to middle values - use the full range appropriately"""
             
             try:
                 # Make API call for this specific step
