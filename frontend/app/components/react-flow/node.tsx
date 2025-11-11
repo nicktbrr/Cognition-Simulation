@@ -44,42 +44,42 @@ const CustomNode = memo(({ id, data }: NodeProps) => {
   
   return (
     <div 
-      className="rounded-lg p-4 min-w-[250px] transition-all duration-300"
+      className="rounded-lg p-6 min-w-[400px] transition-all duration-300"
       style={gradientStyle}
     >
       <CustomHandle type="source" position={Position.Right} connectionCount={1} />
 
-      <div className="space-y-3">
+      <div className="space-y-4">
         {/* Title Input */}
         <div>
-          <label className="text-sm font-medium text-muted-foreground mb-1 block">Title</label>
+          <label className="text-base font-medium text-muted-foreground mb-1.5 block">Title</label>
           <Input
             value={(data as any).title}
             onChange={(e) => (data as any).onTitleChange(id, e.target.value)}
             placeholder="Click to add title..."
-            className="text-sm"
+            className="text-base"
           />
         </div>
 
         {/* Description Input */}
         <div>
-          <label className="text-sm font-medium text-muted-foreground mb-.5 block">Description</label>
+          <label className="text-base font-medium text-muted-foreground mb-1.5 block">Description</label>
           <Textarea
             value={(data as any).description}
             maxLength={(data as any).numDescriptionsChars}
             onChange={(e) => (data as any).onDescriptionChange(id, e.target.value)}
             placeholder="Click to add description..."
-            className="text-sm min-h-[80px] resize-none"
-            rows={3}
+            className="text-base min-h-[150px] w-full resize-none"
+            rows={6}
           />
-          <div className="text-xs text-muted-foreground mt-.5 text-right">
+          <div className="text-sm text-muted-foreground mt-1 text-right">
             {(data as any).description.length}/{(data as any).numDescriptionsChars}
           </div>
         </div>
 
         {/* Slider */}
         <div>
-          <label className="text-sm font-medium text-muted-foreground mb-.5 block">Temperature: {(data as any).sliderValue}</label>
+          <label className="text-base font-medium text-muted-foreground mb-1.5 block">Temperature: {(data as any).sliderValue}</label>
           <Slider
             value={[(data as any).sliderValue]}
             onValueChange={(value) => (data as any).onSliderChange(id, value[0])}
@@ -92,7 +92,7 @@ const CustomNode = memo(({ id, data }: NodeProps) => {
 
         {/* Measures Selection */}
         <div>
-          <label className="text-sm font-medium text-muted-foreground mb-1 block">Measures</label>
+          <label className="text-base font-medium text-muted-foreground mb-1.5 block">Measures</label>
           <Multiselect
             options={(data as any).measures || []}
             selectedValues={(data as any).selectedMeasures || []}
@@ -110,7 +110,7 @@ const CustomNode = memo(({ id, data }: NodeProps) => {
           onClick={() => (data as any).onDelete(id)} 
           className="w-full border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
         >
-          <Trash2 className="w-4 h-4 mr-2" />
+          <Trash2 className="w-5 h-5 mr-2" />
           Delete Node
         </Button>
       </div>
