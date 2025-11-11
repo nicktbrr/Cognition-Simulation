@@ -14,12 +14,13 @@ const CustomHandle = (props: any) => {
       {...handleProps}
       isConnectable={connectionCount ? connections.length < connectionCount : true}
       style={{
-        width: '12px',
-        height: '12px',
+        width: '24px',
+        height: '24px',
         background: '#3b82f6',
-        border: '2px solid white',
+        border: '3px solid white',
         borderRadius: '50%',
-        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
+        boxShadow: '0 2px 6px rgba(0, 0, 0, 0.3)',
+        cursor: 'pointer',
         ...props.style
       }}
     />
