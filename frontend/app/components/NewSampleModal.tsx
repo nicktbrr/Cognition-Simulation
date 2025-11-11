@@ -638,7 +638,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample 
             </div>
 
             {/* Options List / Age Range Inputs */}
-            <div className="flex-1 overflow-y-auto p-4 min-h-0">
+            <div className="flex-1 overflow-y-auto p-4 min-h-0 max-h-96">
               {activeAttributePanel.id === 'age' ? (
                 <div className="space-y-4">
                   <div className="text-sm text-gray-600 mb-4">
