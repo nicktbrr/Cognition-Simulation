@@ -187,38 +187,85 @@ def dataframe_to_excel(df_response, df_gemini, steps=None):
             steps_df = pd.DataFrame(steps_data)
             steps_df.to_excel(writer, sheet_name='Simulation Steps', index=False)
         
-        # Create Personas sheet
-        personas_data = []
+        # Determine sort order based on persona "number" field
+        sort_indices = None
         if 'persona' in df_response.columns:
+            # Extract persona numbers and create sort order
+            persona_numbers = []
             for idx in range(len(df_response)):
                 persona = df_response.iloc[idx]['persona']
-                # Convert persona to readable string if it's a dict
-                if isinstance(persona, dict):
-                    persona_str = ', '.join([f"{key}: {value}" for key, value in persona.items()])
+                if isinstance(persona, dict) and 'number' in persona:
+                    persona_numbers.append((idx, persona['number']))
                 else:
-                    persona_str = str(persona) if persona else 'N/A'
+                    # If no number field, use index + 1 as fallback
+                    persona_numbers.append((idx, idx + 1))
+            
+            # Sort by number and get the sorted indices
+            persona_numbers.sort(key=lambda x: x[1])
+            sort_indices = [x[0] for x in persona_numbers]
+        
+        # Sort dataframes by persona number order
+        if sort_indices:
+            df_response_sorted = df_response.iloc[sort_indices].reset_index(drop=True)
+            if not df_gemini.empty and len(df_gemini) == len(df_response):
+                df_gemini_sorted = df_gemini.iloc[sort_indices].reset_index(drop=True)
+            else:
+                df_gemini_sorted = df_gemini.copy()
+        else:
+            df_response_sorted = df_response.copy()
+            df_gemini_sorted = df_gemini.copy()
+        
+        # Create Personas sheet
+        personas_data = []
+        all_keys = set()
+        
+        if 'persona' in df_response_sorted.columns:
+            # First pass: collect all unique keys from all personas (excluding 'number')
+            for idx in range(len(df_response_sorted)):
+                persona = df_response_sorted.iloc[idx]['persona']
+                if isinstance(persona, dict):
+                    # Collect all keys except 'number' since we'll remove it from display
+                    keys = {k for k in persona.keys() if k != 'number'}
+                    all_keys.update(keys)
+            
+            # Second pass: build rows with all columns
+            for idx in range(len(df_response_sorted)):
+                persona = df_response_sorted.iloc[idx]['persona']
+                row = {'ID': idx + 1}
                 
-                personas_data.append({
-                    'ID': idx + 1,
-                    'Persona': persona_str
-                })
+                if isinstance(persona, dict):
+                    # Add each attribute as its own column (excluding 'number')
+                    for key in all_keys:
+                        row[key] = persona.get(key, 'N/A')
+                else:
+                    # If persona is not a dict, put it in a single column
+                    row['Persona'] = str(persona) if persona else 'N/A'
+                
+                personas_data.append(row)
         
         if personas_data:
-            personas_df = pd.DataFrame(personas_data)
+            # Ensure consistent column order: ID first, then sorted attribute keys (excluding 'number')
+            if all_keys:
+                column_order = ['ID'] + sorted(all_keys)
+                personas_df = pd.DataFrame(personas_data)
+                # Reorder columns to match desired order
+                personas_df = personas_df.reindex(columns=column_order, fill_value='N/A')
+            else:
+                personas_df = pd.DataFrame(personas_data)
             personas_df.to_excel(writer, sheet_name='Personas', index=False)
         
         # Add ID column to responses sheet (1-10, matching persona index)
         # Remove persona column from Responses sheet (it's in Personas sheet)
-        df_response_with_id = df_response.copy()
+        df_response_with_id = df_response_sorted.copy()
         if 'persona' in df_response_with_id.columns:
             df_response_with_id = df_response_with_id.drop(columns=['persona'])
-        df_response_with_id.insert(0, 'ID', range(1, len(df_response) + 1))
+        df_response_with_id.insert(0, 'ID', range(1, len(df_response_sorted) + 1))
         df_response_with_id.to_excel(writer, sheet_name='Responses', index=False)
         
         # Add ID column to metrics sheet (1-10, matching persona index)
-        if not df_gemini.empty:
-            df_gemini_with_id = df_gemini.copy()
-            df_gemini_with_id.insert(0, 'ID', range(1, len(df_gemini) + 1))
+        if not df_gemini_sorted.empty:
+            df_gemini_with_id = df_gemini_sorted.copy()
+            df_gemini_with_id.insert(0, 'ID', range(1, len(df_gemini_sorted) + 1))
             df_gemini_with_id.to_excel(writer, sheet_name='Metrics', index=False)
     
     return fn
