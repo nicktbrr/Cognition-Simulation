@@ -71,7 +71,7 @@ const CustomNode = memo(({ id, data, selected, width, height }: NodeProps) => {
       <CustomHandle type="target" position={Position.Left} connectionCount={1} />
       
       <div 
-        className="rounded-lg p-6 transition-all duration-300 overflow-hidden flex flex-col h-full w-full"
+        className="rounded-lg p-6 transition-all duration-300 overflow-visible flex flex-col h-full w-full"
         style={{
           ...gradientStyle,
           boxSizing: 'border-box',
@@ -122,7 +122,7 @@ const CustomNode = memo(({ id, data, selected, width, height }: NodeProps) => {
         </div>
 
         {/* Measures Selection */}
-        <div className="flex-shrink-0">
+        <div className="flex-shrink-0 overflow-visible">
           <label className="text-base font-medium text-muted-foreground mb-1.5 block">Measures</label>
           <Multiselect
             options={(data as any).measures || []}
