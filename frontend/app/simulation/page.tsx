@@ -160,7 +160,7 @@ function SimulationPageContent() {
     // Validate that process description is provided
     if (!processDescription || processDescription.trim() === '') {
       console.warn(`[${requestId}] Validation failed: process description is empty`);
-      alert("Please enter a process description before generating steps.");
+      alert("Please enter a study description before generating steps.");
       return;
     }
 
@@ -1177,12 +1177,12 @@ function SimulationPageContent() {
               {/* Process Description Section */}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Enter a description of your process
+                  Enter a description of your study
                 </h3>
                 <div className="flex gap-4 items-end">
                   <div className="flex-1">
                     <textarea
-                      placeholder="Describe the process you want to simulate..."
+                      placeholder="Describe the study you want to simulate..."
                       value={processDescription}
                       onChange={(e) => setProcessDescription(e.target.value)}
                       disabled={isGeneratingSteps}
@@ -1213,11 +1213,11 @@ function SimulationPageContent() {
               {/* Process Title Section */}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Title of the process
+                  Title of the study
                 </h3>
                 <input
                   type="text"
-                  placeholder="Enter process title..."
+                  placeholder="Enter study title..."
                   value={processTitle}
                   onChange={(e) => setProcessTitle(e.target.value)}
                   className="w-full px-4 py-3 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
