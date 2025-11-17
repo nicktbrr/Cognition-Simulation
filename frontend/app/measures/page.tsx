@@ -7,7 +7,6 @@ import { Plus, ChevronLeft, ChevronRight, ChevronDown, MoreVertical, Edit, Copy,
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
-import { Badge } from "../../components/ui/badge";
 import { supabase } from "../utils/supabase";
 import { useAuth } from "../hooks/useAuth";
 import AuthLoading from "../components/auth-loading";
@@ -41,6 +40,7 @@ export default function MeasuresPage() {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [measures, setMeasures] = useState<Measure[]>([]);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editingMeasure, setEditingMeasure] = useState<Measure | null>(null);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [loadingMeasures, setLoadingMeasures] = useState(false);
@@ -50,6 +50,7 @@ export default function MeasuresPage() {
   const [contentLoaded, setContentLoaded] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const hasInitiallyLoadedRef = useRef(false);
 
   const getUserData = async (userId: string) => {
     const { data, error } = await supabase
@@ -136,8 +137,53 @@ export default function MeasuresPage() {
       };
       
       setMeasures([measure, ...measures]);
+      setEditingMeasure(null);
     } catch (error) {
       console.error("Error in handleAddMeasure:", error);
+    }
+  };
+
+  const handleUpdateMeasure = async (id: string, updatedMeasure: Omit<Measure, 'id'>) => {
+    if (!user) {
+      console.error("No user found");
+      return;
+    }
+
+    try {
+      // Parse the range to get min and max values
+      const [min, max] = updatedMeasure.range.split(' - ').map(val => parseFloat(val.trim()));
+
+      const { data, error } = await supabase
+        .from("measures")
+        .update({
+          title: updatedMeasure.title,
+          definition: updatedMeasure.description,
+          min: min,
+          max: max,
+          desired_values: updatedMeasure.desiredValues
+        })
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Error updating measure:", error);
+        return;
+      }
+
+      // Update the measure in local state
+      const updated: Measure = {
+        id: data.id,
+        title: data.title,
+        description: data.definition,
+        range: `${data.min} - ${data.max}`,
+        desiredValues: data.desired_values || []
+      };
+      
+      setMeasures(measures.map(m => m.id === id ? updated : m));
+      setEditingMeasure(null);
+    } catch (error) {
+      console.error("Error in handleUpdateMeasure:", error);
     }
   };
 
@@ -180,8 +226,11 @@ export default function MeasuresPage() {
   }, []);
 
   const handleEditMeasure = (id: string) => {
-    // TODO: Implement edit functionality
-    console.log('Edit measure:', id);
+    const measureToEdit = measures.find(m => m.id === id);
+    if (measureToEdit) {
+      setEditingMeasure(measureToEdit);
+      setIsAddModalOpen(true);
+    }
     setOpenDropdown(null);
   };
 
@@ -270,11 +319,17 @@ export default function MeasuresPage() {
   };
 
   useEffect(() => {
-    if (user && isAuthenticated) {
+    if (user && isAuthenticated && !hasInitiallyLoadedRef.current) {
+      hasInitiallyLoadedRef.current = true;
       getUserData(user.user_id);
       getMeasures(user.user_id);
+    } else if (!user || !isAuthenticated) {
+      // Reset the ref when user logs out
+      hasInitiallyLoadedRef.current = false;
+      setMeasures([]);
+      setContentLoaded(false);
     }
-  }, [user, isAuthenticated]);
+  }, [user?.user_id, isAuthenticated]);
 
   // Show loading state while checking authentication
   if (isLoading) {
@@ -297,7 +352,10 @@ export default function MeasuresPage() {
         description="Define and track key performance indicators for your simulations"
       >
         <Button 
-          onClick={() => setIsAddModalOpen(true)}
+          onClick={() => {
+            setEditingMeasure(null);
+            setIsAddModalOpen(true);
+          }}
           className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg flex items-center gap-2"
         >
           <Plus className="w-4 h-4" />
@@ -311,7 +369,7 @@ export default function MeasuresPage() {
           <CardHeader>
             <CardTitle className="text-blue-600">Measures Overview</CardTitle>
             <CardDescription>
-              View and manage your performance measures. Click on a measure name to expand and see desired values.
+              View and manage your performance measures. Click on a measure name to expand and see anchor points.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -378,13 +436,13 @@ export default function MeasuresPage() {
                       <TableRow>
                         <TableCell colSpan={4} className="bg-muted/30 p-4">
                           <div className="space-y-2" style={{marginLeft: '65px'}}>
-                            <h4 className="font-medium text-sm text-muted-foreground mb-3">Desired Values:</h4>
+                            <h4 className="font-medium text-sm text-muted-foreground mb-3">Anchor Points:</h4>
                             <div className="space-y-1">
                               {measure.desiredValues.map((desired, index) => (
                                 <div key={index} className="flex items-center text-sm">
-                                  <Badge className="mr-3 min-w-[60px] text-center">
+                                  <span className="bg-blue-400 text-white text-xs px-1.5 py-0.5 rounded-full min-w-[20px] text-center mr-3">
                                     {desired.value}
-                                  </Badge>
+                                  </span>
                                   <span>{desired.label}</span>
                                 </div>
                               ))}
@@ -403,11 +461,16 @@ export default function MeasuresPage() {
         </Card>
       </div>
 
-      {/* Add Measure Modal */}
+      {/* Add/Edit Measure Modal */}
       <AddMeasureModal
         isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
+        onClose={() => {
+          setIsAddModalOpen(false);
+          setEditingMeasure(null);
+        }}
         onAdd={handleAddMeasure}
+        editingMeasure={editingMeasure}
+        onUpdate={handleUpdateMeasure}
       />
 
       {/* Portal-based Dropdown */}
@@ -433,7 +496,7 @@ export default function MeasuresPage() {
               className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
             >
               <Copy className="h-4 w-4" />
-              Duplicate
+              Make a copy
             </button>
             <button
               onClick={() => handleDeleteMeasure(openDropdown)}

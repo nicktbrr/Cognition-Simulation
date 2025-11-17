@@ -54,7 +54,8 @@ function SimulationPageContent() {
   const [selectedSample, setSelectedSample] = useState("");
   const [flowNodes, setFlowNodes] = useState<Node[]>([]);
   const [flowEdges, setFlowEdges] = useState<Edge[]>([]);
-  const [selectedColor, setSelectedColor] = useState<string>('#3b82f6');
+  const [selectedColor, setSelectedColor] = useState<string>('#ffffff');
+  const [colorArmed, setColorArmed] = useState<boolean>(false); // Track if a color is ready to be applied
   const [measures, setMeasures] = useState<Measure[]>([]);
   const [loadingMeasures, setLoadingMeasures] = useState(false);
   const [samples, setSamples] = useState<Sample[]>([]);
@@ -67,6 +68,9 @@ function SimulationPageContent() {
   const [isSimulationRunning, setIsSimulationRunning] = useState(false);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const reactFlowRef = useRef<ReactFlowRef>(null);
+  const hasInitiallyLoadedRef = useRef(false);
+  const loadedModifyExperimentIdRef = useRef<string | null>(null);
+  const originalExperimentDataRef = useRef<any>(null); // Store original experiment data for comparison
 
   const getUserData = async (userId: string) => {
     const { data, error } = await supabase
@@ -157,7 +161,7 @@ function SimulationPageContent() {
     // Validate that process description is provided
     if (!processDescription || processDescription.trim() === '') {
       console.warn(`[${requestId}] Validation failed: process description is empty`);
-      alert("Please enter a process description before generating steps.");
+      alert("Please enter a study description before generating steps.");
       return;
     }
 
@@ -338,6 +342,10 @@ function SimulationPageContent() {
     localStorage.removeItem('simulation-flow');
     localStorage.removeItem('simulation-title');
     localStorage.removeItem('simulation-sample');
+    localStorage.removeItem('last-loaded-modify-experiment-id');
+    
+    // Reset the modify experiment ref
+    loadedModifyExperimentIdRef.current = null;
   };
 
   const convertFlowNodesToSteps = (nodes: Node[], edges: Edge[]) => {
@@ -397,6 +405,43 @@ function SimulationPageContent() {
     }
     
     return orderedSteps;
+  };
+
+  // Helper function to compare two experiment data objects
+  // Returns true if they are identical (same title, sample.id, and steps)
+  const areExperimentsIdentical = (original: any, newData: any): boolean => {
+    // Compare title
+    if ((original.title || '') !== (newData.title || '')) {
+      return false;
+    }
+
+    // Compare sample ID
+    if ((original.sample?.id || '') !== (newData.sample?.id || '')) {
+      return false;
+    }
+
+    // Compare steps (label, instructions, temperature)
+    const originalSteps = original.steps || [];
+    const newSteps = newData.steps || [];
+
+    if (originalSteps.length !== newSteps.length) {
+      return false;
+    }
+
+    for (let i = 0; i < originalSteps.length; i++) {
+      const origStep = originalSteps[i];
+      const newStep = newSteps[i];
+
+      if (
+        (origStep.label || '') !== (newStep.label || '') ||
+        (origStep.instructions || '') !== (newStep.instructions || '') ||
+        (origStep.temperature || 0) !== (newStep.temperature || 0)
+      ) {
+        return false;
+      }
+    }
+
+    return true;
   };
 
   const validateFlow = () => {
@@ -531,6 +576,20 @@ function SimulationPageContent() {
           persona: selectedSampleDetails.persona
         }
       };
+
+      // If in modify mode, compare with original experiment data
+      // If identical, it will be treated as a replication (grouped in same row)
+      // If different, it will appear as a new row
+      if (modifyExperimentId && originalExperimentDataRef.current) {
+        const isIdentical = areExperimentsIdentical(originalExperimentDataRef.current, jsonData);
+        if (isIdentical) {
+          console.log("Modified experiment is identical to original - will be grouped as replication");
+          // The grouping logic in the dashboard will automatically group this with the original
+          // since it will have the same config key (title, sample.id, steps)
+        } else {
+          console.log("Modified experiment has changes - will appear as new row");
+        }
+      }
       
       // Define backend URL based on environment
       const prod = process.env.NEXT_PUBLIC_DEV || "production";
@@ -781,6 +840,9 @@ function SimulationPageContent() {
 
       const experimentData = data.experiment_data;
       
+      // Store original experiment data for comparison when submitting
+      originalExperimentDataRef.current = JSON.parse(JSON.stringify(experimentData));
+      
       // Prepopulate form fields
       setProcessTitle(experimentData.title || "");
       setSelectedSample(experimentData.sample?.id || "");
@@ -807,12 +869,19 @@ function SimulationPageContent() {
   };
 
   useEffect(() => {
-    if (user && isAuthenticated) {
+    if (user && isAuthenticated && !hasInitiallyLoadedRef.current) {
+      hasInitiallyLoadedRef.current = true;
       getUserData(user.user_id);
       getMeasures(user.user_id);
       getSamples(user.user_id);
+    } else if (!user || !isAuthenticated) {
+      // Reset the ref when user logs out
+      hasInitiallyLoadedRef.current = false;
+      setMeasures([]);
+      setSamples([]);
+      setContentLoaded(false);
     }
-  }, [user, isAuthenticated]);
+  }, [user?.user_id, isAuthenticated]);
 
   // Load process title from localStorage on mount (only if not in modify mode)
   useEffect(() => {
@@ -859,10 +928,29 @@ function SimulationPageContent() {
     }
   }, [selectedSample]);
 
-  // Load experiment data when in modify mode
+  // Load experiment data when in modify mode (only once per experiment ID)
   useEffect(() => {
     if (modifyExperimentId && user && isAuthenticated && samples.length > 0 && measures.length > 0 && !isLoadingExperiment) {
-      loadExperimentForModification(modifyExperimentId);
+      // Check if we've already loaded this experiment (stored in localStorage)
+      // This prevents reloading on page refresh when user has made changes
+      const lastLoadedExperimentId = localStorage.getItem('last-loaded-modify-experiment-id');
+      
+      // Only load if this is a different experiment ID than we've already loaded
+      // or if we haven't loaded any experiment yet
+      if (lastLoadedExperimentId !== modifyExperimentId) {
+        // Store the experiment ID we're about to load
+        localStorage.setItem('last-loaded-modify-experiment-id', modifyExperimentId);
+        loadedModifyExperimentIdRef.current = modifyExperimentId;
+        loadExperimentForModification(modifyExperimentId);
+      } else {
+        // We've already loaded this experiment, just set the ref
+        loadedModifyExperimentIdRef.current = modifyExperimentId;
+      }
+    } else if (!modifyExperimentId) {
+      // Reset the ref and localStorage when not in modify mode
+      loadedModifyExperimentIdRef.current = null;
+      originalExperimentDataRef.current = null;
+      localStorage.removeItem('last-loaded-modify-experiment-id');
     }
   }, [modifyExperimentId, user, isAuthenticated, samples.length, measures.length]);
 
@@ -988,7 +1076,7 @@ function SimulationPageContent() {
               <div className="relative group">
                 <Info className="w-4 h-4 text-gray-400 cursor-help" />
                 <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
-                  Color selection is for visual organization only and does not affect your simulation results
+                  Color selection is for visual organization and does not affect simulation functionality
                   <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
                 </div>
               </div>
@@ -1008,14 +1096,19 @@ function SimulationPageContent() {
                   key={colorOption.color}
                   onClick={() => {
                     setSelectedColor(colorOption.color);
+                    setColorArmed(true); // Arm the color for application
                   }}
                   className={`w-6 h-6 rounded cursor-pointer border-2 flex items-center justify-center ${
-                    selectedColor === colorOption.color 
+                    colorArmed && selectedColor === colorOption.color
+                      ? 'border-blue-500 ring-2 ring-blue-300' 
+                      : selectedColor === colorOption.color 
                       ? 'border-gray-400 ring-2 ring-gray-300' 
                       : 'border-gray-200 hover:border-gray-300'
                   }`}
                   style={{ backgroundColor: colorOption.color }}
-                  title={colorOption.isRemove ? 'Remove color' : `Select ${colorOption.name}`}
+                  title={colorArmed && selectedColor === colorOption.color 
+                    ? `Click a node to apply ${colorOption.isRemove ? 'no color' : colorOption.name}` 
+                    : colorOption.isRemove ? 'Remove color' : `Select ${colorOption.name}`}
                 >
                   {colorOption.isRemove && (
                     <div className="text-red-500 font-bold text-sm leading-none">×</div>
@@ -1090,12 +1183,12 @@ function SimulationPageContent() {
               {/* Process Description Section */}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Enter a description of your process
+                  Enter a description of your study
                 </h3>
                 <div className="flex gap-4 items-end">
                   <div className="flex-1">
                     <textarea
-                      placeholder="Describe the process you want to simulate..."
+                      placeholder="Describe the study you want to simulate..."
                       value={processDescription}
                       onChange={(e) => setProcessDescription(e.target.value)}
                       disabled={isGeneratingSteps}
@@ -1106,7 +1199,7 @@ function SimulationPageContent() {
                     onClick={handleGenerateSteps}
                     variant="outline"
                     disabled={isGeneratingSteps}
-                    className="flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed self-end mb-[6px]"
                   >
                     {isGeneratingSteps ? (
                       <>
@@ -1126,11 +1219,11 @@ function SimulationPageContent() {
               {/* Process Title Section */}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Title of the process
+                  Title of the study
                 </h3>
                 <input
                   type="text"
-                  placeholder="Enter process title..."
+                  placeholder="Enter study title..."
                   value={processTitle}
                   onChange={(e) => setProcessTitle(e.target.value)}
                   className="w-full px-4 py-3 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -1145,7 +1238,9 @@ function SimulationPageContent() {
                 <ReactFlowApp 
                   ref={reactFlowRef}
                   onFlowDataChange={handleFlowDataChange} 
-                  selectedColor={selectedColor} 
+                  selectedColor={selectedColor}
+                  colorArmed={colorArmed}
+                  onColorApplied={() => setColorArmed(false)}
                   measures={measures}
                   loadingMeasures={loadingMeasures}
                 />

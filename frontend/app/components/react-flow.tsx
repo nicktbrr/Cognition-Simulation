@@ -42,6 +42,8 @@ interface Measure {
 interface ReactFlowAppProps {
   onFlowDataChange?: (nodes: Node[], edges: Edge[]) => void;
   selectedColor?: string;
+  colorArmed?: boolean;
+  onColorApplied?: () => void;
   measures?: Measure[];
   loadingMeasures?: boolean;
 }
@@ -51,7 +53,7 @@ export interface ReactFlowRef {
   setNodesAndEdges: (newNodes: Node[], newEdges: Edge[]) => void;
 }
 
-const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlowDataChange, selectedColor = '#3b82f6', measures = [], loadingMeasures = false }, ref) => {
+const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlowDataChange, selectedColor = '#3b82f6', colorArmed = false, onColorApplied, measures = [], loadingMeasures = false }, ref) => {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
@@ -184,15 +186,22 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
   const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
     setSelectedNodeId(node.id)
     
-    // Update the node data to include the selected color
-    setNodes((nds) =>
-      nds.map((n) =>
-        n.id === node.id 
-          ? { ...n, data: { ...n.data, selectedColor } }
-          : n
+    // Only apply color if a color is armed (user clicked a color first)
+    if (colorArmed && selectedColor) {
+      // Update the node data to include the selected color
+      setNodes((nds) =>
+        nds.map((n) =>
+          n.id === node.id 
+            ? { ...n, data: { ...n.data, selectedColor } }
+            : n
+        )
       )
-    )
-  }, [selectedColor, setNodes])
+      // Notify parent that color was applied, so it can disarm
+      if (onColorApplied) {
+        onColorApplied()
+      }
+    }
+  }, [selectedColor, colorArmed, setNodes, onColorApplied])
 
   const onPaneClick = useCallback(() => {
     setSelectedNodeId(null)
@@ -260,38 +269,31 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
   }, [])
 
   const handleAddNode = useCallback(() => {
-    if (!reactFlowInstance.current) return
+    if (!reactFlowInstance.current || !containerRef.current) return
     
     const newNodeId = getNextNodeId(nodes)
     const gridSize = 40 // Match the snapGrid size
-    const nodeSpacing = 400 // Horizontal spacing between nodes
     
-    // Find the rightmost node to place the new node to its right
-    let baseX = 0
-    let baseY = 0
+    // Get the ReactFlow pane element (the actual flow area)
+    const paneElement = containerRef.current.querySelector('.react-flow__pane') as HTMLElement
+    if (!paneElement) return
     
-    if (nodes.length > 0) {
-      // Find the rightmost node
-      const rightmostNode = nodes.reduce((rightmost, node) => 
-        node.position.x > rightmost.position.x ? node : rightmost
-      )
-      baseX = rightmostNode.position.x + nodeSpacing
-      baseY = rightmostNode.position.y
-    } else {
-      // If no nodes exist, place the first node in the center
-      const centerX = dimensions.width / 2
-      const centerY = dimensions.height / 2
-      const centerPosition = reactFlowInstance.current.screenToFlowPosition({
-        x: centerX,
-        y: centerY,
-      })
-      baseX = centerPosition.x
-      baseY = centerPosition.y
-    }
+    // Get the pane position and dimensions on screen
+    const paneRect = paneElement.getBoundingClientRect()
+    // Calculate center in screen coordinates (relative to viewport)
+    // Add small offsets to move slightly left and up
+    const centerX = paneRect.left + paneRect.width / 2 - 90
+    const centerY = paneRect.top + paneRect.height / 2 - 150
+    
+    // Convert screen coordinates to flow coordinates
+    const centerPosition = reactFlowInstance.current.screenToFlowPosition({
+      x: centerX,
+      y: centerY,
+    })
     
     // Snap the position to the grid
-    const snappedX = Math.round(baseX / gridSize) * gridSize
-    const snappedY = Math.round(baseY / gridSize) * gridSize
+    const snappedX = Math.round(centerPosition.x / gridSize) * gridSize
+    const snappedY = Math.round(centerPosition.y / gridSize) * gridSize
     
     const newNode: Node = {
       id: newNodeId,
@@ -321,7 +323,7 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
       },
     }
     setNodes((nds: Node[]) => [...nds, newNode])
-  }, [setNodes, handleNodeDelete, handleTitleChange, handleDescriptionChange, handleSliderChange, handleMeasuresChange, handleResize, dimensions, nodes, getNextNodeId, measures, loadingMeasures])
+  }, [setNodes, handleNodeDelete, handleTitleChange, handleDescriptionChange, handleSliderChange, handleMeasuresChange, handleResize, nodes, getNextNodeId, measures, loadingMeasures])
 
   // Update node data with handlers and highlighting
   const nodesWithHandlers = nodes.map((node: Node) => ({
@@ -344,8 +346,8 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
     },
     style: {
       ...node.style,
-      border: selectedNodeId === node.id ? `3px solid ${selectedColor}` : '1px solid #e5e7eb',
-      boxShadow: selectedNodeId === node.id ? `0 0 0 3px ${selectedColor}40` : '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+      border: selectedNodeId === node.id ? '3px solid #3b82f6' : '1px solid #e5e7eb',
+      boxShadow: selectedNodeId === node.id ? '0 0 0 3px rgba(59, 130, 246, 0.25)' : '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
     },
   }))
 
@@ -382,6 +384,7 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
         }}
       >
         <Controls 
+          showInteractive={false}
           className="bg-white border border-gray-200 rounded-lg shadow-sm"
           style={{ 
             background: 'white',
@@ -406,13 +409,15 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
 
 ReactFlowComponent.displayName = 'ReactFlowComponent'
 
-const ReactFlowApp = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlowDataChange, selectedColor, measures, loadingMeasures }, ref) => {
+const ReactFlowApp = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlowDataChange, selectedColor, colorArmed, onColorApplied, measures, loadingMeasures }, ref) => {
   return (
     <ReactFlowProvider>
       <ReactFlowComponent 
         ref={ref}
         onFlowDataChange={onFlowDataChange} 
-        selectedColor={selectedColor} 
+        selectedColor={selectedColor}
+        colorArmed={colorArmed}
+        onColorApplied={onColorApplied}
         measures={measures}
         loadingMeasures={loadingMeasures}
       />

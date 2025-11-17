@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import StatusBadge from "./ui/StatusBadge";
 import DownloadButton from "./ui/DownloadButton";
@@ -39,9 +38,10 @@ interface ProjectsTableProps {
   onRename: (projectId: string, currentName: string) => void;
   onModify?: (projectId: string) => Promise<boolean>;
   onDelete?: (projectId: string) => Promise<boolean>;
+  onReplicate?: (projectId: string) => Promise<boolean>;
 }
 
-export default function ProjectsTable({ projects, onDownload, onRename, onModify, onDelete }: ProjectsTableProps) {
+export default function ProjectsTable({ projects, onDownload, onRename, onModify, onDelete, onReplicate }: ProjectsTableProps) {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [projectDropdowns, setProjectDropdowns] = useState<Set<string>>(new Set());
   const [sortConfig, setSortConfig] = useState<{key: string, direction: 'asc' | 'desc'} | null>(null);
@@ -156,16 +156,14 @@ export default function ProjectsTable({ projects, onDownload, onRename, onModify
                         onToggle={() => toggleProjectDropdown(project.id!)}
                         position={index >= sortedProjects.length - 2 ? 'top' : 'bottom'}
                         onRename={() => handleStartRename(project.id!, project.name)}
-                        onReplicate={() => {}}
+                        onReplicate={() => onReplicate?.(project.id!)}
                         onModify={() => onModify?.(project.id!)}
                         onDelete={() => onDelete?.(project.id!)}
                       />
                     </div>
                   </td>
-                  <td className="px-6 py-4">
-                    <Link href="#" className="text-blue-600 hover:text-blue-800 underline">
-                      {project.sample_name}
-                    </Link>
+                  <td className="px-6 py-4 text-sm text-gray-900">
+                    {project.sample_name}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-900">
                     {project.sample_size ?? 10}
