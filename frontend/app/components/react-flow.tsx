@@ -42,6 +42,8 @@ interface Measure {
 interface ReactFlowAppProps {
   onFlowDataChange?: (nodes: Node[], edges: Edge[]) => void;
   selectedColor?: string;
+  colorArmed?: boolean;
+  onColorApplied?: () => void;
   measures?: Measure[];
   loadingMeasures?: boolean;
 }
@@ -51,7 +53,7 @@ export interface ReactFlowRef {
   setNodesAndEdges: (newNodes: Node[], newEdges: Edge[]) => void;
 }
 
-const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlowDataChange, selectedColor = '#3b82f6', measures = [], loadingMeasures = false }, ref) => {
+const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlowDataChange, selectedColor = '#3b82f6', colorArmed = false, onColorApplied, measures = [], loadingMeasures = false }, ref) => {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
@@ -184,15 +186,22 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
   const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
     setSelectedNodeId(node.id)
     
-    // Update the node data to include the selected color
-    setNodes((nds) =>
-      nds.map((n) =>
-        n.id === node.id 
-          ? { ...n, data: { ...n.data, selectedColor } }
-          : n
+    // Only apply color if a color is armed (user clicked a color first)
+    if (colorArmed && selectedColor) {
+      // Update the node data to include the selected color
+      setNodes((nds) =>
+        nds.map((n) =>
+          n.id === node.id 
+            ? { ...n, data: { ...n.data, selectedColor } }
+            : n
+        )
       )
-    )
-  }, [selectedColor, setNodes])
+      // Notify parent that color was applied, so it can disarm
+      if (onColorApplied) {
+        onColorApplied()
+      }
+    }
+  }, [selectedColor, colorArmed, setNodes, onColorApplied])
 
   const onPaneClick = useCallback(() => {
     setSelectedNodeId(null)
@@ -344,8 +353,8 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
     },
     style: {
       ...node.style,
-      border: selectedNodeId === node.id ? `3px solid ${selectedColor}` : '1px solid #e5e7eb',
-      boxShadow: selectedNodeId === node.id ? `0 0 0 3px ${selectedColor}40` : '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+      border: selectedNodeId === node.id ? '3px solid #3b82f6' : '1px solid #e5e7eb',
+      boxShadow: selectedNodeId === node.id ? '0 0 0 3px rgba(59, 130, 246, 0.25)' : '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
     },
   }))
 
@@ -406,13 +415,15 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
 
 ReactFlowComponent.displayName = 'ReactFlowComponent'
 
-const ReactFlowApp = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlowDataChange, selectedColor, measures, loadingMeasures }, ref) => {
+const ReactFlowApp = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlowDataChange, selectedColor, colorArmed, onColorApplied, measures, loadingMeasures }, ref) => {
   return (
     <ReactFlowProvider>
       <ReactFlowComponent 
         ref={ref}
         onFlowDataChange={onFlowDataChange} 
-        selectedColor={selectedColor} 
+        selectedColor={selectedColor}
+        colorArmed={colorArmed}
+        onColorApplied={onColorApplied}
         measures={measures}
         loadingMeasures={loadingMeasures}
       />

@@ -55,6 +55,7 @@ function SimulationPageContent() {
   const [flowNodes, setFlowNodes] = useState<Node[]>([]);
   const [flowEdges, setFlowEdges] = useState<Edge[]>([]);
   const [selectedColor, setSelectedColor] = useState<string>('#ffffff');
+  const [colorArmed, setColorArmed] = useState<boolean>(false); // Track if a color is ready to be applied
   const [measures, setMeasures] = useState<Measure[]>([]);
   const [loadingMeasures, setLoadingMeasures] = useState(false);
   const [samples, setSamples] = useState<Sample[]>([]);
@@ -1095,14 +1096,19 @@ function SimulationPageContent() {
                   key={colorOption.color}
                   onClick={() => {
                     setSelectedColor(colorOption.color);
+                    setColorArmed(true); // Arm the color for application
                   }}
                   className={`w-6 h-6 rounded cursor-pointer border-2 flex items-center justify-center ${
-                    selectedColor === colorOption.color 
+                    colorArmed && selectedColor === colorOption.color
+                      ? 'border-blue-500 ring-2 ring-blue-300' 
+                      : selectedColor === colorOption.color 
                       ? 'border-gray-400 ring-2 ring-gray-300' 
                       : 'border-gray-200 hover:border-gray-300'
                   }`}
                   style={{ backgroundColor: colorOption.color }}
-                  title={colorOption.isRemove ? 'Remove color' : `Select ${colorOption.name}`}
+                  title={colorArmed && selectedColor === colorOption.color 
+                    ? `Click a node to apply ${colorOption.isRemove ? 'no color' : colorOption.name}` 
+                    : colorOption.isRemove ? 'Remove color' : `Select ${colorOption.name}`}
                 >
                   {colorOption.isRemove && (
                     <div className="text-red-500 font-bold text-sm leading-none">×</div>
@@ -1232,7 +1238,9 @@ function SimulationPageContent() {
                 <ReactFlowApp 
                   ref={reactFlowRef}
                   onFlowDataChange={handleFlowDataChange} 
-                  selectedColor={selectedColor} 
+                  selectedColor={selectedColor}
+                  colorArmed={colorArmed}
+                  onColorApplied={() => setColorArmed(false)}
                   measures={measures}
                   loadingMeasures={loadingMeasures}
                 />
