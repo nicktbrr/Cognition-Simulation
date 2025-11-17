@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Modal from "./ui/Modal";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Textarea } from "../../components/ui/textarea";
-import { Plus, X } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../../components/ui/tooltip";
+import { Plus, X, HelpCircle } from "lucide-react";
 
 interface DesiredValue {
   value: string;
@@ -21,9 +22,22 @@ interface AddMeasureModalProps {
     range: string;
     desiredValues: { value: number; label: string }[];
   }) => void;
+  editingMeasure?: {
+    id: string;
+    title: string;
+    description: string;
+    range: string;
+    desiredValues: { value: number; label: string }[];
+  } | null;
+  onUpdate?: (id: string, measure: {
+    title: string;
+    description: string;
+    range: string;
+    desiredValues: { value: number; label: string }[];
+  }) => void;
 }
 
-export default function AddMeasureModal({ isOpen, onClose, onAdd }: AddMeasureModalProps) {
+export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure, onUpdate }: AddMeasureModalProps) {
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -31,6 +45,34 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd }: AddMeasureMo
     maxValue: ""
   });
   const [desiredValues, setDesiredValues] = useState<DesiredValue[]>([]);
+
+  // Populate form when editing measure changes
+  useEffect(() => {
+    if (editingMeasure) {
+      const [min, max] = editingMeasure.range.split(' - ').map(val => val.trim());
+      setFormData({
+        title: editingMeasure.title,
+        description: editingMeasure.description,
+        minValue: min,
+        maxValue: max
+      });
+      setDesiredValues(
+        editingMeasure.desiredValues.map(dv => ({
+          value: dv.value.toString(),
+          label: dv.label
+        }))
+      );
+    } else {
+      // Reset form when not editing
+      setFormData({
+        title: "",
+        description: "",
+        minValue: "",
+        maxValue: ""
+      });
+      setDesiredValues([]);
+    }
+  }, [editingMeasure, isOpen]);
 
   const addDesiredValue = () => {
     setDesiredValues([...desiredValues, { value: "", label: "" }]);
@@ -60,12 +102,18 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd }: AddMeasureMo
       .filter(dv => dv.value.trim() && dv.label.trim())
       .map(dv => ({ value: parseFloat(dv.value), label: dv.label }));
 
-    onAdd({
+    const measureData = {
       title: formData.title,
       description: formData.description,
       range: `${formData.minValue} - ${formData.maxValue}`,
       desiredValues: processedDesiredValues
-    });
+    };
+
+    if (editingMeasure && onUpdate) {
+      onUpdate(editingMeasure.id, measureData);
+    } else {
+      onAdd(measureData);
+    }
     
     // Reset form
     setFormData({
@@ -92,7 +140,7 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd }: AddMeasureMo
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Add New Measure">
+    <Modal isOpen={isOpen} onClose={onClose} title={editingMeasure ? "Edit Measure" : "Add New Measure"}>
       <div className="space-y-6">
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Title */}
@@ -155,12 +203,24 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd }: AddMeasureMo
             </div>
           </div>
 
-          {/* Desired Values */}
+          {/* Anchor Points */}
           <div>
             <div className="flex items-center justify-between mb-4">
-              <label className="text-sm font-semibold text-gray-900">
-                Desired Values
-              </label>
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-semibold text-gray-900">
+                  Anchor Points
+                </label>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpCircle className="h-4 w-4 text-gray-400 cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Labels for a specific value on a rating scale</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
               <Button
                 type="button"
                 variant="ghost"
@@ -168,7 +228,7 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd }: AddMeasureMo
                 className="text-sm font-medium flex items-center gap-1"
               >
                 <Plus className="h-4 w-4" />
-                Add Value
+                Add Anchor
               </Button>
             </div>
             
@@ -234,7 +294,7 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd }: AddMeasureMo
               type="submit"
               className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2"
             >
-              Add Measure
+              {editingMeasure ? "Update Measure" : "Add Measure"}
             </Button>
           </div>
         </form>
