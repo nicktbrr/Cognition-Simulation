@@ -69,6 +69,7 @@ function SimulationPageContent() {
   const reactFlowRef = useRef<ReactFlowRef>(null);
   const hasInitiallyLoadedRef = useRef(false);
   const loadedModifyExperimentIdRef = useRef<string | null>(null);
+  const originalExperimentDataRef = useRef<any>(null); // Store original experiment data for comparison
 
   const getUserData = async (userId: string) => {
     const { data, error } = await supabase
@@ -405,6 +406,43 @@ function SimulationPageContent() {
     return orderedSteps;
   };
 
+  // Helper function to compare two experiment data objects
+  // Returns true if they are identical (same title, sample.id, and steps)
+  const areExperimentsIdentical = (original: any, newData: any): boolean => {
+    // Compare title
+    if ((original.title || '') !== (newData.title || '')) {
+      return false;
+    }
+
+    // Compare sample ID
+    if ((original.sample?.id || '') !== (newData.sample?.id || '')) {
+      return false;
+    }
+
+    // Compare steps (label, instructions, temperature)
+    const originalSteps = original.steps || [];
+    const newSteps = newData.steps || [];
+
+    if (originalSteps.length !== newSteps.length) {
+      return false;
+    }
+
+    for (let i = 0; i < originalSteps.length; i++) {
+      const origStep = originalSteps[i];
+      const newStep = newSteps[i];
+
+      if (
+        (origStep.label || '') !== (newStep.label || '') ||
+        (origStep.instructions || '') !== (newStep.instructions || '') ||
+        (origStep.temperature || 0) !== (newStep.temperature || 0)
+      ) {
+        return false;
+      }
+    }
+
+    return true;
+  };
+
   const validateFlow = () => {
     const errors: string[] = [];
     
@@ -537,6 +575,20 @@ function SimulationPageContent() {
           persona: selectedSampleDetails.persona
         }
       };
+
+      // If in modify mode, compare with original experiment data
+      // If identical, it will be treated as a replication (grouped in same row)
+      // If different, it will appear as a new row
+      if (modifyExperimentId && originalExperimentDataRef.current) {
+        const isIdentical = areExperimentsIdentical(originalExperimentDataRef.current, jsonData);
+        if (isIdentical) {
+          console.log("Modified experiment is identical to original - will be grouped as replication");
+          // The grouping logic in the dashboard will automatically group this with the original
+          // since it will have the same config key (title, sample.id, steps)
+        } else {
+          console.log("Modified experiment has changes - will appear as new row");
+        }
+      }
       
       // Define backend URL based on environment
       const prod = process.env.NEXT_PUBLIC_DEV || "production";
@@ -787,6 +839,9 @@ function SimulationPageContent() {
 
       const experimentData = data.experiment_data;
       
+      // Store original experiment data for comparison when submitting
+      originalExperimentDataRef.current = JSON.parse(JSON.stringify(experimentData));
+      
       // Prepopulate form fields
       setProcessTitle(experimentData.title || "");
       setSelectedSample(experimentData.sample?.id || "");
@@ -893,6 +948,7 @@ function SimulationPageContent() {
     } else if (!modifyExperimentId) {
       // Reset the ref and localStorage when not in modify mode
       loadedModifyExperimentIdRef.current = null;
+      originalExperimentDataRef.current = null;
       localStorage.removeItem('last-loaded-modify-experiment-id');
     }
   }, [modifyExperimentId, user, isAuthenticated, samples.length, measures.length]);
