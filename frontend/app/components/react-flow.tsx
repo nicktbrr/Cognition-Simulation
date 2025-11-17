@@ -391,6 +391,7 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
         }}
       >
         <Controls 
+          showInteractive={false}
           className="bg-white border border-gray-200 rounded-lg shadow-sm"
           style={{ 
             background: 'white',
