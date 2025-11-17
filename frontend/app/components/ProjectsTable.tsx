@@ -123,10 +123,10 @@ export default function ProjectsTable({ projects, onDownload, onRename, onModify
           <thead>
             <tr>
               <SortableTableHeader label="Simulation Name" sortKey="name" onSort={handleSort} />
-              <SortableTableHeader label="Sample Name" sortKey="sample_name" onSort={handleSort} />
-              <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Sample Size</th>
               <SortableTableHeader label="Status" sortKey="status" onSort={handleSort} />
-              <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Data Downloads</th>
+              <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Sample Size</th>
+              <SortableTableHeader label="Sample Name" sortKey="sample_name" onSort={handleSort} />
+              <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Data Download</th>
               <th className="px-6 py-3 text-left text-sm font-medium text-gray-700"></th>
             </tr>
           </thead>
@@ -162,14 +162,14 @@ export default function ProjectsTable({ projects, onDownload, onRename, onModify
                       />
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-900">
-                    {project.sample_name}
+                  <td className="px-6 py-4">
+                    <StatusBadge status={project.status} progress={project.progress} />
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-900">
                     {project.sample_size ?? 10}
                   </td>
-                  <td className="px-6 py-4">
-                    <StatusBadge status={project.status} progress={project.progress} />
+                  <td className="px-6 py-4 text-sm text-gray-900">
+                    {project.sample_name}
                   </td>
                   <td className="px-6 py-4">
                     <div className="space-y-1">

@@ -1,8 +1,9 @@
 "use client"
 
 import React, { useState, useRef, useEffect } from 'react'
-import { Check, ChevronDown, X } from 'lucide-react'
+import { Check, ChevronDown, X, Search } from 'lucide-react'
 import { Button } from './button'
+import { Input } from '../../../components/ui/input'
 
 // Custom scrollbar styles
 const scrollbarStyles = `
@@ -46,7 +47,9 @@ export default function Multiselect({
   className = ""
 }: MultiselectProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   // Inject custom scrollbar styles
   useEffect(() => {
@@ -61,17 +64,44 @@ export default function Multiselect({
 
   // Close dropdown when clicking outside
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+    if (!isOpen) return
+
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node
+      if (dropdownRef.current && !dropdownRef.current.contains(target)) {
         setIsOpen(false)
+        setSearchQuery('')
       }
     }
 
-    document.addEventListener('mousedown', handleClickOutside)
+    // Use capture phase to catch events early
+    document.addEventListener('mousedown', handleClickOutside, true)
+    document.addEventListener('touchstart', handleClickOutside, true)
+    
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('mousedown', handleClickOutside, true)
+      document.removeEventListener('touchstart', handleClickOutside, true)
     }
-  }, [])
+  }, [isOpen])
+
+  // Focus search input when dropdown opens
+  useEffect(() => {
+    if (isOpen && inputRef.current) {
+      setTimeout(() => {
+        inputRef.current?.focus()
+      }, 100)
+    } else {
+      setSearchQuery('')
+    }
+  }, [isOpen])
+
+  // Filter options based on search query
+  const filteredOptions = options.filter(option => {
+    if (!searchQuery.trim()) return true
+    const query = searchQuery.toLowerCase()
+    return option.title.toLowerCase().includes(query) || 
+           option.description.toLowerCase().includes(query)
+  })
 
 
   const handleToggleOption = (optionId: string) => {
@@ -94,11 +124,23 @@ export default function Multiselect({
 
   const selectedOptions = getSelectedOptions()
 
+  const handleButtonBlur = (e: React.FocusEvent) => {
+    // Only close if focus is moving outside the entire dropdown component
+    // Use setTimeout to allow click events to process first
+    setTimeout(() => {
+      if (!dropdownRef.current?.contains(document.activeElement)) {
+        setIsOpen(false)
+        setSearchQuery('')
+      }
+    }, 150)
+  }
+
   return (
     <div className={`relative ${className}`} ref={dropdownRef}>
       <Button
         variant="outline"
         onClick={() => setIsOpen(!isOpen)}
+        onBlur={handleButtonBlur}
         className="w-full justify-between text-left h-auto min-h-[40px] p-2"
         disabled={loading}
       >
@@ -137,24 +179,50 @@ export default function Multiselect({
 
       {isOpen && (
         <div 
-          className="absolute z-[99999] w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-80 overflow-y-scroll custom-scrollbar"
-          style={{
-            scrollbarWidth: 'auto',
-            msOverflowStyle: 'scrollbar'
-          }}
+          className="absolute z-[99999] w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg flex flex-col max-h-80"
           onMouseDown={(e) => e.stopPropagation()}
-          onMouseMove={(e) => e.stopPropagation()}
-          onMouseUp={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
-          onWheel={(e) => e.stopPropagation()}
         >
-          {options.length === 0 ? (
-            <div className="p-3 text-sm text-gray-500 text-center">
-              {loading ? "Loading options..." : "No options available"}
+          {/* Search Bar */}
+          <div className="p-2 border-b border-gray-200 flex-shrink-0">
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Input
+                ref={inputRef}
+                type="text"
+                placeholder="Search measures..."
+                value={searchQuery}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
+                className="pl-8 h-8 text-sm"
+                onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+                  if (e.key === 'Escape') {
+                    setIsOpen(false)
+                    setSearchQuery('')
+                  }
+                }}
+              />
             </div>
-          ) : (
-            <div className="py-1">
-              {options.map(option => {
+          </div>
+
+          {/* Options List - Scrollable */}
+          <div 
+            className="overflow-y-auto custom-scrollbar flex-1"
+            style={{
+              scrollbarWidth: 'auto',
+              msOverflowStyle: 'scrollbar'
+            }}
+          >
+            {loading ? (
+              <div className="p-3 text-sm text-gray-500 text-center">
+                Loading options...
+              </div>
+            ) : filteredOptions.length === 0 ? (
+              <div className="p-3 text-sm text-gray-500 text-center">
+                {searchQuery ? "No measures found" : "No options available"}
+              </div>
+            ) : (
+              <div className="py-1">
+                {filteredOptions.map(option => {
                 const isSelected = selectedValues.includes(option.id)
                 return (
                   <div
@@ -180,8 +248,9 @@ export default function Multiselect({
                   </div>
                 )
               })}
-            </div>
-          )}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
