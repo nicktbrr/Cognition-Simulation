@@ -1193,7 +1193,7 @@ function SimulationPageContent() {
                     onClick={handleGenerateSteps}
                     variant="outline"
                     disabled={isGeneratingSteps}
-                    className="flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed self-end mb-[6px]"
                   >
                     {isGeneratingSteps ? (
                       <>
