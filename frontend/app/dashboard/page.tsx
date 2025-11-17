@@ -71,6 +71,7 @@ export default function DashboardHistory() {
   const [projectToRename, setProjectToRename] = useState<{ id: string; name: string } | null>(null);
   const [newName, setNewName] = useState("");
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const hasInitiallyLoadedRef = useRef(false); // Add this ref to track initial load
 
   // Helper function to check if a project was created within the last 20 minutes
   const isRecentProject = (createdAt: string | undefined): boolean => {
@@ -373,12 +374,18 @@ export default function DashboardHistory() {
   };
 
   useEffect(() => {
-    if (user && isAuthenticated) {
+    if (user && isAuthenticated && !hasInitiallyLoadedRef.current) {
+      hasInitiallyLoadedRef.current = true;
       getUserData(user.user_id);
       // getHistory(user.user_id);
       getProjects(user.user_id);
+    } else if (!user || !isAuthenticated) {
+      // Reset the ref when user logs out
+      hasInitiallyLoadedRef.current = false;
+      setProjects([]);
+      setContentLoaded(false);
     }
-  }, [user, isAuthenticated]);
+  }, [user?.user_id, isAuthenticated]); // Use user?.user_id instead of user object
 
   // Poll for progress on running simulations
   useEffect(() => {

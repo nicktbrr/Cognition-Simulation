@@ -50,6 +50,7 @@ export default function MeasuresPage() {
   const [contentLoaded, setContentLoaded] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const hasInitiallyLoadedRef = useRef(false);
 
   const getUserData = async (userId: string) => {
     const { data, error } = await supabase
@@ -270,11 +271,17 @@ export default function MeasuresPage() {
   };
 
   useEffect(() => {
-    if (user && isAuthenticated) {
+    if (user && isAuthenticated && !hasInitiallyLoadedRef.current) {
+      hasInitiallyLoadedRef.current = true;
       getUserData(user.user_id);
       getMeasures(user.user_id);
+    } else if (!user || !isAuthenticated) {
+      // Reset the ref when user logs out
+      hasInitiallyLoadedRef.current = false;
+      setMeasures([]);
+      setContentLoaded(false);
     }
-  }, [user, isAuthenticated]);
+  }, [user?.user_id, isAuthenticated]);
 
   // Show loading state while checking authentication
   if (isLoading) {
