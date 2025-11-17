@@ -27,6 +27,7 @@ interface Download {
   id: number;
   url?: string;
   filename?: string;
+  created_at?: string;
 }
 
 interface SimulationStep {
@@ -46,6 +47,7 @@ interface Project {
   created_at?: string;
   id?: string;
   experiment_id?: string; // Backend experiment ID for polling
+  configKey?: string; // Configuration key for grouping experiments
 }
 
 interface UserData {
@@ -70,7 +72,11 @@ export default function DashboardHistory() {
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [projectToRename, setProjectToRename] = useState<{ id: string; name: string } | null>(null);
   const [newName, setNewName] = useState("");
+  const [showReplicateConfirm, setShowReplicateConfirm] = useState(false);
+  const [projectToReplicate, setProjectToReplicate] = useState<string | null>(null);
+  const [isReplicating, setIsReplicating] = useState(false);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const hasInitiallyLoadedRef = useRef(false); // Add this ref to track initial load
 
   // Helper function to check if a project was created within the last 20 minutes
   const isRecentProject = (createdAt: string | undefined): boolean => {
@@ -104,6 +110,19 @@ export default function DashboardHistory() {
     }
   };
 
+  // Helper function to generate a unique key for experiment configuration
+  const getExperimentConfigKey = (experimentData: any): string => {
+    const title = experimentData.title || '';
+    const sampleId = experimentData.sample?.id || '';
+    const steps = experimentData.steps || [];
+    const stepsKey = JSON.stringify(steps.map((s: any) => ({
+      label: s.label,
+      instructions: s.instructions,
+      temperature: s.temperature
+    })));
+    return `${title}::${sampleId}::${stepsKey}`;
+  };
+
   const getProjects = async (userId: string) => {
     setLoadingProjects(true);
     try {
@@ -119,7 +138,8 @@ export default function DashboardHistory() {
         return;
       }
 
-      const formattedProjects: Project[] = data.map((experiment: any, index: number) => {
+      // First, format all experiments
+      const formattedExperiments = data.map((experiment: any, index: number) => {
         const experimentData = experiment.experiment_data || {};
         // Determine status and progress
         let status = experiment.status || "Draft";
@@ -139,21 +159,26 @@ export default function DashboardHistory() {
           status = 'Failed';
         }
         
+        const sampleName = experimentData.sample?.name || experiment.sample_name || experiment.description || "No seed";
+        const configKey = getExperimentConfigKey(experimentData);
+        
         return {
           name: experimentData.title || experiment.simulation_name || `Simulation ${index + 1}`,
-          sample_name: experiment.sample_name || experiment.description || "No seed",
+          sample_name: sampleName,
           sample_size: experiment.sample_size ?? experiment.experiment_data?.sample_size ?? 10, // Default to 10
           status: status,
           progress: progress,
           created_at: experiment.created_at,
           id: experiment.experiment_id,
           experiment_id: experiment.experiment_id,
+          configKey: configKey, // Add config key for grouping
           downloads: experiment.url ? [
             {
               date: new Date(experiment.created_at).toLocaleString(),
               id: experiment.id || index + 1,
               url: experiment.url,
-              filename: experimentData.title || experiment.simulation_name || `simulation_${experiment.id}`
+              filename: experimentData.title || experiment.simulation_name || `simulation_${experiment.id}`,
+              created_at: experiment.created_at // Add raw date for sorting
             }
           ] : [],
           steps: experimentData.steps && Array.isArray(experimentData.steps) ? 
@@ -170,6 +195,64 @@ export default function DashboardHistory() {
               }
             ]
         };
+      });
+
+      // Group experiments by configuration key
+      const groupedMap = new Map<string, typeof formattedExperiments>();
+      formattedExperiments.forEach(exp => {
+        const key = exp.configKey;
+        if (!groupedMap.has(key)) {
+          groupedMap.set(key, []);
+        }
+        groupedMap.get(key)!.push(exp);
+      });
+
+      // Combine grouped experiments into single projects
+      const formattedProjects: Project[] = Array.from(groupedMap.values()).map((group) => {
+        // Sort group by created_at (newest first)
+        group.sort((a, b) => {
+          const dateA = new Date(a.created_at || 0).getTime();
+          const dateB = new Date(b.created_at || 0).getTime();
+          return dateB - dateA;
+        });
+
+        // Use the most recent experiment as the base
+        const baseExperiment = group[0];
+        
+        // Combine all downloads from all experiments in the group
+        const allDownloads: Download[] = group
+          .flatMap(exp => exp.downloads)
+          .sort((a, b) => {
+            // Sort downloads by date (newest first)
+            const dateA = new Date(a.created_at || a.date).getTime();
+            const dateB = new Date(b.created_at || b.date).getTime();
+            return dateB - dateA;
+          });
+
+        // Determine overall status - if any is running, show running; otherwise show most recent
+        const hasRunning = group.some(exp => exp.status === 'Running');
+        const overallStatus = hasRunning ? 'Running' : baseExperiment.status;
+        const overallProgress = hasRunning ? group.find(exp => exp.status === 'Running')?.progress : baseExperiment.progress;
+
+        return {
+          name: baseExperiment.name,
+          sample_name: baseExperiment.sample_name,
+          sample_size: baseExperiment.sample_size,
+          status: overallStatus,
+          progress: overallProgress,
+          created_at: baseExperiment.created_at, // Use most recent created_at
+          id: baseExperiment.id, // Use most recent experiment ID
+          experiment_id: baseExperiment.experiment_id,
+          downloads: allDownloads,
+          steps: baseExperiment.steps
+        };
+      });
+
+      // Sort projects by most recent created_at
+      formattedProjects.sort((a, b) => {
+        const dateA = new Date(a.created_at || 0).getTime();
+        const dateB = new Date(b.created_at || 0).getTime();
+        return dateB - dateA;
       });
      
       setProjects(formattedProjects);
@@ -264,6 +347,86 @@ export default function DashboardHistory() {
     // Redirect to simulation page with the experiment ID
     router.push(`/simulation?modify=${projectId}`);
     return true;
+  };
+
+  const handleReplicate = async (projectId: string) => {
+    setProjectToReplicate(projectId);
+    setShowReplicateConfirm(true);
+    return true;
+  };
+
+  const confirmReplicate = async () => {
+    if (!projectToReplicate || !user || isReplicating) {
+      return;
+    }
+
+    setIsReplicating(true);
+    try {
+      // Fetch the experiment data from Supabase
+      const { data, error } = await supabase
+        .from("experiments")
+        .select("*")
+        .eq("experiment_id", projectToReplicate)
+        .single();
+
+      if (error) {
+        console.error("Error fetching experiment:", error);
+        alert("Error loading experiment for replication. Please try again.");
+        setIsReplicating(false);
+        return;
+      }
+
+      const experimentData = data.experiment_data;
+      
+      // Get the user's Supabase access token
+      const { data: { session } } = await supabase.auth.getSession();
+      const accessToken = session?.access_token;
+      if (!accessToken) {
+        throw new Error("No Supabase access token found");
+      }
+
+      // Generate new UUID for the replicated experiment
+      const uuid = crypto.randomUUID();
+
+      // Define backend URL based on environment
+      const prod = process.env.NEXT_PUBLIC_DEV || "production";
+      const url =
+        prod === "development"
+          ? "http://127.0.0.1:5000/api/evaluate"
+          : "https://cognition-backend-81313456654.us-west1.run.app/api/evaluate";
+
+      // Submit the replicated experiment
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ id: uuid, data: experimentData }),
+      });
+
+      const result = await response.json();
+
+      if (result.status === "started") {
+        // Refresh projects to show the new experiment
+        await getProjects(user.user_id);
+        alert("Experiment replicated successfully! The new simulation is now running.");
+      } else {
+        throw new Error(result.message || 'Replication failed to start');
+      }
+    } catch (error) {
+      console.error("Error replicating experiment:", error);
+      alert(`Error replicating experiment: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsReplicating(false);
+      setShowReplicateConfirm(false);
+      setProjectToReplicate(null);
+    }
+  };
+
+  const cancelReplicate = () => {
+    setShowReplicateConfirm(false);
+    setProjectToReplicate(null);
   };
 
   const handleDelete = async (projectId: string) => {
@@ -373,12 +536,18 @@ export default function DashboardHistory() {
   };
 
   useEffect(() => {
-    if (user && isAuthenticated) {
+    if (user && isAuthenticated && !hasInitiallyLoadedRef.current) {
+      hasInitiallyLoadedRef.current = true;
       getUserData(user.user_id);
       // getHistory(user.user_id);
       getProjects(user.user_id);
+    } else if (!user || !isAuthenticated) {
+      // Reset the ref when user logs out
+      hasInitiallyLoadedRef.current = false;
+      setProjects([]);
+      setContentLoaded(false);
     }
-  }, [user, isAuthenticated]);
+  }, [user?.user_id, isAuthenticated]); // Use user?.user_id instead of user object
 
   // Poll for progress on running simulations
   useEffect(() => {
@@ -525,6 +694,7 @@ export default function DashboardHistory() {
               onRename={handleStartRename}
               onModify={handleModify}
               onDelete={handleDelete}
+              onReplicate={handleReplicate}
             />
           </div>
         )}
@@ -606,6 +776,51 @@ export default function DashboardHistory() {
                 className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white"
               >
                 Delete
+              </Button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Replicate Confirmation Modal */}
+      {showReplicateConfirm && createPortal(
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[99999]">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                <Play className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Replicate Experiment</h3>
+                <p className="text-sm text-gray-500">This will rerun the experiment exactly</p>
+              </div>
+            </div>
+            <p className="text-gray-700 mb-6">
+              Are you sure you want to replicate this experiment? The experiment will be rerun with the exact same configuration, steps, and sample. A new simulation will be created and started.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <Button
+                onClick={cancelReplicate}
+                variant="outline"
+                className="px-4 py-2"
+                disabled={isReplicating}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={confirmReplicate}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2"
+                disabled={isReplicating}
+              >
+                {isReplicating ? (
+                  <>
+                    <Spinner size="sm" />
+                    <span>Replicating...</span>
+                  </>
+                ) : (
+                  "Confirm Replicate"
+                )}
               </Button>
             </div>
           </div>

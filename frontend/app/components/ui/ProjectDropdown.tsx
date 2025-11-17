@@ -110,8 +110,16 @@ export default function ProjectDropdown({
               Rename
             </button>
             <button 
-              onClick={onReplicate}
-              className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onReplicate?.();
+                onToggle(); // Close the dropdown
+              }}
+              onMouseDown={(e) => {
+                e.stopPropagation();
+              }}
+              className="flex items-center gap-3 w-full px-4 py-2 text-sm font-semibold text-blue-600 hover:bg-blue-50 transition-colors border-b border-gray-100"
             >
               <Copy className="h-4 w-4" />
               Replicate

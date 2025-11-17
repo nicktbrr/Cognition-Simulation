@@ -67,6 +67,8 @@ function SimulationPageContent() {
   const [isSimulationRunning, setIsSimulationRunning] = useState(false);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const reactFlowRef = useRef<ReactFlowRef>(null);
+  const hasInitiallyLoadedRef = useRef(false);
+  const loadedModifyExperimentIdRef = useRef<string | null>(null);
 
   const getUserData = async (userId: string) => {
     const { data, error } = await supabase
@@ -338,6 +340,10 @@ function SimulationPageContent() {
     localStorage.removeItem('simulation-flow');
     localStorage.removeItem('simulation-title');
     localStorage.removeItem('simulation-sample');
+    localStorage.removeItem('last-loaded-modify-experiment-id');
+    
+    // Reset the modify experiment ref
+    loadedModifyExperimentIdRef.current = null;
   };
 
   const convertFlowNodesToSteps = (nodes: Node[], edges: Edge[]) => {
@@ -807,12 +813,19 @@ function SimulationPageContent() {
   };
 
   useEffect(() => {
-    if (user && isAuthenticated) {
+    if (user && isAuthenticated && !hasInitiallyLoadedRef.current) {
+      hasInitiallyLoadedRef.current = true;
       getUserData(user.user_id);
       getMeasures(user.user_id);
       getSamples(user.user_id);
+    } else if (!user || !isAuthenticated) {
+      // Reset the ref when user logs out
+      hasInitiallyLoadedRef.current = false;
+      setMeasures([]);
+      setSamples([]);
+      setContentLoaded(false);
     }
-  }, [user, isAuthenticated]);
+  }, [user?.user_id, isAuthenticated]);
 
   // Load process title from localStorage on mount (only if not in modify mode)
   useEffect(() => {
@@ -859,10 +872,28 @@ function SimulationPageContent() {
     }
   }, [selectedSample]);
 
-  // Load experiment data when in modify mode
+  // Load experiment data when in modify mode (only once per experiment ID)
   useEffect(() => {
     if (modifyExperimentId && user && isAuthenticated && samples.length > 0 && measures.length > 0 && !isLoadingExperiment) {
-      loadExperimentForModification(modifyExperimentId);
+      // Check if we've already loaded this experiment (stored in localStorage)
+      // This prevents reloading on page refresh when user has made changes
+      const lastLoadedExperimentId = localStorage.getItem('last-loaded-modify-experiment-id');
+      
+      // Only load if this is a different experiment ID than we've already loaded
+      // or if we haven't loaded any experiment yet
+      if (lastLoadedExperimentId !== modifyExperimentId) {
+        // Store the experiment ID we're about to load
+        localStorage.setItem('last-loaded-modify-experiment-id', modifyExperimentId);
+        loadedModifyExperimentIdRef.current = modifyExperimentId;
+        loadExperimentForModification(modifyExperimentId);
+      } else {
+        // We've already loaded this experiment, just set the ref
+        loadedModifyExperimentIdRef.current = modifyExperimentId;
+      }
+    } else if (!modifyExperimentId) {
+      // Reset the ref and localStorage when not in modify mode
+      loadedModifyExperimentIdRef.current = null;
+      localStorage.removeItem('last-loaded-modify-experiment-id');
     }
   }, [modifyExperimentId, user, isAuthenticated, samples.length, measures.length]);
 

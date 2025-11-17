@@ -66,6 +66,8 @@ export default function SamplesPage() {
   const buttonRefs = useRef<Record<string, HTMLButtonElement>>({});
   const [editingSample, setEditingSample] = useState<Sample | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const hasInitiallyLoadedRef = useRef(false);
+
   const [showLockedWarning, setShowLockedWarning] = useState(false);
   const [lockedSampleId, setLockedSampleId] = useState<string | null>(null);
 
@@ -184,11 +186,17 @@ export default function SamplesPage() {
   };
 
   useEffect(() => {
-    if (user && isAuthenticated) {
+    if (user && isAuthenticated && !hasInitiallyLoadedRef.current) {
+      hasInitiallyLoadedRef.current = true;
       getUserData(user.user_id);
       loadSamples(user.user_id);
+    } else if (!user || !isAuthenticated) {
+      // Reset the ref when user logs out
+      hasInitiallyLoadedRef.current = false;
+      setSamples([]);
+      setContentLoaded(false);
     }
-  }, [user, isAuthenticated]);
+  }, [user?.user_id, isAuthenticated]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
