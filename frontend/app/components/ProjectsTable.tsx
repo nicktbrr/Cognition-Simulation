@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import StatusBadge from "./ui/StatusBadge";
 import DownloadButton from "./ui/DownloadButton";
@@ -163,10 +162,8 @@ export default function ProjectsTable({ projects, onDownload, onRename, onModify
                       />
                     </div>
                   </td>
-                  <td className="px-6 py-4">
-                    <Link href="#" className="text-blue-600 hover:text-blue-800 underline">
-                      {project.sample_name}
-                    </Link>
+                  <td className="px-6 py-4 text-sm text-gray-900">
+                    {project.sample_name}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-900">
                     {project.sample_size ?? 10}

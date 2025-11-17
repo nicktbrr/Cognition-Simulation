@@ -159,7 +159,7 @@ export default function DashboardHistory() {
           status = 'Failed';
         }
         
-        const sampleName = experiment.sample_name || experiment.description || "No seed";
+        const sampleName = experimentData.sample?.name || experiment.sample_name || experiment.description || "No seed";
         const configKey = getExperimentConfigKey(experimentData);
         
         return {
