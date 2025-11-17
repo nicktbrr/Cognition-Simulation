@@ -4,6 +4,24 @@ import React, { useState, useRef, useEffect } from 'react'
 import { Check, ChevronDown, X } from 'lucide-react'
 import { Button } from './button'
 
+// Custom scrollbar styles
+const scrollbarStyles = `
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 8px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #555;
+  }
+`
+
 interface MultiselectOption {
   id: string
   title: string
@@ -30,6 +48,17 @@ export default function Multiselect({
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
+  // Inject custom scrollbar styles
+  useEffect(() => {
+    const styleElement = document.createElement('style')
+    styleElement.textContent = scrollbarStyles
+    document.head.appendChild(styleElement)
+    
+    return () => {
+      document.head.removeChild(styleElement)
+    }
+  }, [])
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -43,6 +72,7 @@ export default function Multiselect({
       document.removeEventListener('mousedown', handleClickOutside)
     }
   }, [])
+
 
   const handleToggleOption = (optionId: string) => {
     const newSelection = selectedValues.includes(optionId)
@@ -72,7 +102,7 @@ export default function Multiselect({
         className="w-full justify-between text-left h-auto min-h-[40px] p-2"
         disabled={loading}
       >
-        <div className="flex flex-wrap gap-1 flex-1">
+        <div className="flex flex-wrap gap-1 flex-1 max-h-20 overflow-y-scroll">
           {selectedOptions.length === 0 ? (
             <span className="text-muted-foreground">
               {loading ? "Loading..." : placeholder}
@@ -106,7 +136,18 @@ export default function Multiselect({
       </Button>
 
       {isOpen && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+        <div 
+          className="absolute z-[99999] w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-80 overflow-y-scroll custom-scrollbar"
+          style={{
+            scrollbarWidth: 'auto',
+            msOverflowStyle: 'scrollbar'
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+          onMouseMove={(e) => e.stopPropagation()}
+          onMouseUp={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+          onWheel={(e) => e.stopPropagation()}
+        >
           {options.length === 0 ? (
             <div className="p-3 text-sm text-gray-500 text-center">
               {loading ? "Loading options..." : "No options available"}

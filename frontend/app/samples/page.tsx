@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { ChevronRight, Plus, Users, MoreHorizontal, Trash2, Edit2, Copy } from "lucide-react";
+import { ChevronRight, Plus, Users, MoreHorizontal, Trash2, Edit2, Copy, Lock } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { supabase } from "../utils/supabase";
 import { useAuth } from "../hooks/useAuth";
@@ -31,6 +31,7 @@ interface Sample {
     attributeType: string;
     values: string[];
   }[];
+  isLocked?: boolean; // Whether the sample has been used in an experiment
 }
 
 interface Attribute {
@@ -67,6 +68,9 @@ export default function SamplesPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const hasInitiallyLoadedRef = useRef(false);
 
+  const [showLockedWarning, setShowLockedWarning] = useState(false);
+  const [lockedSampleId, setLockedSampleId] = useState<string | null>(null);
+
   const getUserData = async (userId: string) => {
     const { data, error } = await supabase
       .from("user_emails")
@@ -94,17 +98,34 @@ export default function SamplesPage() {
       return [];
     }
 
-    // Transform Supabase data to match our interface
-    return data.map((sample: any) => ({
-      ...sample,
-      expanded: false,
-      // Parse attributes if it's a JSON string
-      attributes: typeof sample.attributes === 'string' ? JSON.parse(sample.attributes) : sample.attributes,
-      // Convert created_at to a readable date format
-      createdDate: new Date(sample.created_at).toLocaleDateString(),
-      // Extract attribute categories for display
-      attributeCategories: extractAttributeCategories(sample.attributes)
-    }));
+      // Get all experiments for this user to check sample usage more efficiently
+      const { data: experiments, error: expError } = await supabase
+        .from("experiments")
+        .select("experiment_data")
+        .eq("user_id", userId);
+
+      // Create a set of used sample IDs
+      const usedSampleIds = new Set<string>();
+      if (experiments) {
+        experiments.forEach((exp: any) => {
+          if (exp.experiment_data?.sample?.id) {
+            usedSampleIds.add(exp.experiment_data.sample.id);
+          }
+        });
+      }
+
+      // Transform Supabase data to match our interface and check if samples are locked
+      return data.map((sample: any) => ({
+        ...sample,
+        expanded: false,
+        isLocked: usedSampleIds.has(sample.id),
+        // Parse attributes if it's a JSON string
+        attributes: typeof sample.attributes === 'string' ? JSON.parse(sample.attributes) : sample.attributes,
+        // Convert created_at to a readable date format
+        createdDate: new Date(sample.created_at).toLocaleDateString(),
+        // Extract attribute categories for display
+        attributeCategories: extractAttributeCategories(sample.attributes)
+      }));
   };
 
   const insertSample = async (sampleData: { name: string; attributes: any; user_id: string }) => {
@@ -285,9 +306,15 @@ export default function SamplesPage() {
   const handleEditSample = (sampleId: string) => {
     const sample = samples.find(s => s.id === sampleId);
     if (sample) {
-      setEditingSample(sample);
-      setIsEditModalOpen(true);
-      setOpenDropdown(null);
+      if (sample.isLocked) {
+        setLockedSampleId(sampleId);
+        setShowLockedWarning(true);
+        setOpenDropdown(null);
+      } else {
+        setEditingSample(sample);
+        setIsEditModalOpen(true);
+        setOpenDropdown(null);
+      }
     }
   };
 
@@ -588,12 +615,13 @@ export default function SamplesPage() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created Date</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Attributes</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {isLoadingSamples ? (
                   <tr>
-                    <td colSpan={3} className="px-6 py-12 text-center">
+                    <td colSpan={4} className="px-6 py-12 text-center">
                       <div className="flex flex-col items-center">
                         <Spinner />
                         <p className="text-gray-500 mt-4">Loading samples...</p>
@@ -602,7 +630,7 @@ export default function SamplesPage() {
                   </tr>
                 ) : samples.length === 0 ? (
                   <tr>
-                    <td colSpan={3} className="px-6 py-12 text-center">
+                    <td colSpan={4} className="px-6 py-12 text-center">
                       <div className="flex flex-col items-center">
                         <Users className="w-12 h-12 text-gray-400 mb-4" />
                         <h3 className="text-lg font-medium text-gray-900 mb-2">No samples yet</h3>
@@ -679,27 +707,38 @@ export default function SamplesPage() {
                           {new Date(sample.created_at).toLocaleDateString()}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {sample.attributeCategories?.length || 0} attribute{(sample.attributeCategories?.length || 0) !== 1 ? 's' : ''}
+                          {Array.isArray(sample.attributes) ? sample.attributes.length : 0} attribute{Array.isArray(sample.attributes) && sample.attributes.length !== 1 ? 's' : ''}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          {sample.isLocked ? (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                              Locked
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                              Unlocked
+                            </span>
+                          )}
                         </td>
                       </tr>
                       {sample.expanded && (
                         <tr>
-                          <td colSpan={3} className="px-6 py-4 bg-gray-50">
+                          <td colSpan={4} className="px-6 py-4 bg-gray-50">
                             <div className="text-sm text-gray-600">
                               <p className="font-medium text-[#6366f1] mb-4">Selected Attributes:</p>
                               <div className="grid grid-cols-3 gap-4">
-                                {sample.attributeCategories?.map((category, categoryIndex) => (
-                                  <div key={categoryIndex} className="p-4 bg-gray-50 border border-gray-200 rounded-lg shadow-sm">
+                                {Array.isArray(sample.attributes) && sample.attributes.map((attribute: any, attributeIndex: number) => (
+                                  <div key={attributeIndex} className="p-4 bg-gray-50 border border-gray-200 rounded-lg shadow-sm">
                                     <div className="flex items-start justify-between mb-3">
                                       <div className="flex-1 min-w-0">
-                                        <div className="text-sm font-medium text-gray-900 mb-1">{category.name}</div>
-                                        <div className="text-base font-semibold text-blue-600 truncate">{category.attributeType}</div>
+                                        <div className="text-sm font-medium text-gray-900 mb-1">{attribute.category}</div>
+                                        <div className="text-base font-semibold text-blue-600 truncate">{attribute.label}</div>
                                       </div>
                                     </div>
                                     
-                                    {category.values.length > 0 && (
-                                      <div className="space-y-2">
-                                        {category.values.slice(0, 8).map((value, valueIndex) => (
+                                    {attribute.values && attribute.values.length > 0 && (
+                                      <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
+                                        {attribute.values.map((value: string, valueIndex: number) => (
                                           <div
                                             key={valueIndex}
                                             className="flex items-center space-x-2 text-sm text-gray-900"
@@ -712,14 +751,17 @@ export default function SamplesPage() {
                                             <span className="truncate">{value}</span>
                                           </div>
                                         ))}
-                                        {category.values.length > 8 && (
-                                          <div className="flex items-center space-x-2 text-sm text-gray-500">
-                                            <div className="w-4 h-4 flex items-center justify-center flex-shrink-0">
-                                              <span className="text-xs">...</span>
-                                            </div>
-                                            <span className="text-xs">+{category.values.length - 8} more</span>
-                                          </div>
-                                        )}
+                                      </div>
+                                    )}
+                                    
+                                    {(!attribute.values || attribute.values.length === 0) && (
+                                      <div className="flex items-center space-x-2 text-sm text-gray-900">
+                                        <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
+                                          <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                          </svg>
+                                        </div>
+                                        <span>Selected</span>
                                       </div>
                                     )}
                                   </div>
@@ -774,7 +816,7 @@ export default function SamplesPage() {
             className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
           >
             <Copy className="w-4 h-4 mr-3" />
-            Duplicate
+            Make a copy
           </button>
           <hr className="my-1 border-gray-100" />
           <button
@@ -828,6 +870,50 @@ export default function SamplesPage() {
           onSave={handleUpdateSample}
           initialSample={editingSample}
         />
+      )}
+
+      {/* Locked Sample Warning Modal */}
+      {showLockedWarning && createPortal(
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[99999]">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                <Lock className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Sample is Locked</h3>
+              </div>
+            </div>
+            <p className="text-gray-700 mb-6">
+              Samples may be edited up until the first time they are used. You may "Make a copy" of the sample to edit at any point.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <Button
+                onClick={() => {
+                  setShowLockedWarning(false);
+                  setLockedSampleId(null);
+                }}
+                variant="outline"
+                className="px-4 py-2"
+              >
+                Close
+              </Button>
+              <Button
+                onClick={() => {
+                  if (lockedSampleId) {
+                    handleDuplicateSample(lockedSampleId);
+                  }
+                  setShowLockedWarning(false);
+                  setLockedSampleId(null);
+                }}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                Make a copy
+              </Button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </AppLayout>
   );

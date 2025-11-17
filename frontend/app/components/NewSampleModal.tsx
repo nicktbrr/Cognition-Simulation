@@ -533,8 +533,8 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample 
                         </div>
                         
                         {selectedOptions.length > 0 && (
-                          <div className="space-y-2">
-                            {selectedOptions.slice(0, 8).map((option) => {
+                          <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
+                            {selectedOptions.map((option) => {
                               const optionKey = attribute.id === 'age' ? 'age-range' : option.id;
                               const isChecked = isOptionChecked(attribute.id, optionKey);
                               return (
@@ -563,14 +563,6 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample 
                                 </div>
                               );
                             })}
-                            {selectedOptions.length > 8 && (
-                              <div className="flex items-center space-x-2 text-sm text-gray-500">
-                                <div className="w-4 h-4 flex items-center justify-center flex-shrink-0">
-                                  <span className="text-xs">...</span>
-                                </div>
-                                <span className="text-xs">+{selectedOptions.length - 8} more</span>
-                              </div>
-                            )}
                           </div>
                         )}
                         
@@ -616,10 +608,11 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample 
       {activeAttributePanel && panelPosition && (
         <div className="fixed inset-0 z-[60]" onClick={handleCloseAttributePanel}>
           <div
-            className="absolute bg-white rounded-lg shadow-2xl border border-gray-200 w-96 max-h-[80vh] flex flex-col"
+            className="absolute bg-white rounded-lg shadow-2xl border border-gray-200 w-96 flex flex-col"
             style={{
               top: `${panelPosition.top}px`,
-              left: `${panelPosition.left}px`
+              left: `${panelPosition.left}px`,
+              maxHeight: '85vh'
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -638,7 +631,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample 
             </div>
 
             {/* Options List / Age Range Inputs */}
-            <div className="flex-1 overflow-y-auto p-4 min-h-0">
+            <div className="flex-1 overflow-y-auto p-4 min-h-0" style={{ maxHeight: 'calc(85vh - 200px)' }}>
               {activeAttributePanel.id === 'age' ? (
                 <div className="space-y-4">
                   <div className="text-sm text-gray-600 mb-4">
@@ -723,13 +716,13 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample 
             </div>
 
             {/* Tooltip Footer */}
-            <div className="border-t border-gray-200 p-4 flex-shrink-0 bg-white">
+            <div className="border-t border-gray-200 p-4 flex-shrink-0 bg-white sticky bottom-0">
               {activeAttributePanel.id === 'age' ? (
                 <Button
                   onClick={handleAddToSelection}
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                 >
-                  + Add Age Range to Selection
+                  + Add Age Range to Sample
                 </Button>
               ) : (
                 <>
@@ -756,7 +749,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample 
                     className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                     disabled={tempSelectedOptions.length === 0}
                   >
-                    + Add to Selection
+                    + Add to Sample
                   </Button>
                 </>
               )}
