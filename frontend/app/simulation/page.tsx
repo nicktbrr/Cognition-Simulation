@@ -54,7 +54,7 @@ function SimulationPageContent() {
   const [selectedSample, setSelectedSample] = useState("");
   const [flowNodes, setFlowNodes] = useState<Node[]>([]);
   const [flowEdges, setFlowEdges] = useState<Edge[]>([]);
-  const [selectedColor, setSelectedColor] = useState<string>('#3b82f6');
+  const [selectedColor, setSelectedColor] = useState<string>('#ffffff');
   const [measures, setMeasures] = useState<Measure[]>([]);
   const [loadingMeasures, setLoadingMeasures] = useState(false);
   const [samples, setSamples] = useState<Sample[]>([]);
@@ -1075,7 +1075,7 @@ function SimulationPageContent() {
               <div className="relative group">
                 <Info className="w-4 h-4 text-gray-400 cursor-help" />
                 <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
-                  Color selection is for visual organization only and does not affect your simulation results
+                  Color selection is for visual organization and does not affect simulation functionality
                   <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
                 </div>
               </div>
