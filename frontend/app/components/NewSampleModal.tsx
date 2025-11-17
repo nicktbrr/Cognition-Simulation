@@ -43,7 +43,7 @@ interface Sample {
 interface NewSampleModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (selectedAttributes: Attribute[], attributeSelections: AttributeSelection[]) => void;
+  onSave: (sampleName: string, selectedAttributes: Attribute[], attributeSelections: AttributeSelection[]) => void;
   initialSample?: Sample | null;
 }
 
@@ -98,6 +98,7 @@ const allCategories = [
 ];
 
 export default function NewSampleModal({ isOpen, onClose, onSave, initialSample }: NewSampleModalProps) {
+  const [sampleName, setSampleName] = useState<string>('');
   const [selectedAttributes, setSelectedAttributes] = useState<Attribute[]>([]);
   const [attributeSelections, setAttributeSelections] = useState<AttributeSelection[]>([]);
   const [activeAttributePanel, setActiveAttributePanel] = useState<Attribute | null>(null);
@@ -124,6 +125,16 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample 
   });
 
   // Initialize with initialSample data when in edit mode
+  useEffect(() => {
+    if (isOpen) {
+      if (initialSample) {
+        setSampleName(initialSample.name || '');
+      } else {
+        setSampleName('');
+      }
+    }
+  }, [isOpen, initialSample]);
+
   useEffect(() => {
     if (isOpen && initialSample && Array.isArray(initialSample.attributes)) {
       const allAttributesFlat = allCategories.flatMap(cat => cat.attributes);
@@ -396,7 +407,9 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample 
       return filteredSelections.some(sel => sel.attributeId === attr.id);
     });
 
-    onSave(filteredAttributes, filteredSelections);
+    const finalSampleName = sampleName.trim() || (initialSample ? initialSample.name : `Sample ${Date.now()}`);
+    onSave(finalSampleName, filteredAttributes, filteredSelections);
+    setSampleName('');
     setSelectedAttributes([]);
     setAttributeSelections([]);
     setCheckedOptions(new Set());
@@ -404,6 +417,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample 
   };
 
   const handleClose = () => {
+    setSampleName('');
     setSelectedAttributes([]);
     setAttributeSelections([]);
     setActiveAttributePanel(null);
@@ -441,12 +455,25 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample 
         <div className="bg-white h-screen flex flex-col shadow-2xl" style={{width: 'calc(100% - 224px)'}}>
           {/* Header */}
           <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0">
-            <div>
-              <h2 className="text-xl font-semibold text-blue-600">{initialSample ? 'Edit Sample' : 'New Sample'}</h2>
+            <div className="flex-1">
+              <h2 className="text-xl font-semibold text-blue-600 mb-3">{initialSample ? 'Edit Sample' : 'New Sample'}</h2>
+              <div>
+                <label htmlFor="sample-name" className="block text-sm font-medium text-gray-700 mb-2">
+                  Sample Name
+                </label>
+                <input
+                  id="sample-name"
+                  type="text"
+                  value={sampleName}
+                  onChange={(e) => setSampleName(e.target.value)}
+                  placeholder="Enter sample name"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
             </div>
             <button
               onClick={handleClose}
-              className="text-gray-400 hover:text-gray-600"
+              className="text-gray-400 hover:text-gray-600 ml-4"
             >
               <X className="w-6 h-6" />
             </button>
@@ -594,7 +621,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample 
               <Button
                 onClick={handleSave}
                 className="bg-blue-600 hover:bg-blue-700 text-white"
-                disabled={selectedAttributes.length === 0}
+                disabled={selectedAttributes.length === 0 || !sampleName.trim()}
               >
                 {initialSample ? 'Update Sample' : 'Create Sample'}
               </Button>

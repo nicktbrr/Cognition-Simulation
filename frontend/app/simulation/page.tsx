@@ -1078,8 +1078,7 @@ function SimulationPageContent() {
           {/* Pick Sample Section */}
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <h3 className="text-sm font-semibold text-gray-700">Pick your sample</h3>
-              <HelpCircle className="w-3 h-3 text-gray-400" />
+              <h3 className="text-sm font-semibold text-gray-700">Sample:</h3>
             </div>
             {loadingSamples ? (
               <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded text-sm flex items-center justify-center">
@@ -1105,9 +1104,20 @@ function SimulationPageContent() {
             )}
             {selectedSample && getSelectedSampleDetails() && (
               <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
-                <div className="font-medium text-blue-900">Selected Sample:</div>
-                <div className="text-blue-700">{getSelectedSampleDetails()?.name}</div>
-                <div className="text-blue-600">{getSelectedSampleDetails()?.desc}</div>
+                <div className="font-medium text-blue-900 mb-1">Sample Name:</div>
+                <div className="text-blue-700 font-semibold mb-2">{getSelectedSampleDetails()?.name}</div>
+                {Array.isArray(getSelectedSampleDetails()?.attributes) && getSelectedSampleDetails()!.attributes.length > 0 && (
+                  <div className="space-y-1 max-h-32 overflow-y-auto">
+                    {getSelectedSampleDetails()!.attributes.map((attr: any, index: number) => (
+                      <div key={index} className="text-blue-600">
+                        <span className="font-medium">{attr.label}:</span>{' '}
+                        {Array.isArray(attr.values) && attr.values.length > 0 
+                          ? attr.values.join(', ')
+                          : 'Selected'}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>

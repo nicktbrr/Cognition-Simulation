@@ -437,7 +437,7 @@ export default function SamplesPage() {
     setNewSampleName('');
   };
 
-  const handleNewSample = async (selectedAttributes: Attribute[], attributeSelections: AttributeSelection[]) => {
+  const handleNewSample = async (sampleName: string, selectedAttributes: Attribute[], attributeSelections: AttributeSelection[]) => {
     if (!user) return;
 
     try {
@@ -472,7 +472,7 @@ export default function SamplesPage() {
 
       // Insert into Supabase
       const newSampleData = {
-        name: `Sample ${samples.length + 1}`,
+        name: sampleName || `Sample ${samples.length + 1}`,
         attributes: attributesJson,
         user_id: user.user_id
       };
@@ -496,7 +496,7 @@ export default function SamplesPage() {
     }
   };
 
-  const handleUpdateSample = async (selectedAttributes: Attribute[], attributeSelections: AttributeSelection[]) => {
+  const handleUpdateSample = async (sampleName: string, selectedAttributes: Attribute[], attributeSelections: AttributeSelection[]) => {
     if (!user || !editingSample) return;
 
     try {
@@ -532,7 +532,10 @@ export default function SamplesPage() {
       // Update in Supabase
       const { error } = await supabase
         .from('samples')
-        .update({ attributes: attributesJson })
+        .update({ 
+          name: sampleName || editingSample.name,
+          attributes: attributesJson 
+        })
         .eq('id', editingSample.id);
 
       if (error) {
@@ -546,6 +549,7 @@ export default function SamplesPage() {
         sample.id === editingSample.id 
           ? { 
               ...sample, 
+              name: sampleName || editingSample.name,
               attributes: attributesJson,
               attributeCategories: extractAttributeCategories(attributesJson)
             }
