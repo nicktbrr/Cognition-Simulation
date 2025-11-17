@@ -39,9 +39,10 @@ interface ProjectsTableProps {
   onRename: (projectId: string, currentName: string) => void;
   onModify?: (projectId: string) => Promise<boolean>;
   onDelete?: (projectId: string) => Promise<boolean>;
+  onReplicate?: (projectId: string) => Promise<boolean>;
 }
 
-export default function ProjectsTable({ projects, onDownload, onRename, onModify, onDelete }: ProjectsTableProps) {
+export default function ProjectsTable({ projects, onDownload, onRename, onModify, onDelete, onReplicate }: ProjectsTableProps) {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [projectDropdowns, setProjectDropdowns] = useState<Set<string>>(new Set());
   const [sortConfig, setSortConfig] = useState<{key: string, direction: 'asc' | 'desc'} | null>(null);
@@ -156,7 +157,7 @@ export default function ProjectsTable({ projects, onDownload, onRename, onModify
                         onToggle={() => toggleProjectDropdown(project.id!)}
                         position={index >= sortedProjects.length - 2 ? 'top' : 'bottom'}
                         onRename={() => handleStartRename(project.id!, project.name)}
-                        onReplicate={() => {}}
+                        onReplicate={() => onReplicate?.(project.id!)}
                         onModify={() => onModify?.(project.id!)}
                         onDelete={() => onDelete?.(project.id!)}
                       />
