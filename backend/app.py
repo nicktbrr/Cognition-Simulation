@@ -52,10 +52,14 @@ if prod == 'development':
                     "methods": ["GET", "POST", "OPTIONS"],
                     "allow_headers": ["Content-Type", "Authorization"]}})
 else:
-    # Production CORS settings - allow Vercel deployment
+    # Production CORS settings - allow Vercel deployment and custom domains
     CORS(app, resources={
         r"/api/*": {
-            "origins": "https://cognition-simulation-e9on.vercel.app",
+            "origins": [
+                "https://cognition-simulation-e9on.vercel.app",
+                "https://psycsim.com",
+                "https://psycsim.org"
+            ],
             "methods": ["GET", "POST", "OPTIONS"],
             "allow_headers": ["Content-Type", "Authorization"]
         }
