@@ -58,10 +58,13 @@ else:
             "origins": [
                 "https://cognition-simulation-e9on.vercel.app",
                 "https://psycsim.com",
-                "https://psycsim.org"
+                "https://www.psycsim.com",
+                "https://psycsim.org",
+                "https://www.psycsim.org"
             ],
             "methods": ["GET", "POST", "OPTIONS"],
-            "allow_headers": ["Content-Type", "Authorization"]
+            "allow_headers": ["Content-Type", "Authorization"],
+            "supports_credentials": True
         }
     })
 
