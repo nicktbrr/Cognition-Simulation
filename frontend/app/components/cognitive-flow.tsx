@@ -145,7 +145,6 @@ const StepNode = React.memo(function StepNode({ data }: StepNodeProps) {
           handleUpdate("instructions", localInstructions);
         }
         if (localTemperature !== (currentStep?.temperature ?? 0)) {
-          console.log(`Saving temperature for step ${data.stepId}: ${localTemperature} (was: ${currentStep?.temperature ?? 0})`);
           handleUpdate("temperature", localTemperature);
         }
       }
@@ -711,8 +710,6 @@ function Flow({
   const saveAllStates = useCallback(() => {
     if (disabled) return;
     
-    console.log('saveAllStates called - dispatching save events to all nodes');
-    
     // Force save all current local states by triggering updates
     // This will be called when the user clicks outside the flow
     localSteps.forEach(step => {
@@ -759,7 +756,6 @@ function Flow({
         onBlur={(e) => {
           // Only trigger if the blur is not going to another element within the flow
           if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-            console.log('Flow container lost focus - saving all states');
             // Save all states when focus leaves the flow container
             saveAllStates();
           }

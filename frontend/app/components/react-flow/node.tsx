@@ -22,7 +22,9 @@ export interface CustomNodeData {
   height?: number
   onDelete: (id: string) => void
   onTitleChange: (id: string, title: string) => void
+  onTitleBlur?: () => void
   onDescriptionChange: (id: string, description: string) => void
+  onDescriptionBlur?: () => void
   onSliderChange: (id: string, value: number) => void
   onMeasuresChange: (id: string, selectedMeasures: string[]) => void
   onResize?: (id: string, width: number, height: number) => void
@@ -85,6 +87,7 @@ const CustomNode = memo(({ id, data, selected, width, height }: NodeProps) => {
           <Input
             value={(data as any).title}
             onChange={(e) => (data as any).onTitleChange(id, e.target.value)}
+            onBlur={() => (data as any).onTitleBlur?.()}
             placeholder="Click to add title..."
             className="text-base"
           />
@@ -97,6 +100,7 @@ const CustomNode = memo(({ id, data, selected, width, height }: NodeProps) => {
             value={(data as any).description}
             maxLength={(data as any).numDescriptionsChars}
             onChange={(e) => (data as any).onDescriptionChange(id, e.target.value)}
+            onBlur={() => (data as any).onDescriptionBlur?.()}
             placeholder="Click to add description..."
             className="text-base w-full resize-none flex-1 min-h-[150px]"
             style={{
