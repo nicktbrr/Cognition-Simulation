@@ -9,7 +9,6 @@ import {
   Connection,
   useNodesState,
   useEdgesState,
-  Controls,
   Background,
   BackgroundVariant,
   MiniMap,
@@ -21,7 +20,7 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { Button } from '@/components/ui/button'
-import { Plus } from 'lucide-react'
+import { Plus, Maximize2, Minimize2 } from 'lucide-react'
 
 import CustomNode from './react-flow/node'
 
@@ -64,6 +63,7 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
   const reactFlowInstance = useRef<ReactFlowInstance<Node, Edge> | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
+  const [isFullscreen, setIsFullscreen] = useState(false)
   const { setViewport } = useReactFlow()
 
   // Undo/Redo history state
@@ -519,18 +519,100 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
     setNodes((nds: Node[]) => [...nds, newNode])
   }, [setNodes, handleNodeDelete, handleTitleChange, handleDescriptionChange, handleSliderChange, handleMeasuresChange, handleResize, nodes, getNextNodeId, measures, loadingMeasures])
 
+  // Handle fullscreen toggle
+  const toggleFullscreen = useCallback(() => {
+    if (!containerRef.current) return
+
+    if (!isFullscreen) {
+      // Enter fullscreen
+      if (containerRef.current.requestFullscreen) {
+        containerRef.current.requestFullscreen()
+      } else if ((containerRef.current as any).webkitRequestFullscreen) {
+        (containerRef.current as any).webkitRequestFullscreen()
+      } else if ((containerRef.current as any).msRequestFullscreen) {
+        (containerRef.current as any).msRequestFullscreen()
+      }
+      setIsFullscreen(true)
+      
+      // Center nodes when entering fullscreen
+      setTimeout(() => {
+        if (reactFlowInstance.current) {
+          reactFlowInstance.current.fitView({ 
+            padding: 0.2,
+            duration: 300 
+          })
+        }
+      }, 100)
+    } else {
+      // Exit fullscreen
+      if (document.exitFullscreen) {
+        document.exitFullscreen()
+      } else if ((document as any).webkitExitFullscreen) {
+        (document as any).webkitExitFullscreen()
+      } else if ((document as any).msExitFullscreen) {
+        (document as any).msExitFullscreen()
+      }
+      setIsFullscreen(false)
+      
+      // Center nodes when exiting fullscreen
+      setTimeout(() => {
+        if (reactFlowInstance.current) {
+          reactFlowInstance.current.fitView({ 
+            padding: 0.2,
+            duration: 300 
+          })
+        }
+      }, 100)
+    }
+  }, [isFullscreen])
+
+  // Listen for fullscreen changes
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const isCurrentlyFullscreen = !!(
+        document.fullscreenElement ||
+        (document as any).webkitFullscreenElement ||
+        (document as any).msFullscreenElement
+      )
+      setIsFullscreen(isCurrentlyFullscreen)
+      
+      // Center nodes when entering or exiting fullscreen
+      if (reactFlowInstance.current) {
+        // Use setTimeout to ensure the fullscreen transition is complete
+        setTimeout(() => {
+          if (reactFlowInstance.current) {
+            reactFlowInstance.current.fitView({ 
+              padding: 0.2,
+              duration: 300 
+            })
+          }
+        }, 100)
+      }
+    }
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange)
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange)
+    document.addEventListener('msfullscreenchange', handleFullscreenChange)
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange)
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange)
+      document.removeEventListener('msfullscreenchange', handleFullscreenChange)
+    }
+  }, [])
+
   // Update node data with handlers and highlighting
   const nodesWithHandlers = nodes.map((node: Node) => ({
     ...node,
-    width: node.width || node.data?.width || 400,
-    height: node.height || node.data?.height || 600, // Default height to prevent auto-sizing
+    width: (typeof node.width === 'number' ? node.width : (typeof node.data?.width === 'number' ? node.data.width : 400)) as number,
+    height: (typeof node.height === 'number' ? node.height : (typeof node.data?.height === 'number' ? node.data.height : 600)) as number, // Default height to prevent auto-sizing
     data: {
       ...node.data,
       measures: measures,
       loadingMeasures: loadingMeasures,
       selectedMeasures: node.data?.selectedMeasures || [],
-      width: node.width || node.data?.width || 400,
-      height: node.height || node.data?.height || 600, // Default height to prevent auto-sizing
+      width: (typeof node.width === 'number' ? node.width : (typeof node.data?.width === 'number' ? node.data.width : 400)) as number,
+      height: (typeof node.height === 'number' ? node.height : (typeof node.data?.height === 'number' ? node.data.height : 600)) as number, // Default height to prevent auto-sizing
       onDelete: handleNodeDelete,
       onTitleChange: handleTitleChange,
       onTitleBlur: handleTitleBlur,
@@ -557,6 +639,28 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
         >
           <Plus className="w-4 h-4" />
           Add Node
+        </Button>
+      </div>
+
+      {/* Fullscreen Toggle Button - Lower Left */}
+      <div className="absolute bottom-4 left-4 z-10">
+        <Button 
+          onClick={toggleFullscreen}
+          variant="outline"
+          className="flex items-center gap-2 bg-white hover:bg-gray-50 border border-gray-200 shadow-sm"
+          title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+        >
+          {isFullscreen ? (
+            <>
+              <Minimize2 className="w-4 h-4" />
+              Exit Fullscreen
+            </>
+          ) : (
+            <>
+              <Maximize2 className="w-4 h-4" />
+              Fullscreen
+            </>
+          )}
         </Button>
       </div>
 
@@ -589,16 +693,7 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
           reactFlowInstance.current = instance as unknown as ReactFlowInstance<Node, Edge>
         }}
       >
-        <Controls 
-          showInteractive={false}
-          className="bg-white border border-gray-200 rounded-lg shadow-sm"
-          style={{ 
-            background: 'white',
-            border: '1px solid #e5e7eb',
-            borderRadius: '8px',
-            boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)'
-          }}
-        />
+        {/* Controls hidden - replaced with custom fullscreen button */}
         <MiniMap 
           className="bg-white border border-gray-200 rounded-lg shadow-sm"
           style={{ 

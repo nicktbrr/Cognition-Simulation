@@ -768,6 +768,39 @@ function SimulationPageContent() {
     return { nodes, edges };
   };
 
+  const handleRealign = useCallback(() => {
+    if (flowNodes.length === 0) return;
+
+    const nodeWidth = 400; // Default node width
+    const gapBetweenNodes = 50; // Gap between nodes to show arrows
+    const nodeSpacing = nodeWidth + gapBetweenNodes; // Total spacing (450 pixels)
+    const startY = 200; // Y position for all nodes
+    const startX = 100; // Starting X position
+
+    // Sort nodes by their ID (which should be numeric strings like "1", "2", etc.)
+    const sortedNodes = [...flowNodes].sort((a, b) => {
+      const aNum = parseInt(a.id) || 0;
+      const bNum = parseInt(b.id) || 0;
+      return aNum - bNum;
+    });
+
+    // Reposition all nodes to default arrangement
+    const realignedNodes = sortedNodes.map((node, index) => ({
+      ...node,
+      position: { x: startX + (index * nodeSpacing), y: startY }
+    }));
+
+    // Update nodes state
+    setFlowNodes(realignedNodes);
+
+    // Center the view after realignment using the ReactFlow ref
+    setTimeout(() => {
+      if (reactFlowRef.current) {
+        reactFlowRef.current.setNodesAndEdges(realignedNodes, flowEdges);
+      }
+    }, 100);
+  }, [flowNodes, flowEdges]);
+
   const loadExperimentForModification = async (experimentId: string) => {
     setIsLoadingExperiment(true);
     try {
@@ -1100,6 +1133,13 @@ function SimulationPageContent() {
                 <RotateCw className="w-3 h-3" />
               </Button>
             </div>
+            <Button 
+              variant="outline" 
+              className="w-full text-xs"
+              onClick={handleRealign}
+            >
+              Realign
+            </Button>
           </div>
 
           {/* Pick Sample Section */}
@@ -1131,16 +1171,11 @@ function SimulationPageContent() {
             )}
             {selectedSample && getSelectedSampleDetails() && (
               <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
-                <div className="font-medium text-blue-900 mb-1">Sample Name:</div>
-                <div className="text-blue-700 font-semibold mb-2">{getSelectedSampleDetails()?.name}</div>
                 {Array.isArray(getSelectedSampleDetails()?.attributes) && getSelectedSampleDetails()!.attributes.length > 0 && (
                   <div className="space-y-1 max-h-32 overflow-y-auto">
                     {getSelectedSampleDetails()!.attributes.map((attr: any, index: number) => (
                       <div key={index} className="text-blue-600">
-                        <span className="font-medium">{attr.label}:</span>{' '}
-                        {Array.isArray(attr.values) && attr.values.length > 0 
-                          ? attr.values.join(', ')
-                          : 'Selected'}
+                        <span className="font-medium">{attr.label}</span>
                       </div>
                     ))}
                   </div>
