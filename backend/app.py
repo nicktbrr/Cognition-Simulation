@@ -491,7 +491,7 @@ The Output should lay out the following:
   - Step instruction should be aligned with the title of the step
   - The steps should be logically ordered and build on each other
   - Each step should be concise and clear, avoiding unnecessary jargon or complexity
-  - There's no limit to the number of steps, and each step should represent one discrete and atomic activity at a time until it reaches the end goal
+  - There's no limit to the number of steps unless the user specifies the number of steps, and each step should represent one discrete and atomic activity at a time until it reaches the end goal
   - Remember your main goal is to convert the user input into a sequence of steps representing a cognitive model or process for participants to follow
 
 Generate the output in JSON format with the following EXACT structure (use "instructions" not "description" for steps):
@@ -507,7 +507,8 @@ Generate the output in JSON format with the following EXACT structure (use "inst
   ...
 }
 
-IMPORTANT: All steps must use "instructions" (not "description") as the field name AND no more than 10 steps."""
+IMPORTANT: All steps must use "instructions" (not "description") as the field name AND no more than 10 steps.
+IMPORTANT: If the user specifies the number of steps, you must generate the exact number of steps specified."""
 
             # User prompt
             full_prompt = f"Given the following user input, generate simulation steps:\n\n{user_prompt}"

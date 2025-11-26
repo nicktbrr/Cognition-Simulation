@@ -470,7 +470,6 @@ export default function DashboardHistory() {
   // Function to check progress for a running simulation by querying Supabase directly
   const checkProgress = async (experimentId: string, userId: string) => {
     try {
-      console.log(`[Polling] Checking progress for experiment: ${experimentId}`);
       // Query Supabase directly for the experiment progress
       const { data, error } = await supabase
         .from("experiments")
@@ -520,14 +519,11 @@ export default function DashboardHistory() {
 
         // If completed or failed, refresh the projects list after a delay
         if (progressPercent >= 100 || statusLower === 'completed' || statusLower === 'failed') {
-          console.log(`[Polling] Experiment ${experimentId} completed (progress: ${progressPercent}%, status: ${status}). Polling will stop.`);
           setTimeout(() => {
             if (user) {
               getProjects(user.user_id);
             }
           }, 1000);
-        } else {
-          console.log(`[Polling] Experiment ${experimentId} progress: ${progressPercent}%, status: ${status}`);
         }
       }
     } catch (error) {
@@ -554,7 +550,6 @@ export default function DashboardHistory() {
     if (!user || !isAuthenticated) {
       // Clear interval if user is not authenticated
       if (pollingIntervalRef.current) {
-        console.log('[Polling] User not authenticated. Stopping polling interval.');
         clearInterval(pollingIntervalRef.current);
         pollingIntervalRef.current = null;
       }
@@ -577,28 +572,14 @@ export default function DashboardHistory() {
         
         const runningProjects = allRunningProjects.filter(p => isRecentProject(p.created_at));
         
-        // Log if we filtered out any old projects
-        const oldProjects = allRunningProjects.filter(p => !isRecentProject(p.created_at));
-        if (oldProjects.length > 0) {
-          oldProjects.forEach(p => {
-            const ageMinutes = p.created_at 
-              ? Math.floor((Date.now() - new Date(p.created_at).getTime()) / (1000 * 60))
-              : 'unknown';
-            console.log(`[Polling] Skipping old project ${p.experiment_id} (created ${ageMinutes} minutes ago, older than 20 minutes)`);
-          });
-        }
-
         // If no running projects, stop polling
         if (runningProjects.length === 0) {
           if (pollingIntervalRef.current) {
-            console.log('[Polling] No recent running projects found (within last 20 minutes). Stopping polling interval.');
             clearInterval(pollingIntervalRef.current);
             pollingIntervalRef.current = null;
           }
           return currentProjects;
         }
-
-        console.log(`[Polling] Polling ${runningProjects.length} running project(s)`);
         // Poll each running project
         runningProjects.forEach(project => {
           if (project.experiment_id && user.user_id) {
@@ -613,7 +594,6 @@ export default function DashboardHistory() {
 
     // Clear any existing interval before starting a new one
     if (pollingIntervalRef.current) {
-      console.log('[Polling] Clearing existing polling interval');
       clearInterval(pollingIntervalRef.current);
     }
 
@@ -627,21 +607,11 @@ export default function DashboardHistory() {
 
     // Only start polling if there are running projects
     if (hasRunningProjects) {
-      const runningCount = projects.filter(p => 
-        p.experiment_id && 
-        p.status === 'Running' && 
-        (p.progress === undefined || (typeof p.progress === 'number' && p.progress < 100)) &&
-        isRecentProject(p.created_at)
-      ).length;
-      console.log(`[Polling] Starting polling interval for ${runningCount} running project(s) (created within last 20 minutes)`);
       pollingIntervalRef.current = setInterval(pollInterval, 500);
-    } else {
-      console.log('[Polling] No running projects (created within last 20 minutes). Polling not started.');
     }
 
     return () => {
       if (pollingIntervalRef.current) {
-        console.log('[Polling] Component unmounting or dependencies changed. Cleaning up polling interval.');
         clearInterval(pollingIntervalRef.current);
         pollingIntervalRef.current = null;
       }

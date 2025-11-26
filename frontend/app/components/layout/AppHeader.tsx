@@ -41,7 +41,6 @@ export default function AppHeader({ title, userData }: AppHeaderProps) {
     };
 
     if (profileDropdownOpen) {
-      console.log("Profile dropdown open");
       document.addEventListener('mousedown', handleClickOutside);
     }
 
@@ -115,7 +114,6 @@ export default function AppHeader({ title, userData }: AppHeaderProps) {
                 <hr className="my-1 border-gray-200" />
                 <button 
                   onClick={(e) => {
-                    console.log('Sign out button clicked');
                     handleSignOut();
                   }}
                   className="flex items-center gap-3 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"

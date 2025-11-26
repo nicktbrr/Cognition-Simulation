@@ -156,7 +156,6 @@ function SimulationPageContent() {
 
   const handleGenerateSteps = async () => {
     const requestId = `frontend-${Date.now()}`;
-    console.log(`[${requestId}] handleGenerateSteps called`);
     
     // Validate that process description is provided
     if (!processDescription || processDescription.trim() === '') {
@@ -165,12 +164,10 @@ function SimulationPageContent() {
       return;
     }
 
-    console.log(`[${requestId}] Process description length: ${processDescription.length} characters`);
     setIsGeneratingSteps(true);
     
     try {
       // Get the user's Supabase access token
-      console.log(`[${requestId}] Getting Supabase session`);
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
       if (sessionError) {
@@ -183,8 +180,6 @@ function SimulationPageContent() {
         console.error(`[${requestId}] No access token found`);
         throw new Error("No Supabase access token found");
       }
-      
-      console.log(`[${requestId}] Access token obtained (length: ${accessToken.length} characters)`);
 
       // Define backend URL based on environment
       const prod = process.env.NEXT_PUBLIC_DEV || "production";
@@ -192,9 +187,6 @@ function SimulationPageContent() {
         prod === "development"
           ? "http://127.0.0.1:5000/api/generate-steps"
           : "https://cognition-backend-81313456654.us-west1.run.app/api/generate-steps";
-
-      console.log(`[${requestId}] Calling backend API: ${url}`);
-      console.log(`[${requestId}] Request payload:`, { prompt: processDescription.substring(0, 100) + "..." });
 
       // Call the backend API
       const response = await fetch(url, {
@@ -206,9 +198,6 @@ function SimulationPageContent() {
         body: JSON.stringify({ prompt: processDescription }),
       });
 
-      console.log(`[${requestId}] Response status: ${response.status} ${response.statusText}`);
-      console.log(`[${requestId}] Response headers:`, Object.fromEntries(response.headers.entries()));
-
       if (!response.ok) {
         const errorText = await response.text();
         console.error(`[${requestId}] Response not OK. Status: ${response.status}, Body:`, errorText);
@@ -216,18 +205,11 @@ function SimulationPageContent() {
       }
 
       const result = await response.json();
-      console.log(`[${requestId}] Response received:`, { 
-        status: result.status, 
-        hasData: !!result.data,
-        dataKeys: result.data ? Object.keys(result.data) : []
-      });
 
       if (result.status === "success" && result.data) {
-        console.log(`[${requestId}] Processing successful response`);
         
         // Convert the backend response to the format expected by convertStepsToFlow
         const stepsData = result.data;
-        console.log(`[${requestId}] Steps data keys:`, Object.keys(stepsData));
         
         const convertedSteps: Array<{
           label: string;
@@ -246,16 +228,9 @@ function SimulationPageContent() {
             return numA - numB;
           });
 
-        console.log(`[${requestId}] Found ${stepKeys.length} step keys:`, stepKeys);
-
         // Convert each step to the expected format
         stepKeys.forEach((stepKey, index) => {
           const step = stepsData[stepKey];
-          console.log(`[${requestId}] Processing ${stepKey}:`, { 
-            hasStep: !!step, 
-            hasTitle: !!(step?.title), 
-            hasInstructions: !!(step?.instructions) 
-          });
           
           if (step && step.title && step.instructions) {
             convertedSteps.push({
@@ -264,23 +239,17 @@ function SimulationPageContent() {
               temperature: 0.5, // Default temperature
               measures: [], // Empty measures array - user can add measures later
             });
-            console.log(`[${requestId}] Added step ${index + 1}: ${step.title}`);
           } else {
             console.warn(`[${requestId}] Skipping invalid step ${stepKey}:`, step);
           }
         });
 
-        console.log(`[${requestId}] Converted ${convertedSteps.length} valid steps`);
-
         if (convertedSteps.length > 0) {
-          console.log(`[${requestId}] Converting steps to flow nodes`);
           // Convert steps to flow nodes and edges
           const { nodes, edges } = convertStepsToFlow(convertedSteps);
-          console.log(`[${requestId}] Created ${nodes.length} nodes and ${edges.length} edges`);
           
           // Update the React Flow
           if (reactFlowRef.current) {
-            console.log(`[${requestId}] Updating React Flow`);
             reactFlowRef.current.setNodesAndEdges(nodes, edges);
           }
           
@@ -289,7 +258,6 @@ function SimulationPageContent() {
 
           // Optionally set the title from study context if available
           if (stepsData.study_context_and_instructions?.context && !processTitle) {
-            console.log(`[${requestId}] Setting suggested title from study context`);
             // Extract a title from the context or use it as-is
             const context = stepsData.study_context_and_instructions.context;
             // Try to use first sentence or first 50 characters
@@ -299,7 +267,6 @@ function SimulationPageContent() {
             }
           }
 
-          console.log(`[${requestId}] Successfully generated ${convertedSteps.length} step(s)`);
           alert(`Successfully generated ${convertedSteps.length} step(s)!`);
         } else {
           console.warn(`[${requestId}] No valid steps were generated`);
@@ -318,7 +285,6 @@ function SimulationPageContent() {
       }
       alert(`Error generating steps: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
-      console.log(`[${requestId}] handleGenerateSteps completed`);
       setIsGeneratingSteps(false);
     }
   };
@@ -582,13 +548,8 @@ function SimulationPageContent() {
       // If different, it will appear as a new row
       if (modifyExperimentId && originalExperimentDataRef.current) {
         const isIdentical = areExperimentsIdentical(originalExperimentDataRef.current, jsonData);
-        if (isIdentical) {
-          console.log("Modified experiment is identical to original - will be grouped as replication");
-          // The grouping logic in the dashboard will automatically group this with the original
-          // since it will have the same config key (title, sample.id, steps)
-        } else {
-          console.log("Modified experiment has changes - will appear as new row");
-        }
+        // The grouping logic in the dashboard will automatically group this with the original
+        // since it will have the same config key (title, sample.id, steps)
       }
       
       // Define backend URL based on environment
@@ -636,7 +597,6 @@ function SimulationPageContent() {
         setSimulationTaskId(taskId);
         
         // Don't show alert, let the button show progress instead
-        console.log("Simulation submitted successfully! Task ID: " + taskId);
       } else {
         throw new Error(result.message || 'Simulation failed to start');
       }
@@ -658,7 +618,6 @@ function SimulationPageContent() {
   // Function to check progress for a running simulation by querying Supabase directly
   const checkSimulationProgress = useCallback(async (experimentId: string, userId: string) => {
     try {
-      console.log(`[Simulation Polling] Checking progress for experiment: ${experimentId}`);
       // Query Supabase directly for the experiment progress
       const { data, error } = await supabase
         .from("experiments")
@@ -693,8 +652,6 @@ function SimulationPageContent() {
         const isComplete = progressPercent >= 100 || statusLower === 'completed' || statusLower === 'done' || statusLower === 'finished';
         
         if (isComplete || isFailed) {
-          console.log(`[Simulation Polling] Experiment ${experimentId} ${isFailed ? 'failed' : 'completed'} (progress: ${progressPercent}%, status: ${status}). Polling will stop.`);
-          
           // Stop polling
           if (pollingIntervalRef.current) {
             clearInterval(pollingIntervalRef.current);
@@ -713,8 +670,6 @@ function SimulationPageContent() {
           } else {
             alert("Simulation completed successfully! You can view the results in the Dashboard.");
           }
-        } else {
-          console.log(`[Simulation Polling] Experiment ${experimentId} progress: ${progressPercent}%, status: ${status}`);
         }
       }
     } catch (error) {
@@ -971,7 +926,6 @@ function SimulationPageContent() {
     if (!user || !isAuthenticated || !simulationTaskId || !isSimulationRunning) {
       // Clear interval if conditions not met
       if (pollingIntervalRef.current) {
-        console.log('[Simulation Polling] Stopping polling interval.');
         clearInterval(pollingIntervalRef.current);
         pollingIntervalRef.current = null;
       }
@@ -980,12 +934,10 @@ function SimulationPageContent() {
 
     // Clear any existing interval before starting a new one
     if (pollingIntervalRef.current) {
-      console.log('[Simulation Polling] Clearing existing polling interval');
       clearInterval(pollingIntervalRef.current);
     }
 
     // Start polling every 500ms
-    console.log(`[Simulation Polling] Starting polling interval for task: ${simulationTaskId}`);
     pollingIntervalRef.current = setInterval(() => {
       if (simulationTaskId && user.user_id) {
         checkSimulationProgress(simulationTaskId, user.user_id);
@@ -994,7 +946,6 @@ function SimulationPageContent() {
 
     return () => {
       if (pollingIntervalRef.current) {
-        console.log('[Simulation Polling] Component unmounting or dependencies changed. Cleaning up polling interval.');
         clearInterval(pollingIntervalRef.current);
         pollingIntervalRef.current = null;
       }
