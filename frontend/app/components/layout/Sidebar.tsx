@@ -10,7 +10,7 @@ interface SidebarProps {
 
 export default function Sidebar({ currentPage }: SidebarProps) {
   const navItems = [
-    { id: 'dashboard', href: '/dashboard', icon: Home, label: 'Home' },
+    { id: 'dashboard', href: '/dashboard', icon: Home, label: 'Dashboard' },
     { id: 'simulation', href: '/simulation', icon: Activity, label: 'Simulation' },
     { id: 'measures', href: '/measures', icon: BarChart3, label: 'Measures' },
     { id: 'samples', href: '/samples', icon: Users, label: 'Samples' },

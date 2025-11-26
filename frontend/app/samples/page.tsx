@@ -3,12 +3,15 @@
 import React, { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { ChevronRight, Plus, Users, MoreHorizontal, Trash2, Edit2, Copy, Lock } from "lucide-react";
-import { Button } from "../components/ui/button";
+import { ChevronDown, Plus, Users, MoreVertical, Trash2, Edit2, Copy, Lock } from "lucide-react";
+import { Button } from "../../components/ui/button";
+import { Card, CardContent } from "../../components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
 import { supabase } from "../utils/supabase";
 import { useAuth } from "../hooks/useAuth";
 import AuthLoading from "../components/auth-loading";
 import AppLayout from "../components/layout/AppLayout";
+import SubHeader from "../components/layout/SubHeader";
 import NewSampleModal from "../components/NewSampleModal";
 import Spinner from "../components/ui/spinner";
 
@@ -577,211 +580,205 @@ export default function SamplesPage() {
   return (
     <AppLayout 
       currentPage="samples" 
-      headerTitle="Samples"
+      headerTitle=""
       userData={userData}
     >
-      {/* Header */}
-      <div className="px-8 py-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold" style={{ 
-              fontFamily: 'Barlow, sans-serif',
-              background: 'linear-gradient(135deg, rgb(57, 106, 241) 10%, rgb(166, 101, 246) 90%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text'
-            }}>Samples</h1>
-          </div>
-          <Button 
-            onClick={() => setIsNewSampleModalOpen(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            New Sample
-          </Button>
-        </div>
-      </div>
+      <SubHeader
+        title="Samples"
+        description="View and manage your simulated samples."
+      >
+        <Button 
+          onClick={() => setIsNewSampleModalOpen(true)}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg flex items-center gap-2"
+        >
+          <Plus className="w-4 h-4" />
+          New Sample
+        </Button>
+      </SubHeader>
 
       {/* Content */}
-      <div className="flex-1 bg-gray-50 p-8 overflow-y-auto" style={{ minHeight: 0 }}>
-        <div className="bg-white rounded-lg border border-gray-200" style={{ overflow: 'visible' }}>
-          {/* Samples Overview Header */}
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-xl font-semibold text-[#6366f1]">Samples Overview</h2>
-            <p className="text-gray-600 text-sm mt-1">View and manage your samples. Click on a sample name to expand and see attributes.</p>
-          </div>
-
-          {/* Table */}
-          <div className="overflow-x-auto" style={{ overflowY: 'visible' }}>
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Attributes</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {isLoadingSamples ? (
-                  <tr>
-                    <td colSpan={4} className="px-6 py-12 text-center">
-                      <div className="flex flex-col items-center">
-                        <Spinner />
-                        <p className="text-gray-500 mt-4">Loading samples...</p>
-                      </div>
-                    </td>
-                  </tr>
-                ) : samples.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="px-6 py-12 text-center">
-                      <div className="flex flex-col items-center">
-                        <Users className="w-12 h-12 text-gray-400 mb-4" />
-                        <h3 className="text-lg font-medium text-gray-900 mb-2">No samples yet</h3>
-                        <p className="text-gray-500 mb-4">Create your first sample to get started</p>
-                        <Button 
-                          onClick={() => setIsNewSampleModalOpen(true)}
-                          className="bg-blue-600 hover:bg-blue-700 text-white"
-                        >
-                          <Plus className="w-4 h-4 mr-2" />
-                          Create Sample
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  samples.map((sample) => (
-                    <React.Fragment key={sample.id}>
-                      <tr className="hover:bg-gray-50 cursor-pointer" onClick={() => toggleSampleExpansion(sample.id)}>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <ChevronRight 
-                              className={`w-4 h-4 text-gray-400 mr-2 transition-transform ${sample.expanded ? 'rotate-90' : ''}`} 
-                            />
-{renamingSample === sample.id ? (
-                              <div className="flex items-center space-x-2">
-                                <input
-                                  type="text"
-                                  value={newSampleName}
-                                  onChange={(e) => setNewSampleName(e.target.value)}
-                                  className="text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                  autoFocus
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                      saveRename();
-                                    } else if (e.key === 'Escape') {
-                                      cancelRename();
+      <div className="flex-1 p-8 bg-gray-100">
+        <Card className="shadow-md">
+          <CardContent>
+            {isLoadingSamples ? (
+              <div className="flex items-center justify-center h-32">
+                <div className="flex items-center gap-3 text-gray-500">
+                  <Spinner size="md" />
+                  <span>Loading samples...</span>
+                </div>
+              </div>
+            ) : samples.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-64">
+                <Users className="w-12 h-12 text-gray-400 mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No samples yet</h3>
+                <p className="text-gray-500 mb-4">Create your first sample to get started</p>
+                <Button 
+                  onClick={() => setIsNewSampleModalOpen(true)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create Sample
+                </Button>
+              </div>
+            ) : (
+              <div className={`transition-opacity duration-500 ${contentLoaded ? 'opacity-100' : 'opacity-0'}`}>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12"></TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Created Date</TableHead>
+                      <TableHead>Attributes</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {samples.map((sample) => (
+                      <React.Fragment key={sample.id}>
+                        <TableRow className="group hover:bg-accent/50 transition-fast">
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="p-1 h-8 w-8"
+                              onClick={() => toggleSampleExpansion(sample.id)}
+                            >
+                              <ChevronDown 
+                                className={`h-4 w-4 transition-transform ${
+                                  sample.expanded ? 'rotate-180' : ''
+                                }`}
+                              />
+                            </Button>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center justify-between">
+                              {renamingSample === sample.id ? (
+                                <div className="flex items-center space-x-2">
+                                  <input
+                                    type="text"
+                                    value={newSampleName}
+                                    onChange={(e) => setNewSampleName(e.target.value)}
+                                    className="text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    autoFocus
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        saveRename();
+                                      } else if (e.key === 'Escape') {
+                                        cancelRename();
+                                      }
+                                    }}
+                                  />
+                                  <button
+                                    onClick={saveRename}
+                                    className="text-green-600 hover:text-green-800 text-xs"
+                                  >
+                                    Save
+                                  </button>
+                                  <button
+                                    onClick={cancelRename}
+                                    className="text-gray-500 hover:text-gray-700 text-xs"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className="font-medium text-foreground">{sample.name}</span>
+                              )}
+                              <div className="relative flex-shrink-0" ref={openDropdown === sample.id ? dropdownRef : null}>
+                                <Button
+                                  ref={(el) => {
+                                    if (el) {
+                                      buttonRefs.current[sample.id] = el;
+                                    } else {
+                                      delete buttonRefs.current[sample.id];
                                     }
                                   }}
-                                />
-                                <button
-                                  onClick={saveRename}
-                                  className="text-green-600 hover:text-green-800 text-xs"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0"
+                                  onClick={(e) => toggleDropdown(sample.id, e)}
                                 >
-                                  Save
-                                </button>
-                                <button
-                                  onClick={cancelRename}
-                                  className="text-gray-500 hover:text-gray-700 text-xs"
-                                >
-                                  Cancel
-                                </button>
+                                  <MoreVertical className="h-3 w-3" />
+                                </Button>
                               </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-sm">{new Date(sample.created_at).toLocaleDateString()}</span>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-sm">{Array.isArray(sample.attributes) ? sample.attributes.length : 0} attribute{Array.isArray(sample.attributes) && sample.attributes.length !== 1 ? 's' : ''}</span>
+                          </TableCell>
+                          <TableCell>
+                            {sample.isLocked ? (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                Locked
+                              </span>
                             ) : (
-                              <span className="text-sm font-medium text-gray-900">{sample.name}</span>
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                Unlocked
+                              </span>
                             )}
-                            <div className="ml-auto relative">
-                              <button 
-                                ref={(el) => {
-                                  if (el) {
-                                    buttonRefs.current[sample.id] = el;
-                                  } else {
-                                    delete buttonRefs.current[sample.id];
-                                  }
-                                }}
-                                onClick={(e) => toggleDropdown(sample.id, e)}
-                                className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100"
-                              >
-                                <MoreHorizontal className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {new Date(sample.created_at).toLocaleDateString()}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {Array.isArray(sample.attributes) ? sample.attributes.length : 0} attribute{Array.isArray(sample.attributes) && sample.attributes.length !== 1 ? 's' : ''}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          {sample.isLocked ? (
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                              Locked
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                              Unlocked
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                      {sample.expanded && (
-                        <tr>
-                          <td colSpan={4} className="px-6 py-4 bg-gray-50">
-                            <div className="text-sm text-gray-600">
-                              <p className="font-medium text-[#6366f1] mb-4">Selected Attributes:</p>
-                              <div className="grid grid-cols-3 gap-4">
-                                {Array.isArray(sample.attributes) && sample.attributes.map((attribute: any, attributeIndex: number) => (
-                                  <div key={attributeIndex} className="p-4 bg-gray-50 border border-gray-200 rounded-lg shadow-sm">
-                                    <div className="flex items-start justify-between mb-3">
-                                      <div className="flex-1 min-w-0">
-                                        <div className="text-sm font-medium text-gray-900 mb-1">{attribute.category}</div>
-                                        <div className="text-base font-semibold text-blue-600 truncate">{attribute.label}</div>
-                                      </div>
-                                    </div>
-                                    
-                                    {attribute.values && attribute.values.length > 0 && (
-                                      <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
-                                        {attribute.values.map((value: string, valueIndex: number) => (
-                                          <div
-                                            key={valueIndex}
-                                            className="flex items-center space-x-2 text-sm text-gray-900"
-                                          >
-                                            <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
-                                              <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                              </svg>
-                                            </div>
-                                            <span className="truncate">{value}</span>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    )}
-                                    
-                                    {(!attribute.values || attribute.values.length === 0) && (
-                                      <div className="flex items-center space-x-2 text-sm text-gray-900">
-                                        <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
-                                          <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                          </svg>
+                          </TableCell>
+                        </TableRow>
+                        {sample.expanded && (
+                          <TableRow>
+                            <TableCell colSpan={5} className="bg-muted/30 p-4">
+                              <div className="space-y-2" style={{marginLeft: '65px'}}>
+                                <h4 className="font-medium text-sm text-muted-foreground mb-3">Selected Attributes:</h4>
+                                <div className="grid grid-cols-3 gap-4">
+                                  {Array.isArray(sample.attributes) && sample.attributes.map((attribute: any, attributeIndex: number) => (
+                                    <div key={attributeIndex} className="p-4 bg-gray-50 border border-gray-200 rounded-lg shadow-sm">
+                                      <div className="flex items-start justify-between mb-3">
+                                        <div className="flex-1 min-w-0">
+                                          <div className="text-sm font-medium text-gray-900 mb-1">{attribute.category}</div>
+                                          <div className="text-base font-semibold text-blue-600 truncate">{attribute.label}</div>
                                         </div>
-                                        <span>Selected</span>
                                       </div>
-                                    )}
-                                  </div>
-                                ))}
+                                      
+                                      {attribute.values && attribute.values.length > 0 && (
+                                        <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
+                                          {attribute.values.map((value: string, valueIndex: number) => (
+                                            <div
+                                              key={valueIndex}
+                                              className="flex items-center space-x-2 text-sm text-gray-900"
+                                            >
+                                              <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
+                                                <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                </svg>
+                                              </div>
+                                              <span className="truncate">{value}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                      
+                                      {(!attribute.values || attribute.values.length === 0) && (
+                                        <div className="flex items-center space-x-2 text-sm text-gray-900">
+                                          <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
+                                            <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                            </svg>
+                                          </div>
+                                          <span>Selected</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </React.Fragment>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* Portal-based Dropdown */}

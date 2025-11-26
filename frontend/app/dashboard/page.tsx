@@ -662,11 +662,11 @@ export default function DashboardHistory() {
   return (
     <AppLayout 
       currentPage="dashboard" 
-      headerTitle="Dashboard"
+      headerTitle=""
       userData={userData}
     >
       <SubHeader
-        title="Simulation Projects"
+        title="Dashboard"
         description="Manage and monitor your simulation projects"
       >
         <Link href="/simulation">

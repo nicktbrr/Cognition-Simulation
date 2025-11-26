@@ -344,7 +344,7 @@ export default function MeasuresPage() {
   return (
     <AppLayout 
       currentPage="measures" 
-      headerTitle="Dashboard"
+      headerTitle=""
       userData={userData}
     >
       <SubHeader
@@ -366,12 +366,6 @@ export default function MeasuresPage() {
       {/* Content */}
       <div className="flex-1 p-8 bg-gray-100">
         <Card className="shadow-md">
-          <CardHeader>
-            <CardTitle className="text-blue-600">Measures Overview</CardTitle>
-            <CardDescription>
-              View and manage your performance measures. Click on a measure name to expand and see anchor points.
-            </CardDescription>
-          </CardHeader>
           <CardContent>
             {loadingMeasures ? (
               <div className="flex items-center justify-center h-32">

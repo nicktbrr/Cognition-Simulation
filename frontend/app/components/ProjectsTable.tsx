@@ -100,24 +100,6 @@ export default function ProjectsTable({ projects, onDownload, onRename, onModify
 
   return (
     <div className="rounded-lg border border-gray-200" style={{ backgroundColor: 'hsl(0, 0%, 100%)' }}>
-      <div className="px-6 py-4 border-b border-gray-200">
-        <h2 
-          className="text-xl font-semibold"
-          style={{
-            fontFamily: 'Barlow, sans-serif',
-            background: 'linear-gradient(135deg, #396af1 10%, #a665f6 90%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text'
-          }}
-        >
-          Recent Projects
-        </h2>
-        <p className="text-gray-600 text-sm mt-1">
-          View and manage your simulation projects. Click on a project name to edit or expand for details.
-        </p>
-      </div>
-      
       <div className="overflow-hidden">
         <table className="w-full">
           <thead>

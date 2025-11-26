@@ -1012,7 +1012,7 @@ function SimulationPageContent() {
   return (
     <AppLayout 
       currentPage="simulation" 
-      headerTitle="Dashboard"
+      headerTitle=""
       userData={userData}
     >
       <SubHeader
