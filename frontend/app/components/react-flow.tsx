@@ -51,6 +51,10 @@ interface ReactFlowAppProps {
 export interface ReactFlowRef {
   clearFlow: () => void;
   setNodesAndEdges: (newNodes: Node[], newEdges: Edge[]) => void;
+  undo: () => void;
+  redo: () => void;
+  canUndo: () => boolean;
+  canRedo: () => boolean;
 }
 
 const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlowDataChange, selectedColor = '#3b82f6', colorArmed = false, onColorApplied, measures = [], loadingMeasures = false }, ref) => {
@@ -62,7 +66,124 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
   const { setViewport } = useReactFlow()
 
+  // Undo/Redo history state
+  const [history, setHistory] = useState<Array<{ nodes: Node[], edges: Edge[] }>>([])
+  const [historyIndex, setHistoryIndex] = useState<number>(-1)
+  const historyIndexRef = useRef<number>(-1)
+  const isUndoRedoRef = useRef<boolean>(false)
+  const previousStateRef = useRef<{ nodes: Node[], edges: Edge[] } | null>(null)
+  const isDraggingRef = useRef<boolean>(false)
+  const isEditingTextRef = useRef<boolean>(false)
   
+  // Keep ref in sync with state
+  useEffect(() => {
+    historyIndexRef.current = historyIndex
+  }, [historyIndex])
+
+  
+
+  // Helper function to deep clone nodes and edges
+  const cloneState = useCallback((nodesToClone: Node[], edgesToClone: Edge[]) => {
+    return {
+      nodes: JSON.parse(JSON.stringify(nodesToClone)),
+      edges: JSON.parse(JSON.stringify(edgesToClone))
+    }
+  }, [])
+
+  // Helper function to check if two states are different
+  const statesAreDifferent = useCallback((state1: { nodes: Node[], edges: Edge[] }, state2: { nodes: Node[], edges: Edge[] }) => {
+    if (state1.nodes.length !== state2.nodes.length || state1.edges.length !== state2.edges.length) {
+      return true
+    }
+    
+    // Compare nodes
+    for (let i = 0; i < state1.nodes.length; i++) {
+      const node1 = state1.nodes[i]
+      const node2 = state2.nodes[i]
+      if (node1.id !== node2.id || 
+          JSON.stringify(node1.position) !== JSON.stringify(node2.position) ||
+          JSON.stringify(node1.data) !== JSON.stringify(node2.data)) {
+        return true
+      }
+    }
+    
+    // Compare edges
+    for (let i = 0; i < state1.edges.length; i++) {
+      const edge1 = state1.edges[i]
+      const edge2 = state2.edges[i]
+      if (edge1.id !== edge2.id || 
+          edge1.source !== edge2.source || 
+          edge1.target !== edge2.target) {
+        return true
+      }
+    }
+    
+    return false
+  }, [])
+
+  // Function to save current state to history
+  const saveToHistory = useCallback(() => {
+    const currentState = { nodes, edges }
+    
+    // Only track if state actually changed
+    if (previousStateRef.current && statesAreDifferent(previousStateRef.current, currentState)) {
+      // Create a new history entry using functional updates to avoid stale state
+      setHistory((prevHistory) => {
+        const currentIndex = historyIndexRef.current
+        const newHistory = prevHistory.slice(0, currentIndex + 1) // Remove any "future" history if we're not at the end
+        const clonedState = cloneState(nodes, edges)
+        
+        // Add new state to history (limit to last 3 changes)
+        const updatedHistory = [...newHistory, clonedState]
+        const limitedHistory = updatedHistory.slice(-3) // Keep only last 3 changes
+        
+        // Update index to point to the new entry
+        const newIndex = limitedHistory.length - 1
+        setHistoryIndex(newIndex)
+        historyIndexRef.current = newIndex
+        
+        return limitedHistory
+      })
+    } else if (!previousStateRef.current) {
+      // Initial state - save it
+      const clonedState = cloneState(nodes, edges)
+      setHistory([clonedState])
+      setHistoryIndex(0)
+      historyIndexRef.current = 0
+    }
+    
+    previousStateRef.current = { nodes, edges }
+  }, [nodes, edges, cloneState, statesAreDifferent])
+
+  // Track changes to nodes/edges for undo/redo (only if not from undo/redo operation, not dragging, and not editing text)
+  useEffect(() => {
+    if (isUndoRedoRef.current) {
+      // Skip tracking during undo/redo
+      isUndoRedoRef.current = false
+      previousStateRef.current = { nodes, edges }
+      return
+    }
+
+    // Skip tracking during drag or text editing - we'll save on drag end or blur
+    if (isDraggingRef.current || isEditingTextRef.current) {
+      return
+    }
+
+    // For other changes (add node, delete node, connect edge, etc.), save immediately
+    const currentState = { nodes, edges }
+    
+    // Only track if state actually changed
+    if (previousStateRef.current && statesAreDifferent(previousStateRef.current, currentState)) {
+      saveToHistory()
+    } else if (!previousStateRef.current) {
+      // Initial state - save it
+      const clonedState = cloneState(nodes, edges)
+      setHistory([clonedState])
+      setHistoryIndex(0)
+      historyIndexRef.current = 0
+      previousStateRef.current = currentState
+    }
+  }, [nodes, edges, cloneState, statesAreDifferent, saveToHistory])
 
   // Notify parent component when flow data changes
   useEffect(() => {
@@ -83,7 +204,47 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
     loadFlowFromStorage()
   }, [])
 
-  // Expose clear function and setNodesAndEdges to parent component
+  // Undo function
+  const undo = useCallback(() => {
+    const currentIndex = historyIndexRef.current
+    if (currentIndex > 0) {
+      isUndoRedoRef.current = true
+      const previousState = history[currentIndex - 1]
+      setNodes(previousState.nodes)
+      setEdges(previousState.edges)
+      const newIndex = currentIndex - 1
+      setHistoryIndex(newIndex)
+      historyIndexRef.current = newIndex
+      previousStateRef.current = previousState
+    }
+  }, [history, setNodes, setEdges])
+
+  // Redo function
+  const redo = useCallback(() => {
+    const currentIndex = historyIndexRef.current
+    if (currentIndex < history.length - 1) {
+      isUndoRedoRef.current = true
+      const nextState = history[currentIndex + 1]
+      setNodes(nextState.nodes)
+      setEdges(nextState.edges)
+      const newIndex = currentIndex + 1
+      setHistoryIndex(newIndex)
+      historyIndexRef.current = newIndex
+      previousStateRef.current = nextState
+    }
+  }, [history, setNodes, setEdges])
+
+  // Check if undo is possible
+  const canUndo = useCallback(() => {
+    return historyIndexRef.current > 0
+  }, [])
+
+  // Check if redo is possible
+  const canRedo = useCallback(() => {
+    return historyIndexRef.current < history.length - 1
+  }, [history.length])
+
+  // Expose clear function, setNodesAndEdges, and undo/redo to parent component
   useImperativeHandle(ref, () => ({
     clearFlow: () => {
       setNodes([])
@@ -91,18 +252,33 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
       setSelectedNodeId(null)
       setViewport({ x: 0, y: 0, zoom: 1 })
       localStorage.removeItem(flowKey)
+      setHistory([])
+      setHistoryIndex(-1)
+      historyIndexRef.current = -1
+      previousStateRef.current = null
     },
     setNodesAndEdges: (newNodes: Node[], newEdges: Edge[]) => {
+      isUndoRedoRef.current = true // Don't track this as a history change
       setNodes(newNodes)
       setEdges(newEdges)
+      // Reset history when setting nodes/edges externally (e.g., from generate steps)
+      const clonedState = cloneState(newNodes, newEdges)
+      setHistory([clonedState])
+      setHistoryIndex(0)
+      historyIndexRef.current = 0
+      previousStateRef.current = { nodes: newNodes, edges: newEdges }
       // Auto-fit the view to show all nodes
       setTimeout(() => {
         if (reactFlowInstance.current) {
           reactFlowInstance.current.fitView({ padding: 0.2 })
         }
       }, 50)
-    }
-  }), [setNodes, setEdges, setViewport])
+    },
+    undo,
+    redo,
+    canUndo,
+    canRedo
+  }), [setNodes, setEdges, setViewport, undo, redo, canUndo, canRedo, cloneState])
 
   // Save flow state to localStorage
   const saveFlowToStorage = useCallback(() => {
@@ -213,6 +389,7 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
   }, [setNodes, setEdges])
 
   const handleTitleChange = useCallback((nodeId: string, title: string) => {
+    isEditingTextRef.current = true
     setNodes((nds: Node[]) =>
       nds.map((node: Node) =>
         node.id === nodeId ? { ...node, data: { ...node.data, title } } : node
@@ -220,13 +397,30 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
     )
   }, [setNodes])
 
+  const handleTitleBlur = useCallback(() => {
+    isEditingTextRef.current = false
+    // Save to history when user stops editing
+    setTimeout(() => {
+      saveToHistory()
+    }, 0)
+  }, [saveToHistory])
+
   const handleDescriptionChange = useCallback((nodeId: string, description: string) => {
+    isEditingTextRef.current = true
     setNodes((nds: Node[]) =>
       nds.map((node: Node) =>
         node.id === nodeId ? { ...node, data: { ...node.data, description } } : node
       )
     )
   }, [setNodes])
+
+  const handleDescriptionBlur = useCallback(() => {
+    isEditingTextRef.current = false
+    // Save to history when user stops editing
+    setTimeout(() => {
+      saveToHistory()
+    }, 0)
+  }, [saveToHistory])
 
   const handleSliderChange = useCallback((nodeId: string, value: number) => {
     setNodes((nds: Node[]) =>
@@ -339,7 +533,9 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
       height: node.height || node.data?.height || 600, // Default height to prevent auto-sizing
       onDelete: handleNodeDelete,
       onTitleChange: handleTitleChange,
+      onTitleBlur: handleTitleBlur,
       onDescriptionChange: handleDescriptionChange,
+      onDescriptionBlur: handleDescriptionBlur,
       onSliderChange: handleSliderChange,
       onMeasuresChange: handleMeasuresChange,
       onResize: handleResize,
@@ -373,6 +569,16 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
         onConnect={onConnect}
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
+        onNodeDragStart={() => {
+          isDraggingRef.current = true
+        }}
+        onNodeDragStop={() => {
+          isDraggingRef.current = false
+          // Save to history when drag ends
+          setTimeout(() => {
+            saveToHistory()
+          }, 0)
+        }}
         isValidConnection={isValidConnection}
         nodeTypes={nodeTypes}
         fitView

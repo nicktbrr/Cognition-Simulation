@@ -1128,10 +1128,24 @@ function SimulationPageContent() {
               Clear All
             </Button>
             <div className="flex gap-1">
-              <Button variant="outline" size="sm" className="flex-1 p-1">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="flex-1 p-1"
+                onClick={() => reactFlowRef.current?.undo()}
+                disabled={!reactFlowRef.current?.canUndo()}
+                title="Undo"
+              >
                 <RotateCcw className="w-3 h-3" />
               </Button>
-              <Button variant="outline" size="sm" className="flex-1 p-1">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="flex-1 p-1"
+                onClick={() => reactFlowRef.current?.redo()}
+                disabled={!reactFlowRef.current?.canRedo()}
+                title="Redo"
+              >
                 <RotateCw className="w-3 h-3" />
               </Button>
             </div>
