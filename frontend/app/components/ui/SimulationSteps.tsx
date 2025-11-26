@@ -17,10 +17,15 @@ export default function SimulationSteps({ steps }: SimulationStepsProps) {
       <div className="space-y-2">
         {steps.map((step, stepIndex) => (
           <div key={stepIndex} className="flex items-start gap-3">
-            <span className="bg-blue-400 text-white text-xs px-2 py-1 rounded-full min-w-[20px] text-center">
+            <span className="bg-blue-400 text-white text-xs px-2 py-1 rounded-full min-w-[20px] text-center flex-shrink-0">
               {stepIndex + 1}
             </span>
-            <span className="text-gray-900 text-sm">{step.label}</span>
+            <span className="text-gray-900 text-sm">
+              <span className="font-medium">{step.label}</span>
+              {step.instructions && (
+                <span>: {step.instructions}</span>
+              )}
+            </span>
           </div>
         ))}
       </div>
