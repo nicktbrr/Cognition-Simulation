@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Folder } from "lucide-react";
 import StatusBadge from "./ui/StatusBadge";
 import DownloadButton from "./ui/DownloadButton";
 import ProjectDropdown from "./ui/ProjectDropdown";
@@ -21,6 +21,13 @@ interface SimulationStep {
   temperature: number;
 }
 
+interface Folder {
+  folder_id: string;
+  folder_name: string;
+  created_at: string;
+  project_count?: number;
+}
+
 interface Project {
   name: string;
   sample_name: string;
@@ -30,22 +37,39 @@ interface Project {
   downloads: Download[];
   steps: SimulationStep[];
   id?: string;
+  folder_id?: string | null;
 }
 
 interface ProjectsTableProps {
   projects: Project[];
+  folders?: Folder[];
   onDownload: (url: string, filename: string) => void;
   onRename: (projectId: string, currentName: string) => void;
   onModify?: (projectId: string) => Promise<boolean>;
   onDelete?: (projectId: string) => Promise<boolean>;
   onReplicate?: (projectId: string) => Promise<boolean>;
+  onMoveToFolder?: (projectId: string) => void;
+  onDropToFolder?: (projectId: string, folderId: string | null) => void;
 }
 
-export default function ProjectsTable({ projects, onDownload, onRename, onModify, onDelete, onReplicate }: ProjectsTableProps) {
+export default function ProjectsTable({ 
+  projects, 
+  folders = [],
+  onDownload, 
+  onRename, 
+  onModify, 
+  onDelete, 
+  onReplicate,
+  onMoveToFolder,
+  onDropToFolder
+}: ProjectsTableProps) {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [projectDropdowns, setProjectDropdowns] = useState<Set<string>>(new Set());
   const [sortConfig, setSortConfig] = useState<{key: string, direction: 'asc' | 'desc'} | null>(null);
   const [sortedProjects, setSortedProjects] = useState(projects);
+  const [draggedProject, setDraggedProject] = useState<string | null>(null);
+  const [dragOverFolder, setDragOverFolder] = useState<string | null | 'root'>(null);
 
   // Update sortedProjects when projects prop changes
   React.useEffect(() => {
@@ -98,6 +122,152 @@ export default function ProjectsTable({ projects, onDownload, onRename, onModify
     onRename(projectId, currentName);
   };
 
+  const toggleFolderExpansion = (folderId: string) => {
+    const newExpandedFolders = new Set(expandedFolders);
+    if (expandedFolders.has(folderId)) {
+      newExpandedFolders.delete(folderId);
+    } else {
+      newExpandedFolders.add(folderId);
+    }
+    setExpandedFolders(newExpandedFolders);
+  };
+
+  const handleDragStart = (e: React.DragEvent, projectId: string) => {
+    setDraggedProject(projectId);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragOver = (e: React.DragEvent, folderId: string | null | 'root') => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDragOverFolder(folderId === 'root' ? 'root' : folderId);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverFolder(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, folderId: string | null) => {
+    e.preventDefault();
+    if (draggedProject && onDropToFolder) {
+      onDropToFolder(draggedProject, folderId);
+    }
+    setDraggedProject(null);
+    setDragOverFolder(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedProject(null);
+    setDragOverFolder(null);
+  };
+
+  // Group projects by folder
+  const projectsByFolder = new Map<string | null, Project[]>();
+  projects.forEach(project => {
+    // Handle both undefined and null folder_id - treat both as root (null)
+    const folderId = (project.folder_id === undefined || project.folder_id === null) ? null : project.folder_id;
+    if (!projectsByFolder.has(folderId)) {
+      projectsByFolder.set(folderId, []);
+    }
+    projectsByFolder.get(folderId)!.push(project);
+  });
+
+  // Get folder name by ID
+  const getFolderName = (folderId: string | null): string => {
+    if (!folderId) return "Root";
+    const folder = folders.find(f => f.folder_id === folderId);
+    return folder ? folder.folder_name : "Unknown Folder";
+  };
+
+  const renderProjectRow = (project: Project, index: number, isInFolder: boolean = false, totalInGroup: number = 0) => {
+    const projectIndex = projects.findIndex(p => p.id === project.id);
+    return (
+      <React.Fragment key={project.id || index}>
+        <tr 
+          className={`hover:bg-gray-50 ${draggedProject === project.id ? 'opacity-50' : ''}`}
+          draggable
+          onDragStart={(e) => handleDragStart(e, project.id!)}
+          onDragEnd={handleDragEnd}
+        >
+          <td className="px-6 py-4">
+            <div className="flex items-center justify-between">
+              <button 
+                onClick={() => toggleRowExpansion(project.id!)}
+                className="flex items-center gap-2 text-left"
+              >
+                <div 
+                  className={`w-8 h-8 flex items-center justify-center transition-transform ${expandedRows.has(project.id!) ? 'rotate-180' : ''}`}
+                  style={{
+                    borderRadius: 'calc(var(--radius) - 2px)'
+                  }}
+                >
+                  <ChevronDown className="w-4 h-4" />
+                </div>
+                <span className="font-medium text-gray-900">{project.name}</span>
+              </button>
+              
+              <ProjectDropdown
+                isOpen={projectDropdowns.has(project.id!)}
+                onToggle={() => toggleProjectDropdown(project.id!)}
+                position={projectIndex >= projects.length - 2 ? 'top' : 'bottom'}
+                onRename={() => handleStartRename(project.id!, project.name)}
+                onReplicate={() => onReplicate?.(project.id!)}
+                onModify={() => onModify?.(project.id!)}
+                onDelete={() => onDelete?.(project.id!)}
+                onMoveToFolder={() => onMoveToFolder?.(project.id!)}
+                folders={folders}
+              />
+            </div>
+          </td>
+          <td className="px-6 py-4">
+            <StatusBadge status={project.status} progress={project.progress} />
+          </td>
+          <td className="px-6 py-4 text-sm text-gray-900">
+            {project.sample_size ?? 10}
+          </td>
+          <td className="px-6 py-4 text-sm text-gray-900">
+            {project.sample_name}
+          </td>
+          <td className="px-6 py-4">
+            <div className="space-y-1">
+              {project.downloads.slice(0, 3).map((download, idx) => (
+                <DownloadButton 
+                  key={download.id}
+                  date={download.date}
+                  onClick={() => onDownload(download.url || '', download.filename || project.name)}
+                />
+              ))}
+            </div>
+          </td>
+          <td className="px-6 py-4"></td>
+        </tr>
+        
+        {expandedRows.has(project.id!) && (
+          <tr>
+            <td colSpan={6} className="px-6 py-4 bg-gray-50">
+              <div className="flex gap-6" style={{marginLeft: '40px'}}>
+                <SimulationSteps steps={project.steps} />
+              </div>
+            </td>
+          </tr>
+        )}
+      </React.Fragment>
+    );
+  };
+
+  // Get root projects
+  const rootProjects = projectsByFolder.get(null) || [];
+  
+  // Sort folders alphabetically by name
+  const sortedFolders = [...folders].sort((a, b) => 
+    a.folder_name.localeCompare(b.folder_name)
+  );
+  
+  // Check if we have any projects at all
+  const hasAnyProjects = projects.length > 0;
+  const hasRootProjects = rootProjects.length > 0;
+  const hasFolderProjects = folders.some(folder => (projectsByFolder.get(folder.folder_id) || []).length > 0);
+
   return (
     <div className="rounded-lg border border-gray-200" style={{ backgroundColor: 'hsl(0, 0%, 100%)' }}>
       <div className="overflow-hidden">
@@ -113,71 +283,94 @@ export default function ProjectsTable({ projects, onDownload, onRename, onModify
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {sortedProjects.map((project, index) => (
-              <React.Fragment key={index}>
-                <tr className="hover:bg-gray-50">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center justify-between">
-                      <button 
-                        onClick={() => toggleRowExpansion(project.id!)}
-                        className="flex items-center gap-2 text-left"
+            {/* Render folders with their projects - at the top, sorted alphabetically */}
+            {sortedFolders.map((folder) => {
+              const folderProjects = projectsByFolder.get(folder.folder_id) || [];
+              // Always show folders, even if empty
+
+              return (
+                <React.Fragment key={folder.folder_id}>
+                  <tr
+                    className={`hover:bg-gray-50 ${dragOverFolder === folder.folder_id ? 'bg-blue-50' : ''}`}
+                    onDragOver={(e) => handleDragOver(e, folder.folder_id)}
+                    onDragLeave={handleDragLeave}
+                    onDrop={(e) => handleDrop(e, folder.folder_id)}
+                  >
+                    <td colSpan={6} className="px-6 py-3 bg-gray-100">
+                      <button
+                        onClick={() => toggleFolderExpansion(folder.folder_id)}
+                        className="flex items-center gap-2 text-left w-full"
                       >
                         <div 
-                          className={`w-8 h-8 flex items-center justify-center transition-transform ${expandedRows.has(project.id!) ? 'rotate-180' : ''}`}
-                          style={{
-                            borderRadius: 'calc(var(--radius) - 2px)'
-                          }}
+                          className={`w-6 h-6 flex items-center justify-center transition-transform ${expandedFolders.has(folder.folder_id) ? 'rotate-90' : ''}`}
                         >
                           <ChevronDown className="w-4 h-4" />
                         </div>
-                        <span className="font-medium text-gray-900">{project.name}</span>
+                        <Folder className="w-4 h-4 text-gray-600" />
+                        <span className="font-medium text-gray-900">{folder.folder_name}</span>
+                        <span className="text-sm text-gray-500 ml-2">
+                          ({folderProjects.length} {folderProjects.length === 1 ? 'project' : 'projects'})
+                        </span>
                       </button>
-                      
-                      <ProjectDropdown
-                        isOpen={projectDropdowns.has(project.id!)}
-                        onToggle={() => toggleProjectDropdown(project.id!)}
-                        position={index >= sortedProjects.length - 2 ? 'top' : 'bottom'}
-                        onRename={() => handleStartRename(project.id!, project.name)}
-                        onReplicate={() => onReplicate?.(project.id!)}
-                        onModify={() => onModify?.(project.id!)}
-                        onDelete={() => onDelete?.(project.id!)}
-                      />
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <StatusBadge status={project.status} progress={project.progress} />
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-900">
-                    {project.sample_size ?? 10}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-900">
-                    {project.sample_name}
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="space-y-1">
-                      {project.downloads.slice(0, 3).map((download, idx) => (
-                        <DownloadButton 
-                          key={download.id}
-                          date={download.date}
-                          onClick={() => onDownload(download.url || '', download.filename || project.name)}
-                        />
-                      ))}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4"></td>
-                </tr>
-                
-                {expandedRows.has(project.id!) && (
-                  <tr>
-                    <td colSpan={6} className="px-6 py-4 bg-gray-50">
-                      <div className="flex gap-6" style={{marginLeft: '40px'}}>
-                        <SimulationSteps steps={project.steps} />
-                      </div>
                     </td>
                   </tr>
+                  {expandedFolders.has(folder.folder_id) && folderProjects.map((project, idx) => 
+                    renderProjectRow(project, idx, true, folderProjects.length)
+                  )}
+                </React.Fragment>
+              );
+            })}
+            
+            {/* Render root projects (no folder) - after folders */}
+            {hasRootProjects && (
+              <>
+                <tr
+                  className={`${dragOverFolder === 'root' ? 'bg-blue-50' : ''}`}
+                  onDragOver={(e) => handleDragOver(e, 'root')}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDrop(e, null)}
+                >
+                  <td colSpan={6} className="px-6 py-2 bg-gray-50">
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <Folder className="w-4 h-4" />
+                      <span>Root (No folder)</span>
+                      <span className="text-xs text-gray-500">
+                        ({rootProjects.length} {rootProjects.length === 1 ? 'project' : 'projects'})
+                      </span>
+                    </div>
+                  </td>
+                </tr>
+                {rootProjects.map((project, idx) => 
+                  renderProjectRow(project, idx, false, rootProjects.length)
                 )}
-              </React.Fragment>
-            ))}
+              </>
+            )}
+            
+            {/* Show root drop zone when dragging even if no root projects exist */}
+            {!hasRootProjects && draggedProject && (
+              <tr
+                className={`${dragOverFolder === 'root' ? 'bg-blue-50' : ''}`}
+                onDragOver={(e) => handleDragOver(e, 'root')}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, null)}
+              >
+                <td colSpan={6} className="px-6 py-2 bg-gray-50">
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <Folder className="w-4 h-4" />
+                    <span>Root (No folder)</span>
+                  </div>
+                </td>
+              </tr>
+            )}
+            
+            {/* Fallback: if no projects are showing and we have projects, show them all as root */}
+            {hasAnyProjects && !hasRootProjects && !hasFolderProjects && (
+              <>
+                {projects.map((project, idx) => 
+                  renderProjectRow(project, idx, false, projects.length)
+                )}
+              </>
+            )}
           </tbody>
         </table>
       </div>

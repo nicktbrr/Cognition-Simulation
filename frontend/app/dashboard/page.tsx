@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Play, Trash2 } from "lucide-react";
+import { Play, Trash2, Folder, FolderPlus } from "lucide-react";
 import { createPortal } from "react-dom";
 import { supabase } from "../utils/supabase";
 import { useAuth } from "../hooks/useAuth";
@@ -36,6 +36,13 @@ interface SimulationStep {
   temperature: number;
 }
 
+interface Folder {
+  folder_id: string;
+  folder_name: string;
+  created_at: string;
+  project_count?: number;
+}
+
 interface Project {
   name: string;
   sample_name: string;
@@ -48,6 +55,7 @@ interface Project {
   id?: string;
   experiment_id?: string; // Backend experiment ID for polling
   configKey?: string; // Configuration key for grouping experiments
+  folder_id?: string | null; // Folder ID if project is in a folder
 }
 
 interface UserData {
@@ -75,6 +83,12 @@ export default function DashboardHistory() {
   const [showReplicateConfirm, setShowReplicateConfirm] = useState(false);
   const [projectToReplicate, setProjectToReplicate] = useState<string | null>(null);
   const [isReplicating, setIsReplicating] = useState(false);
+  const [folders, setFolders] = useState<Folder[]>([]);
+  const [showNewFolderModal, setShowNewFolderModal] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [isCreatingFolder, setIsCreatingFolder] = useState(false);
+  const [showMoveToFolderModal, setShowMoveToFolderModal] = useState(false);
+  const [projectToMove, setProjectToMove] = useState<string | null>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const hasInitiallyLoadedRef = useRef(false); // Add this ref to track initial load
 
@@ -107,6 +121,163 @@ export default function DashboardHistory() {
       console.error("Error fetching user data:", error);
     } else {
       setUserData(data);
+    }
+  };
+
+  const getFolders = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("folders")
+        .select("*")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching folders:", error);
+        setFolders([]);
+        return;
+      }
+
+      // Count projects in each folder
+      const foldersWithCounts = await Promise.all(
+        (data || []).map(async (folder) => {
+          const { count, error: countError } = await supabase
+            .from("experiments")
+            .select("*", { count: "exact", head: true })
+            .eq("folder_id", folder.folder_id)
+            .eq("user_id", userId);
+          
+          if (countError) {
+            console.error("Error counting projects in folder:", countError);
+          }
+          
+          return {
+            ...folder,
+            project_count: count || 0
+          };
+        })
+      );
+
+      setFolders(foldersWithCounts);
+    } catch (error) {
+      console.error("Error processing folders data:", error);
+      setFolders([]);
+    }
+  };
+
+  const handleCreateFolder = async () => {
+    if (!newFolderName.trim() || !user || isCreatingFolder) {
+      return;
+    }
+
+    setIsCreatingFolder(true);
+    try {
+      const folderId = crypto.randomUUID();
+      const { error } = await supabase
+        .from("folders")
+        .insert({
+          folder_id: folderId,
+          folder_name: newFolderName.trim(),
+          user_id: user.user_id
+        });
+
+      if (error) {
+        console.error("Error creating folder:", error);
+        alert("Error creating folder. Please try again.");
+        return;
+      }
+
+      // Refresh folders list
+      await getFolders(user.user_id);
+      
+      // Close modal and reset
+      setShowNewFolderModal(false);
+      setNewFolderName("");
+    } catch (error) {
+      console.error("Error in folder creation:", error);
+      alert("Error creating folder. Please try again.");
+    } finally {
+      setIsCreatingFolder(false);
+    }
+  };
+
+  const handleMoveToFolder = async (projectId: string, folderId: string | null) => {
+    if (!user) {
+      return;
+    }
+
+    try {
+      // Find the project to get its configKey (to move all experiments in the group)
+      const project = projects.find(p => p.experiment_id === projectId);
+      if (!project) {
+        console.error("Project not found");
+        alert("Error: Project not found. Please try again.");
+        return;
+      }
+
+      // If project has a configKey, find all experiments with the same configKey
+      // Otherwise, just update the single experiment
+      let experimentIds: string[] = [];
+      
+      if (project.configKey) {
+        // Find all experiments with the same configKey
+        const { data: allExperiments, error: fetchError } = await supabase
+          .from("experiments")
+          .select("experiment_id, experiment_data")
+          .eq("user_id", user.user_id);
+
+        if (fetchError) {
+          console.error("Error fetching experiments:", fetchError);
+          alert("Error fetching experiments. Please try again.");
+          return;
+        }
+
+        // Find experiments with matching configKey
+        const matchingExperiments = (allExperiments || []).filter((exp: any) => {
+          const expData = exp.experiment_data || {};
+          const expConfigKey = getExperimentConfigKey(expData);
+          return expConfigKey === project.configKey;
+        });
+
+        experimentIds = matchingExperiments.map((exp: any) => exp.experiment_id);
+      } else {
+        // If no configKey, just update the single experiment
+        experimentIds = [projectId];
+      }
+
+      if (experimentIds.length === 0) {
+        console.error("No experiments found to update");
+        alert("Error: No experiments found to move. Please try again.");
+        return;
+      }
+
+      // Update all matching experiments
+      // Handle null folderId by explicitly setting it to null (not undefined)
+      const updateData: { folder_id: string | null } = { folder_id: folderId };
+      
+      const { error: updateError } = await supabase
+        .from("experiments")
+        .update(updateData)
+        .in("experiment_id", experimentIds)
+        .eq("user_id", user.user_id); // Add user_id filter for security
+
+      if (updateError) {
+        console.error("Error moving project to folder:", updateError);
+        alert(`Error moving project to folder: ${updateError.message}. Please try again.`);
+        return;
+      }
+
+      // Refresh projects and folders after successful move
+      await Promise.all([
+        getProjects(user.user_id),
+        getFolders(user.user_id) // Refresh to update project counts
+      ]);
+      
+      setShowMoveToFolderModal(false);
+      setProjectToMove(null);
+    } catch (error) {
+      console.error("Error in move to folder operation:", error);
+      alert(`Error moving project to folder: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`);
     }
   };
 
@@ -172,6 +343,7 @@ export default function DashboardHistory() {
           id: experiment.experiment_id,
           experiment_id: experiment.experiment_id,
           configKey: configKey, // Add config key for grouping
+          folder_id: experiment.folder_id || null, // Include folder_id
           downloads: experiment.url ? [
             {
               date: new Date(experiment.created_at).toLocaleString(),
@@ -243,6 +415,7 @@ export default function DashboardHistory() {
           created_at: baseExperiment.created_at, // Use most recent created_at
           id: baseExperiment.id, // Use most recent experiment ID
           experiment_id: baseExperiment.experiment_id,
+          folder_id: baseExperiment.folder_id || null, // Include folder_id from base experiment
           downloads: allDownloads,
           steps: baseExperiment.steps
         };
@@ -537,10 +710,12 @@ export default function DashboardHistory() {
       getUserData(user.user_id);
       // getHistory(user.user_id);
       getProjects(user.user_id);
+      getFolders(user.user_id);
     } else if (!user || !isAuthenticated) {
       // Reset the ref when user logs out
       hasInitiallyLoadedRef.current = false;
       setProjects([]);
+      setFolders([]);
       setContentLoaded(false);
     }
   }, [user?.user_id, isAuthenticated]); // Use user?.user_id instead of user object
@@ -639,12 +814,21 @@ export default function DashboardHistory() {
         title="Dashboard"
         description="Manage and monitor your simulation projects"
       >
-        <Link href="/simulation">
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg flex items-center gap-2">
-            <Play className="w-4 h-4" />
-            New Simulation
+        <div className="flex gap-3">
+          <Button 
+            onClick={() => setShowNewFolderModal(true)}
+            className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-lg flex items-center gap-2"
+          >
+            <FolderPlus className="w-4 h-4" />
+            New Folder
           </Button>
-        </Link>
+          <Link href="/simulation">
+            <Button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg flex items-center gap-2">
+              <Play className="w-4 h-4" />
+              New Simulation
+            </Button>
+          </Link>
+        </div>
       </SubHeader>
 
       {/* Content */}
@@ -660,11 +844,19 @@ export default function DashboardHistory() {
           <div className={`transition-opacity duration-500 ${contentLoaded ? 'opacity-100' : 'opacity-0'}`}>
             <ProjectsTable 
               projects={projects}
+              folders={folders}
               onDownload={handleDownload}
               onRename={handleStartRename}
               onModify={handleModify}
               onDelete={handleDelete}
               onReplicate={handleReplicate}
+              onMoveToFolder={(projectId) => {
+                setProjectToMove(projectId);
+                setShowMoveToFolderModal(true);
+              }}
+              onDropToFolder={(projectId, folderId) => {
+                handleMoveToFolder(projectId, folderId);
+              }}
             />
           </div>
         )}
@@ -791,6 +983,122 @@ export default function DashboardHistory() {
                 ) : (
                   "Confirm Replicate"
                 )}
+              </Button>
+            </div>
+          </div>
+          </div>,
+        document.body
+      )}
+
+      {/* New Folder Modal */}
+      {showNewFolderModal && createPortal(
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[99999]">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Create New Folder</h3>
+            <div className="mb-6">
+              <label htmlFor="folder-name" className="block text-sm font-medium text-gray-700 mb-2">
+                Folder Name
+              </label>
+              <input
+                id="folder-name"
+                type="text"
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleCreateFolder();
+                  } else if (e.key === 'Escape') {
+                    setShowNewFolderModal(false);
+                    setNewFolderName("");
+                  }
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Enter folder name"
+                autoFocus
+              />
+            </div>
+            <div className="flex gap-3 justify-end">
+              <Button
+                onClick={() => {
+                  setShowNewFolderModal(false);
+                  setNewFolderName("");
+                }}
+                variant="outline"
+                className="px-4 py-2"
+                disabled={isCreatingFolder}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCreateFolder}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2"
+                disabled={!newFolderName.trim() || isCreatingFolder}
+              >
+                {isCreatingFolder ? (
+                  <>
+                    <Spinner size="sm" />
+                    <span>Creating...</span>
+                  </>
+                ) : (
+                  "Create"
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Move to Folder Modal */}
+      {showMoveToFolderModal && createPortal(
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[99999]">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Move to Folder</h3>
+            <div className="mb-6">
+              <p className="text-sm text-gray-600 mb-4">Select a folder to move this project to:</p>
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                <button
+                  onClick={() => {
+                    if (projectToMove) {
+                      handleMoveToFolder(projectToMove, null);
+                    }
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-left"
+                >
+                  <Folder className="w-4 h-4" />
+                  <span>Root (No folder)</span>
+                </button>
+                {folders.map((folder) => (
+                  <button
+                    key={folder.folder_id}
+                    onClick={() => {
+                      if (projectToMove) {
+                        handleMoveToFolder(projectToMove, folder.folder_id);
+                      }
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-left"
+                  >
+                    <Folder className="w-4 h-4" />
+                    <span>{folder.folder_name}</span>
+                    {folder.project_count !== undefined && (
+                      <span className="ml-auto text-xs text-gray-500">
+                        ({folder.project_count} {folder.project_count === 1 ? 'project' : 'projects'})
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex gap-3 justify-end">
+              <Button
+                onClick={() => {
+                  setShowMoveToFolderModal(false);
+                  setProjectToMove(null);
+                }}
+                variant="outline"
+                className="px-4 py-2"
+              >
+                Cancel
               </Button>
             </div>
           </div>
