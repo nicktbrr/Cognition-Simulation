@@ -51,6 +51,7 @@ function SimulationPageContent() {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [processDescription, setProcessDescription] = useState("");
   const [processTitle, setProcessTitle] = useState("");
+  const [studyIntroduction, setStudyIntroduction] = useState("");
   const [selectedSample, setSelectedSample] = useState("");
   const [flowNodes, setFlowNodes] = useState<Node[]>([]);
   const [flowEdges, setFlowEdges] = useState<Edge[]>([]);
@@ -297,6 +298,7 @@ function SimulationPageContent() {
     // Clear form fields
     setProcessDescription("");
     setProcessTitle("");
+    setStudyIntroduction("");
     setSelectedSample("");
     
     // Clear React Flow
@@ -307,6 +309,7 @@ function SimulationPageContent() {
     // Clear localStorage
     localStorage.removeItem('simulation-flow');
     localStorage.removeItem('simulation-title');
+    localStorage.removeItem('simulation-introduction');
     localStorage.removeItem('simulation-sample');
     localStorage.removeItem('last-loaded-modify-experiment-id');
     
@@ -533,6 +536,7 @@ function SimulationPageContent() {
         temperature: 0.5,
         user_id: parsedUser.id,
         title: processTitle || "Simulation Flow",
+        study_introduction: studyIntroduction || "",
         sample: {
           id: selectedSampleDetails.id,
           name: selectedSampleDetails.name,
@@ -833,6 +837,7 @@ function SimulationPageContent() {
       
       // Prepopulate form fields
       setProcessTitle(experimentData.title || "");
+      setStudyIntroduction(experimentData.study_introduction || experimentData.introduction || "");
       setSelectedSample(experimentData.sample?.id || "");
       
       // Convert steps to flow nodes and edges
@@ -878,6 +883,10 @@ function SimulationPageContent() {
       if (savedTitle) {
         setProcessTitle(savedTitle);
       }
+      const savedIntroduction = localStorage.getItem('simulation-introduction');
+      if (savedIntroduction) {
+        setStudyIntroduction(savedIntroduction);
+      }
     }
   }, [modifyExperimentId]);
 
@@ -889,6 +898,15 @@ function SimulationPageContent() {
       localStorage.removeItem('simulation-title');
     }
   }, [processTitle]);
+
+  // Save study introduction to localStorage whenever it changes
+  useEffect(() => {
+    if (studyIntroduction) {
+      localStorage.setItem('simulation-introduction', studyIntroduction);
+    } else {
+      localStorage.removeItem('simulation-introduction');
+    }
+  }, [studyIntroduction]);
 
   // Load selected sample from localStorage on mount (only if not in modify mode)
   useEffect(() => {
@@ -1187,57 +1205,76 @@ function SimulationPageContent() {
 
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col">
-          {/* Process Description Section */}
+          {/* Form Section */}
           <div className="bg-gray-50 p-6 border-b border-gray-200">
-            <div className="max-w-4xl space-y-6">
-              {/* Process Description Section */}
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Enter a description of your study
-                </h3>
-                <div className="flex gap-4 items-end">
-                  <div className="flex-1">
+            <div className="w-full">
+              <div className="grid grid-cols-[1fr_2fr] gap-6 items-stretch">
+                {/* Left Column: Title and Study Introduction */}
+                <div className="flex flex-col">
+                  {/* Title of Study */}
+                  <div className="mb-6">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                      Title of Study
+                    </h3>
+                    <input
+                      type="text"
+                      placeholder="Enter study title..."
+                      value={processTitle}
+                      onChange={(e) => setProcessTitle(e.target.value)}
+                      className="w-full px-4 py-3 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  
+                  {/* Study Introduction */}
+                  <div className="flex-1 flex flex-col">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                      Study Introduction
+                    </h3>
+                    <textarea
+                      placeholder="Enter study introduction..."
+                      value={studyIntroduction}
+                      onChange={(e) => setStudyIntroduction(e.target.value)}
+                      className="flex-1 w-full min-h-64 px-4 py-3 bg-white border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                    {/* Spacer to match button height in right column */}
+                    <div className="mt-4 h-10"></div>
+                  </div>
+                </div>
+                
+                {/* Right Column: Describe Your Study */}
+                <div className="flex flex-col">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    Describe Your Study
+                  </h3>
+                  <div className="flex-1 flex flex-col">
                     <textarea
                       placeholder="Describe the study you want to simulate..."
                       value={processDescription}
                       onChange={(e) => setProcessDescription(e.target.value)}
                       disabled={isGeneratingSteps}
-                      className="w-full h-24 px-4 py-3 bg-white border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                      className="flex-1 w-full min-h-64 px-4 py-3 bg-white border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
                     />
+                    <div className="mt-4 flex justify-center">
+                      <Button 
+                        onClick={handleGenerateSteps}
+                        disabled={isGeneratingSteps}
+                        className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isGeneratingSteps ? (
+                          <>
+                            <Spinner size="sm" />
+                            <span>Generating...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="w-4 h-4" />
+                            Generate Steps
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   </div>
-                  <Button 
-                    onClick={handleGenerateSteps}
-                    variant="outline"
-                    disabled={isGeneratingSteps}
-                    className="flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed self-end mb-[6px]"
-                  >
-                    {isGeneratingSteps ? (
-                      <>
-                        <Spinner size="sm" />
-                        <span>Generating...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-4 h-4" />
-                        Generate Steps
-                      </>
-                    )}
-                  </Button>
                 </div>
-              </div>
-
-              {/* Process Title Section */}
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Title of the study
-                </h3>
-                <input
-                  type="text"
-                  placeholder="Enter study title..."
-                  value={processTitle}
-                  onChange={(e) => setProcessTitle(e.target.value)}
-                  className="w-full px-4 py-3 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
               </div>
             </div>
           </div>
