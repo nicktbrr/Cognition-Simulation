@@ -177,7 +177,7 @@ export default function ActionButtons({
       // Create a temporary link to trigger the download
       const link = document.createElement("a");
       link.href = url;
-      link.setAttribute("download", `cogsim_${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.xlsx`);
+      link.setAttribute("download", `psycsim_${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.xlsx`);
       document.body.appendChild(link);
       link.click();
       // Clean up the temporary link and object URL

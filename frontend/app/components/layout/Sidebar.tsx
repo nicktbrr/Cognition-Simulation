@@ -20,7 +20,7 @@ export default function Sidebar({ currentPage }: SidebarProps) {
     <div className="w-64 bg-gray-100 border-r border-gray-200 flex flex-col">
       {/* Logo */}
       <div className="bg-gray-100 border-b border-gray-200 px-8 py-7">
-        <h1 className="text-2xl font-bold text-blue-600">CogSim</h1>
+        <h1 className="text-2xl font-bold text-blue-600">Psycsim</h1>
       </div>
       
       {/* Navigation */}
@@ -48,7 +48,7 @@ export default function Sidebar({ currentPage }: SidebarProps) {
       
       {/* Footer */}
       <div className="p-4 border-t border-gray-300">
-        <div className="text-sm text-gray-600">© {new Date().getFullYear()} CogSim</div>
+        <div className="text-sm text-gray-600">© {new Date().getFullYear()} Psycsim</div>
       </div>
     </div>
   );

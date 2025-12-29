@@ -445,7 +445,7 @@ export default function DashboardHistory() {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.setAttribute("download", `cogsim_${filename.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.xlsx`);
+      link.setAttribute("download", `psycsim_${filename.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.xlsx`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
