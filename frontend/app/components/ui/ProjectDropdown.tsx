@@ -233,21 +233,6 @@ export default function ProjectDropdown({
                   onMouseLeave={() => setShowFolderSubmenu(false)}
                 >
                   <div className="py-1">
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        onMoveToFolder?.();
-                        onToggle();
-                      }}
-                      onMouseDown={(e) => {
-                        e.stopPropagation();
-                      }}
-                      className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                    >
-                      <Folder className="h-4 w-4" />
-                      Root (No folder)
-                    </button>
                     {folders.map((folder) => (
                       <button
                         key={folder.folder_id}

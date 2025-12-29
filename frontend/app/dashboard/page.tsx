@@ -369,10 +369,13 @@ export default function DashboardHistory() {
         };
       });
 
-      // Group experiments by configuration key
+      // Group experiments by configuration key AND folder_id
+      // This ensures projects with the same config but different folders are separate
       const groupedMap = new Map<string, typeof formattedExperiments>();
       formattedExperiments.forEach(exp => {
-        const key = exp.configKey;
+        // Include folder_id in the grouping key to prevent duplicates across folders
+        const folderId = exp.folder_id || 'null';
+        const key = `${exp.configKey}::${folderId}`;
         if (!groupedMap.has(key)) {
           groupedMap.set(key, []);
         }
@@ -1057,17 +1060,6 @@ export default function DashboardHistory() {
             <div className="mb-6">
               <p className="text-sm text-gray-600 mb-4">Select a folder to move this project to:</p>
               <div className="space-y-2 max-h-64 overflow-y-auto">
-                <button
-                  onClick={() => {
-                    if (projectToMove) {
-                      handleMoveToFolder(projectToMove, null);
-                    }
-                  }}
-                  className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-left"
-                >
-                  <Folder className="w-4 h-4" />
-                  <span>Root (No folder)</span>
-                </button>
                 {folders.map((folder) => (
                   <button
                     key={folder.folder_id}

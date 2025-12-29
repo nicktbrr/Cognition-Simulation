@@ -1335,18 +1335,18 @@ function SimulationPageContent() {
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">
                   Describe Your Study
                 </h3>
-                <textarea
-                  placeholder="Describe the study you want to simulate..."
-                  value={processDescription}
-                  onChange={(e) => setProcessDescription(e.target.value)}
-                  disabled={isGeneratingSteps}
-                  className="w-full h-32 px-4 py-3 bg-white border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
-                />
-                <div className="mt-3 flex justify-center">
+                <div className="flex items-center gap-3">
+                  <textarea
+                    placeholder="Describe the study you want to simulate..."
+                    value={processDescription}
+                    onChange={(e) => setProcessDescription(e.target.value)}
+                    disabled={isGeneratingSteps}
+                    className="flex-1 h-20 px-4 py-3 bg-white border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  />
                   <Button 
                     onClick={handleGenerateSteps}
                     disabled={isGeneratingSteps}
-                    className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                   >
                     {isGeneratingSteps ? (
                       <>

@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Home, Activity, Users, BarChart3 } from "lucide-react";
 
 interface SidebarProps {
@@ -10,6 +11,9 @@ interface SidebarProps {
 
 export default function Sidebar({ currentPage }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(true);
+  const collapseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pathname = usePathname();
+  const wasNavigatingRef = useRef(false);
 
   const navItems = [
     { id: 'dashboard', href: '/dashboard', icon: Home, label: 'Dashboard' },
@@ -18,13 +22,57 @@ export default function Sidebar({ currentPage }: SidebarProps) {
     { id: 'samples', href: '/samples', icon: Users, label: 'Samples' },
   ];
 
+  // Keep sidebar open when navigating via sidebar links
+  useEffect(() => {
+    // When pathname changes (navigation occurred), keep sidebar open if we were navigating
+    if (wasNavigatingRef.current) {
+      setIsCollapsed(false);
+      wasNavigatingRef.current = false;
+    }
+    
+    // Clear any pending collapse timeout
+    if (collapseTimeoutRef.current) {
+      clearTimeout(collapseTimeoutRef.current);
+      collapseTimeoutRef.current = null;
+    }
+  }, [pathname]);
+
   const handleMouseEnter = () => {
+    // Clear any pending collapse timeout
+    if (collapseTimeoutRef.current) {
+      clearTimeout(collapseTimeoutRef.current);
+      collapseTimeoutRef.current = null;
+    }
     setIsCollapsed(false);
   };
 
   const handleMouseLeave = () => {
-    setIsCollapsed(true);
+    // Add a small delay before collapsing to allow for link clicks
+    collapseTimeoutRef.current = setTimeout(() => {
+      setIsCollapsed(true);
+      collapseTimeoutRef.current = null;
+    }, 300);
   };
+
+  const handleLinkClick = () => {
+    // Mark that we're navigating via sidebar link
+    wasNavigatingRef.current = true;
+    // Keep sidebar open when clicking a link
+    if (collapseTimeoutRef.current) {
+      clearTimeout(collapseTimeoutRef.current);
+      collapseTimeoutRef.current = null;
+    }
+    setIsCollapsed(false);
+  };
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (collapseTimeoutRef.current) {
+        clearTimeout(collapseTimeoutRef.current);
+      }
+    };
+  }, []);
 
   return (
     <div 
@@ -62,7 +110,7 @@ export default function Sidebar({ currentPage }: SidebarProps) {
             const isActive = currentPage === item.id;
             
             return (
-              <Link key={item.id} href={item.href}>
+              <Link key={item.id} href={item.href} onClick={handleLinkClick}>
                 <div className={`flex items-center rounded-lg transition-all duration-200 ${
                   isCollapsed ? 'justify-center px-3' : 'gap-3 px-4'
                 } py-3 ${
