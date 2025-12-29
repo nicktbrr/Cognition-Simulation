@@ -11,6 +11,11 @@ import concurrent.futures
 
 import random
 from .personas import personas
+from .used_prompts import (
+    BASELINE_SYSTEM_PROMPT,
+    get_baseline_first_column_user_prompt,
+    get_baseline_subsequent_column_user_prompt
+)
 
 
 def persona_dict_to_string(persona):
@@ -102,34 +107,23 @@ def process_row_with_chat(row_idx, df, prompt, key_g, system_prompt, persona):
             instructions = matching_step['instructions']
             temperature = matching_step['temperature']
 
-            # Handle first column differently (initial prompt)
-            if col_idx == 0:
-                llm_prompt = f"""You are {persona_str}, participating in a psychology study on cognitive processes. 
-                Your task is to generate concise and structured responses for a step in the process, which is based on instructions from a researcher and may build on previous steps and responses.
-                Use judgement that is highly critical, focusing on direct and well-established semantic links, and disregard superficial or weak connections.
-                Please respond with ONLY the response and absolutely no additional text or explanation. Do not use any newline characters or separate your answer with new lines.
-                Provide the response in plain text format as a single continuous paragraph.
-
-                The current step is: {str.upper(col_name)}
-                Please respond to the following: {instructions}
-
-                Please respond with ONLY the question and absolutely no additional text or explanation."""
+            # Handle first processed step differently (initial prompt with persona)
+            # Check if this is the first step we're processing (prompt_list is empty)
+            if len(prompt_list) == 0:
+                llm_prompt = get_baseline_first_column_user_prompt(persona_str, col_name, instructions)
                 prompt_list.append(llm_prompt)
             else:
                 # Build prompt including previous steps and responses
-                llm_prompt = prompt_list[0]
-                llm_prompt += "Given the previous steps with responses:"
-                for i in range(col_idx):
-                    llm_prompt += (f"""
-                                  Prompt:{df.columns[i]}: {steps[i]['instructions']}
-                                  Response:{row_data[df.columns[i]]}
-                            """)
-                llm_prompt += (f"""
-                                The current step is: {str.upper(col_name)}
-                                Please respond to the following: {instructions}
-
-                            Please respond with ONLY the question and absolutely no additional text or explanation. The structure should include the following fields:
-                            """)
+                # Use the first prompt (which includes persona) as the base
+                llm_prompt = get_baseline_subsequent_column_user_prompt(
+                    prompt_list[0],
+                    list(df.columns),
+                    steps,
+                    row_data,
+                    col_idx,
+                    col_name,
+                    instructions
+                )
 
             # Configure and call the AI model
             genai.configure(api_key=key_g)
@@ -181,10 +175,7 @@ def baseline_prompt(prompt, key_g, sample=None):
             - tokens_ls (list): List of token usage dictionaries for each row
     """
     # System-level instructions for the AI model
-    system_prompt = """
-        You are an AI participating in an interview-style interaction. Your task is to generate concise and structured responses based on a given question.
-        Do not use any newline characters or separate your answer with new lines. Provide the response in plain text format as a single continuous sentence.
-        """
+    system_prompt = BASELINE_SYSTEM_PROMPT
 
     seed = prompt['seed']
     iterations = prompt['iters']

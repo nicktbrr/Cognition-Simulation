@@ -13,6 +13,11 @@ import os
 # import openai
 from datetime import datetime
 from supabase import create_client, Client
+from .used_prompts import (
+    get_persona_generation_user_prompt,
+    get_evaluation_system_prompt,
+    get_evaluation_user_prompt
+)
 
 class EvaluationMetricsGPT4(BaseModel):
     """
@@ -68,19 +73,7 @@ def generate_persona_from_attributes(sample, key_g, supabase_client=None):
             attributes_text += f"- {label} ({category}): {values_str}\n"
     
     # Create prompt for persona generation
-    persona_prompt = f"""Based on the following demographic and attribute information, create a detailed persona description that captures the personality, background, and characteristics of this individual.
-
-Attributes:
-{attributes_text}
-
-Please create a persona that:
-1. Is 3-4 sentences long
-2. Captures the key demographic and lifestyle characteristics
-3. Reflects the person's likely personality traits based on their attributes
-4. Is written in third person
-5. Sounds natural and human-like
-
-Respond with ONLY the persona description, no additional text or formatting."""
+    persona_prompt = get_persona_generation_user_prompt(attributes_text)
 
     try:
         # Configure Gemini API
@@ -344,92 +337,10 @@ def process_row(row_idx, df_row, steps):
             for idx, measure in enumerate(current_measures):
                 step_measures_list += f"{idx + 1}. {measure['title']}\n"
             
-            user_prompt = f"""Step Title: {step_label}
-
-Step Instructions: {step_instructions}
-
-Output/Response: {step_output}
-
-Measures to use for evaluation: 
-{step_measures_list}
-
-Please evaluate this response against the measures defined for this step. Provide scores that accurately reflect the quality of the response relative to the step instructions and measure criteria. Use the full range of scores available - do not default to middle values."""
+            user_prompt = get_evaluation_user_prompt(step_label, step_instructions, step_output, step_measures_list)
             
             # Create system prompt with only relevant measures for this step
-            system_prompt = f"""# Instruction
-You are an expert evaluator. Your task is to evaluate the quality of responses based on specific simulation steps and their associated measures.
-
-You will be provided with:
-1. The simulation step title and instructions
-2. The actual response/output for that step
-3. Specific measures with their ranges and reference points for evaluation
-
-Your task is to evaluate how well the response aligns with the step requirements and meets the specified measures.
-
-# Measures used for evaluation
-{measures}
-
-## Scoring Rubric - CRITICAL INSTRUCTIONS
-
-For each measure, you MUST:
-
-1. **Use the FULL range of scores available** - The range shows the minimum and maximum possible scores. Scores should vary based on actual quality assessment.
-
-2. **Interpret the range correctly**:
-   - The minimum value represents the lowest quality (e.g., completely missing requirements, off-topic, or poor quality)
-   - The maximum value represents the highest quality (e.g., exceeds requirements, excellent quality, fully addresses the measure)
-   - Intermediate values represent gradations of quality
-
-3. **Use Reference Points as Anchors** (if provided):
-   - Reference points show what specific score values represent in terms of quality levels
-   - Use these as anchor points to guide your scoring
-   - If the response quality falls between reference points, interpolate appropriately
-   - If no reference points are provided, use your judgment to assign scores across the full range
-
-4. **Score Differentiation**:
-   - Different responses should receive different scores based on their actual quality
-   - If a response is excellent, use the higher end of the range
-   - If a response is poor, use the lower end of the range
-   - If a response is average, use middle values
-   - DO NOT assign the same score to all measures or all responses unless they are genuinely equivalent in quality
-
-## Evaluation Process
-
-For each measure, follow these steps:
-
-STEP 1: Analyze the response against the step instructions
-- Does the response follow the step instructions?
-- Does it address what the step asked for?
-- Is it relevant and on-topic?
-
-STEP 2: Evaluate against the measure criteria
-- How well does the response meet the measure's description?
-- Compare against any provided reference points
-- Identify specific strengths and weaknesses
-
-STEP 3: Assign a score
-- Determine where the response falls within the range
-- Use reference points as anchors if provided
-- Assign a specific numeric score that reflects the quality
-- Ensure scores vary appropriately based on quality differences
-
-STEP 4: Verify your score
-- Does this score accurately reflect the quality?
-- Is it using the appropriate part of the range?
-- Would a different response receive a different score?
-
-## Output Format
-
-Provide a JSON response with:
-- "metric": array of measure titles in the exact order they appear
-- "score": array of numeric scores (one per measure) within the specified ranges
-
-IMPORTANT: 
-- Each measure MUST have a score
-- Scores MUST be within the specified range for each measure
-- Scores MUST vary based on actual quality assessment
-- If a measure is truly not applicable, score it as the minimum value (not 0 unless that's the minimum)
-- DO NOT default to middle values - use the full range appropriately"""
+            system_prompt = get_evaluation_system_prompt(measures)
             
             try:
                 # Make API call for this specific step
