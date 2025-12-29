@@ -205,56 +205,10 @@ export default function Home() {
             </div>
           </section>
 
-          {/* Drafts Section - Only show if user is authenticated */}
-          {isAuthenticated && user && (
-            <section className="max-w-7xl mx-auto px-6 py-8">
-              <h2 className="text-3xl md:text-4xl font-bold text-[#8302AE] mb-6">Your Drafts</h2>
-              {loadingDrafts ? (
-                <div className="text-center py-8 text-gray-500">Loading drafts...</div>
-              ) : drafts.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <FileText className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-                  <p>No drafts yet. Start a new simulation to save a draft.</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {drafts.map((draft) => (
-                    <Card key={draft.experiment_id} className="bg-white shadow-md border border-gray-100 hover:shadow-lg transition-shadow">
-                      <CardContent className="pt-6">
-                        <div className="flex items-start justify-between mb-3">
-                          <h3 className="text-lg font-semibold text-gray-900 flex-1 pr-2 line-clamp-2">
-                            {draft.title}
-                          </h3>
-                          <button
-                            onClick={() => handleDeleteDraft(draft.experiment_id)}
-                            className="text-red-500 hover:text-red-700 transition-colors p-1"
-                            title="Delete draft"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                        <p className="text-sm text-gray-600 mb-2">
-                          <span className="font-medium">Sample:</span> {draft.sample_name}
-                        </p>
-                        <p className="text-xs text-gray-500 mb-4">
-                          Created: {new Date(draft.created_at).toLocaleDateString()}
-                        </p>
-                        <Link href={`/simulation?modify=${draft.experiment_id}`}>
-                          <Button
-                            variant="outline"
-                            className="w-full border-[#8302AE] text-[#8302AE] hover:bg-[#8302AE] hover:text-white transition-all"
-                          >
-                            <Edit className="w-4 h-4 mr-2" />
-                            Continue Editing
-                          </Button>
-                        </Link>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </section>
-          )}
+         
+          
+           
+          
 
           {/* Authentication banner */}
           <section className="max-w-7xl mx-auto px-6 py-16">

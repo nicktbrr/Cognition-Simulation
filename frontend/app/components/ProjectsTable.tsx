@@ -189,7 +189,7 @@ export default function ProjectsTable({
           onDragStart={(e) => handleDragStart(e, project.id!)}
           onDragEnd={handleDragEnd}
         >
-          <td className="px-6 py-4">
+          <td className={`px-6 py-4 ${isInFolder ? 'pl-12' : ''}`}>
             <div className="flex items-center justify-between">
               <button 
                 onClick={() => toggleRowExpansion(project.id!)}
@@ -219,16 +219,16 @@ export default function ProjectsTable({
               />
             </div>
           </td>
-          <td className="px-6 py-4">
+          <td className={`px-6 py-4 ${isInFolder ? 'pl-12' : ''}`}>
             <StatusBadge status={project.status} progress={project.progress} />
           </td>
-          <td className="px-6 py-4 text-sm text-gray-900">
+          <td className={`px-6 py-4 text-sm text-gray-900 ${isInFolder ? 'pl-12' : ''}`}>
             {project.sample_size ?? 10}
           </td>
-          <td className="px-6 py-4 text-sm text-gray-900">
+          <td className={`px-6 py-4 text-sm text-gray-900 ${isInFolder ? 'pl-12' : ''}`}>
             {project.sample_name}
           </td>
-          <td className="px-6 py-4">
+          <td className={`px-6 py-4 ${isInFolder ? 'pl-12' : ''}`}>
             <div className="space-y-1">
               {project.downloads.slice(0, 3).map((download, idx) => (
                 <DownloadButton 
@@ -239,13 +239,13 @@ export default function ProjectsTable({
               ))}
             </div>
           </td>
-          <td className="px-6 py-4"></td>
+          <td className={`px-6 py-4 ${isInFolder ? 'pl-12' : ''}`}></td>
         </tr>
         
         {expandedRows.has(project.id!) && (
           <tr>
-            <td colSpan={6} className="px-6 py-4 bg-gray-50">
-              <div className="flex gap-6" style={{marginLeft: '40px'}}>
+            <td colSpan={6} className={`px-6 py-4 bg-gray-50 ${isInFolder ? 'pl-12' : ''}`}>
+              <div className="flex gap-6" style={{marginLeft: isInFolder ? '64px' : '40px'}}>
                 <SimulationSteps steps={project.steps} />
               </div>
             </td>
