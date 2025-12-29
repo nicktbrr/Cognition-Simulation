@@ -8,10 +8,11 @@ import type React from "react"
 
 import { useState, useEffect } from "react"
 import { useRouter } from 'next/navigation'
+import Image from "next/image"
 import Link from "next/link"
 import { Button } from "@/components/ui/button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
-import { MousePointer, Check, Lock } from "lucide-react"
+import { LogOut, MousePointer, Check, Lock, Brain, Users, Laptop, LineChart, Shield, Server, FileText, Edit, Trash2  } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import OneTapComponent from "./components/onetap"
 import { supabase } from "./utils/supabase"
@@ -33,13 +34,88 @@ declare global {
   }
 }
 
+interface Draft {
+  experiment_id: string;
+  title: string;
+  created_at: string;
+  sample_name: string;
+}
+
 export default function Home() {
   const router = useRouter()
   const { user, isLoading, isAuthenticated, signOut } = useAuth()
+  const [drafts, setDrafts] = useState<Draft[]>([])
+  const [loadingDrafts, setLoadingDrafts] = useState(false)
 
   // Handle sign out.
   const handleSignOut = async () => {
     await signOut()
+  }
+
+  // Fetch drafts for the authenticated user
+  const fetchDrafts = async (userId: string) => {
+    setLoadingDrafts(true)
+    try {
+      const { data, error } = await supabase
+        .from("experiments")
+        .select("experiment_id, experiment_data, created_at")
+        .eq("user_id", userId)
+        .eq("status", "Draft")
+        .order("created_at", { ascending: false })
+        .limit(10)
+
+      if (error) {
+        console.error("Error fetching drafts:", error)
+        setDrafts([])
+        return
+      }
+
+      const formattedDrafts: Draft[] = (data || []).map((experiment: any) => {
+        const experimentData = experiment.experiment_data || {}
+        return {
+          experiment_id: experiment.experiment_id,
+          title: experimentData.title || "Untitled Simulation",
+          created_at: experiment.created_at,
+          sample_name: experimentData.sample?.name || "No sample"
+        }
+      })
+
+      setDrafts(formattedDrafts)
+    } catch (error) {
+      console.error("Error processing drafts:", error)
+      setDrafts([])
+    } finally {
+      setLoadingDrafts(false)
+    }
+  }
+
+  // Delete a draft
+  const handleDeleteDraft = async (experimentId: string) => {
+    if (!confirm("Are you sure you want to delete this draft?")) {
+      return
+    }
+
+    if (!user) return
+
+    try {
+      const { error } = await supabase
+        .from("experiments")
+        .delete()
+        .eq("experiment_id", experimentId)
+        .eq("user_id", user.user_id)
+
+      if (error) {
+        console.error("Error deleting draft:", error)
+        alert(`Error deleting draft: ${error.message}`)
+        return
+      }
+
+      // Refresh drafts list
+      fetchDrafts(user.user_id)
+    } catch (error) {
+      console.error("Error deleting draft:", error)
+      alert(`Error deleting draft: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
   }
 
   // Push user data to user_emails table when user is authenticated
@@ -68,6 +144,15 @@ export default function Home() {
     }
     
     pushUserToDatabase()
+  }, [user, isAuthenticated])
+
+  // Fetch drafts when user is authenticated
+  useEffect(() => {
+    if (user && isAuthenticated) {
+      fetchDrafts(user.user_id)
+    } else {
+      setDrafts([])
+    }
   }, [user, isAuthenticated])
 
   // Return the home page.
@@ -119,6 +204,57 @@ export default function Home() {
               />
             </div>
           </section>
+
+          {/* Drafts Section - Only show if user is authenticated */}
+          {isAuthenticated && user && (
+            <section className="max-w-7xl mx-auto px-6 py-8">
+              <h2 className="text-3xl md:text-4xl font-bold text-[#8302AE] mb-6">Your Drafts</h2>
+              {loadingDrafts ? (
+                <div className="text-center py-8 text-gray-500">Loading drafts...</div>
+              ) : drafts.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <FileText className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                  <p>No drafts yet. Start a new simulation to save a draft.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {drafts.map((draft) => (
+                    <Card key={draft.experiment_id} className="bg-white shadow-md border border-gray-100 hover:shadow-lg transition-shadow">
+                      <CardContent className="pt-6">
+                        <div className="flex items-start justify-between mb-3">
+                          <h3 className="text-lg font-semibold text-gray-900 flex-1 pr-2 line-clamp-2">
+                            {draft.title}
+                          </h3>
+                          <button
+                            onClick={() => handleDeleteDraft(draft.experiment_id)}
+                            className="text-red-500 hover:text-red-700 transition-colors p-1"
+                            title="Delete draft"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <p className="text-sm text-gray-600 mb-2">
+                          <span className="font-medium">Sample:</span> {draft.sample_name}
+                        </p>
+                        <p className="text-xs text-gray-500 mb-4">
+                          Created: {new Date(draft.created_at).toLocaleDateString()}
+                        </p>
+                        <Link href={`/simulation?modify=${draft.experiment_id}`}>
+                          <Button
+                            variant="outline"
+                            className="w-full border-[#8302AE] text-[#8302AE] hover:bg-[#8302AE] hover:text-white transition-all"
+                          >
+                            <Edit className="w-4 h-4 mr-2" />
+                            Continue Editing
+                          </Button>
+                        </Link>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
 
           {/* Authentication banner */}
           <section className="max-w-7xl mx-auto px-6 py-16">
