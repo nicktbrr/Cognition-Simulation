@@ -290,8 +290,118 @@ function SimulationPageContent() {
     }
   };
 
-  const handleSaveDraft = () => {
-    // TODO: Implement save draft functionality
+  const handleSaveDraft = async () => {
+    try {
+      // Get the user from auth
+      if (!user || !isAuthenticated) {
+        alert("Please log in to save drafts.");
+        return;
+      }
+
+      // Get the selected sample details
+      const selectedSampleDetails = getSelectedSampleDetails();
+      if (!selectedSampleDetails) {
+        alert("Please select a sample before saving the draft.");
+        return;
+      }
+
+      // Convert React Flow nodes to the expected format
+      const orderedSteps = convertFlowNodesToSteps(flowNodes, flowEdges);
+
+      // Construct the JSON payload for the draft
+      const experimentData = {
+        seed: "no-seed",
+        steps: orderedSteps,
+        iters: 10,
+        temperature: 0.5,
+        user_id: user.user_id,
+        title: processTitle || "Untitled Simulation",
+        study_introduction: studyIntroduction || "",
+        sample: {
+          id: selectedSampleDetails.id,
+          name: selectedSampleDetails.name,
+          user_id: selectedSampleDetails.user_id,
+          created_at: selectedSampleDetails.created_at,
+          attributes: selectedSampleDetails.attributes,
+          persona: selectedSampleDetails.persona
+        }
+      };
+
+      let data, error;
+
+      // If we're modifying an existing experiment, update it; otherwise create a new draft
+      if (modifyExperimentId) {
+        // Check if the experiment exists and is a draft
+        const { data: existingExperiment } = await supabase
+          .from("experiments")
+          .select("status")
+          .eq("experiment_id", modifyExperimentId)
+          .eq("user_id", user.user_id)
+          .single();
+
+        if (existingExperiment && existingExperiment.status === "Draft") {
+          // Update existing draft
+          const result = await supabase
+            .from("experiments")
+            .update({
+              experiment_data: experimentData,
+              updated_at: new Date().toISOString()
+            })
+            .eq("experiment_id", modifyExperimentId)
+            .eq("user_id", user.user_id)
+            .select()
+            .single();
+
+          data = result.data;
+          error = result.error;
+        } else {
+          // Create a new draft (the existing experiment is not a draft)
+          const draftId = crypto.randomUUID();
+          const result = await supabase
+            .from("experiments")
+            .insert({
+              experiment_id: draftId,
+              user_id: user.user_id,
+              experiment_data: experimentData,
+              status: "Draft",
+              created_at: new Date().toISOString()
+            })
+            .select()
+            .single();
+
+          data = result.data;
+          error = result.error;
+        }
+      } else {
+        // Create a new draft
+        const draftId = crypto.randomUUID();
+        const result = await supabase
+          .from("experiments")
+          .insert({
+            experiment_id: draftId,
+            user_id: user.user_id,
+            experiment_data: experimentData,
+            status: "Draft",
+            created_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+
+        data = result.data;
+        error = result.error;
+      }
+
+      if (error) {
+        console.error("Error saving draft:", error);
+        alert(`Error saving draft: ${error.message}`);
+        return;
+      }
+
+      alert("Draft saved successfully!");
+    } catch (error) {
+      console.error("Error saving draft:", error);
+      alert(`Error saving draft: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   };
 
   const handleClearAll = () => {
@@ -1055,20 +1165,33 @@ function SimulationPageContent() {
         ) : (
           <>
             {/* Left Sidebar - Tools */}
-            <div className={`w-56 bg-white border-r border-gray-200 p-4 space-y-6 transition-opacity duration-500 ${contentLoaded ? 'opacity-100' : 'opacity-0'}`}>
-          {/* Tools Section */}
+            <div className={`w-56 bg-white border-r border-gray-200 p-4 space-y-6 transition-opacity duration-500 overflow-y-auto ${contentLoaded ? 'opacity-100' : 'opacity-0'}`}>
+          {/* Title of Study */}
           <div>
-            {/* <h3 className="text-sm font-semibold text-blue-600 mb-3">Tools</h3>
-            <div className="space-y-2">
-              {/* <div className="flex gap-2">
-                <div className="w-20 h-8 bg-blue-500 rounded flex items-center justify-center text-white text-xs font-medium">
-                  Step
-                </div>
-                <div className="w-20 h-8 bg-gray-200 rounded flex items-center justify-center text-gray-700 text-xs">
-                  Connection
-                </div>
-              </div> 
-            </div> */}
+            <h3 className="text-sm font-semibold text-gray-700 mb-2">
+              Title of Study
+            </h3>
+            <input
+              type="text"
+              placeholder="Enter study title..."
+              value={processTitle}
+              onChange={(e) => setProcessTitle(e.target.value)}
+              className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+
+          {/* Study Introduction */}
+          <div>
+            <h3 className="text-sm font-semibold text-gray-700 mb-2">
+              Study Introduction
+            </h3>
+            <textarea
+              placeholder="Enter study introduction..."
+              value={studyIntroduction}
+              onChange={(e) => setStudyIntroduction(e.target.value)}
+              className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              rows={4}
+            />
           </div>
 
           {/* Colors Section */}
@@ -1205,75 +1328,38 @@ function SimulationPageContent() {
 
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col">
-          {/* Form Section */}
-          <div className="bg-gray-50 p-6 border-b border-gray-200">
-            <div className="w-full">
-              <div className="grid grid-cols-[1fr_2fr] gap-6 items-stretch">
-                {/* Left Column: Title and Study Introduction */}
-                <div className="flex flex-col">
-                  {/* Title of Study */}
-                  <div className="mb-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                      Title of Study
-                    </h3>
-                    <input
-                      type="text"
-                      placeholder="Enter study title..."
-                      value={processTitle}
-                      onChange={(e) => setProcessTitle(e.target.value)}
-                      className="w-full px-4 py-3 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                  
-                  {/* Study Introduction */}
-                  <div className="flex-1 flex flex-col">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                      Study Introduction
-                    </h3>
-                    <textarea
-                      placeholder="Enter study introduction..."
-                      value={studyIntroduction}
-                      onChange={(e) => setStudyIntroduction(e.target.value)}
-                      className="flex-1 w-full min-h-64 px-4 py-3 bg-white border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                    {/* Spacer to match button height in right column */}
-                    <div className="mt-4 h-10"></div>
-                  </div>
-                </div>
-                
-                {/* Right Column: Describe Your Study */}
-                <div className="flex flex-col">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                    Describe Your Study
-                  </h3>
-                  <div className="flex-1 flex flex-col">
-                    <textarea
-                      placeholder="Describe the study you want to simulate..."
-                      value={processDescription}
-                      onChange={(e) => setProcessDescription(e.target.value)}
-                      disabled={isGeneratingSteps}
-                      className="flex-1 w-full min-h-64 px-4 py-3 bg-white border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
-                    />
-                    <div className="mt-4 flex justify-center">
-                      <Button 
-                        onClick={handleGenerateSteps}
-                        disabled={isGeneratingSteps}
-                        className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {isGeneratingSteps ? (
-                          <>
-                            <Spinner size="sm" />
-                            <span>Generating...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles className="w-4 h-4" />
-                            Generate Steps
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </div>
+          {/* Form Section - Describe Your Study */}
+          <div className="bg-gray-50 p-4 border-b border-gray-200 flex-shrink-0">
+            <div className="max-w-2xl mx-auto w-full">
+              <div className="flex flex-col">
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Describe Your Study
+                </h3>
+                <div className="flex items-center gap-3">
+                  <textarea
+                    placeholder="Describe the study you want to simulate..."
+                    value={processDescription}
+                    onChange={(e) => setProcessDescription(e.target.value)}
+                    disabled={isGeneratingSteps}
+                    className="flex-1 h-20 px-4 py-3 bg-white border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  />
+                  <Button 
+                    onClick={handleGenerateSteps}
+                    disabled={isGeneratingSteps}
+                    className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                  >
+                    {isGeneratingSteps ? (
+                      <>
+                        <Spinner size="sm" />
+                        <span>Generating...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4" />
+                        Generate Steps
+                      </>
+                    )}
+                  </Button>
                 </div>
               </div>
             </div>

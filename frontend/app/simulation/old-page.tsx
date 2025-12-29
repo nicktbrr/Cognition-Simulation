@@ -131,7 +131,7 @@ export default function Dashboard() {
     }));
 
     // Create the Excel filename with the title.
-    const excelFilename = `cogsim_${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.xlsx`;
+    const excelFilename = `psycsim_${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.xlsx`;
 
     alert("Steps submitted! Check console for output.");
   };

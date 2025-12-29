@@ -184,12 +184,12 @@ export default function ProjectsTable({
     return (
       <React.Fragment key={project.id || index}>
         <tr 
-          className={`hover:bg-gray-50 ${draggedProject === project.id ? 'opacity-50' : ''}`}
+          className={`${isInFolder ? 'bg-gray-50 hover:bg-gray-100' : 'hover:bg-gray-50'} ${draggedProject === project.id ? 'opacity-50' : ''}`}
           draggable
           onDragStart={(e) => handleDragStart(e, project.id!)}
           onDragEnd={handleDragEnd}
         >
-          <td className="px-6 py-4">
+          <td className={`px-6 py-4 ${isInFolder ? 'pl-12' : ''}`}>
             <div className="flex items-center justify-between">
               <button 
                 onClick={() => toggleRowExpansion(project.id!)}
@@ -219,16 +219,16 @@ export default function ProjectsTable({
               />
             </div>
           </td>
-          <td className="px-6 py-4">
+          <td className={`px-6 py-4 ${isInFolder ? 'pl-12' : ''}`}>
             <StatusBadge status={project.status} progress={project.progress} />
           </td>
-          <td className="px-6 py-4 text-sm text-gray-900">
+          <td className={`px-6 py-4 text-sm text-gray-900 ${isInFolder ? 'pl-12' : ''}`}>
             {project.sample_size ?? 10}
           </td>
-          <td className="px-6 py-4 text-sm text-gray-900">
+          <td className={`px-6 py-4 text-sm text-gray-900 ${isInFolder ? 'pl-12' : ''}`}>
             {project.sample_name}
           </td>
-          <td className="px-6 py-4">
+          <td className={`px-6 py-4 ${isInFolder ? 'pl-12' : ''}`}>
             <div className="space-y-1">
               {project.downloads.slice(0, 3).map((download, idx) => (
                 <DownloadButton 
@@ -239,13 +239,13 @@ export default function ProjectsTable({
               ))}
             </div>
           </td>
-          <td className="px-6 py-4"></td>
+          <td className={`px-6 py-4 ${isInFolder ? 'pl-12' : ''}`}></td>
         </tr>
         
         {expandedRows.has(project.id!) && (
           <tr>
-            <td colSpan={6} className="px-6 py-4 bg-gray-50">
-              <div className="flex gap-6" style={{marginLeft: '40px'}}>
+            <td colSpan={6} className={`px-6 py-4 bg-gray-50 ${isInFolder ? 'pl-12' : ''}`}>
+              <div className="flex gap-6" style={{marginLeft: isInFolder ? '64px' : '40px'}}>
                 <SimulationSteps steps={project.steps} />
               </div>
             </td>
@@ -321,29 +321,9 @@ export default function ProjectsTable({
               );
             })}
             
-            {/* Render root projects (no folder) - after folders */}
-            {hasRootProjects && (
-              <>
-                <tr
-                  className={`${dragOverFolder === 'root' ? 'bg-blue-50' : ''}`}
-                  onDragOver={(e) => handleDragOver(e, 'root')}
-                  onDragLeave={handleDragLeave}
-                  onDrop={(e) => handleDrop(e, null)}
-                >
-                  <td colSpan={6} className="px-6 py-2 bg-gray-50">
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <Folder className="w-4 h-4" />
-                      <span>Root (No folder)</span>
-                      <span className="text-xs text-gray-500">
-                        ({rootProjects.length} {rootProjects.length === 1 ? 'project' : 'projects'})
-                      </span>
-                    </div>
-                  </td>
-                </tr>
-                {rootProjects.map((project, idx) => 
-                  renderProjectRow(project, idx, false, rootProjects.length)
-                )}
-              </>
+            {/* Render root projects (no folder) - after folders, without header */}
+            {rootProjects.map((project, idx) => 
+              renderProjectRow(project, idx, false, rootProjects.length)
             )}
             
             {/* Show root drop zone when dragging even if no root projects exist */}
@@ -357,7 +337,7 @@ export default function ProjectsTable({
                 <td colSpan={6} className="px-6 py-2 bg-gray-50">
                   <div className="flex items-center gap-2 text-sm text-gray-600">
                     <Folder className="w-4 h-4" />
-                    <span>Root (No folder)</span>
+                    <span>Drop here to remove from folder</span>
                   </div>
                 </td>
               </tr>

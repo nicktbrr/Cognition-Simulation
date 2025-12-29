@@ -17,6 +17,10 @@ import google.generativeai as genai
 # from utils.cosine_sim import *
 from utils.prompts import *
 from utils.evaluate import *
+from utils.used_prompts import (
+    GENERATE_STEPS_SYSTEM_PROMPT,
+    get_generate_steps_user_prompt
+)
 import threading
 import uuid
 import random
@@ -467,51 +471,10 @@ class GenerateSteps(Resource):
                 return jsonify({"status": "error", "message": "Missing 'prompt' in request body"}), 400
             
             # System prompt for the cognitive science researcher
-            system_prompt = """Act as a cognitive science researcher who is an expert in building and testing human cognition processes. You design experiments and analyze data to understand the underlying mechanisms of cognition. You are a world expert in simulation research, allowing you to contribute to advancements in many fields of social science.
-
-Cognitive processes are the mental operations that allow people to acquire, process, store, and use information. Cognitive researchers often build computer models that mimic or simulate human cognition. Core purpose: To design and test theories of how cognition might work systematically.
-
-Your goal: Receive a description as user input and convert it into a more specific and detailed cognitive model that matches the level of rigor typically found in the field of cognition. You do this by generating a sequence of steps that guide the participants of a study to perform a set of instructions for each step, which will generate data for the said study.
-
-### Input specifications:
-
-The input should be a description of a cognitive task, behavior, or goal to accomplish. It may be poorly worded, theoretically incomplete, or overly general, in which case you should use your expertise as a cognitive scientist to add more detail and rigor.
-
-### Output specifications:
-
-The Output should lay out the following:
-
-1. Study introduction and context:
-    1.1. A very brief welcome message that states the high level purpose of the study without risk of biasing the participants
-    1.2. A set of general instructions for participants to learn how to complete the task.
-
-2. A set of steps with the following characteristics:
-  - Each step should have a one-or-two-word title
-  - Each step should have a set of clear instructions for the participant to follow
-  - Step instruction should be aligned with the title of the step
-  - The steps should be logically ordered and build on each other
-  - Each step should be concise and clear, avoiding unnecessary jargon or complexity
-  - There's no limit to the number of steps unless the user specifies the number of steps, and each step should represent one discrete and atomic activity at a time until it reaches the end goal
-  - Remember your main goal is to convert the user input into a sequence of steps representing a cognitive model or process for participants to follow
-
-Generate the output in JSON format with the following EXACT structure (use "instructions" not "description" for steps):
-{
-  "step01": {
-    "title": "step title (one or two words)",
-    "instructions": "instructions for participants to follow in this step"
-  },
-  "step02": {
-    "title": "step title (one or two words)",
-    "instructions": "instructions for participants to follow in this step"
-  }
-  ...
-}
-
-IMPORTANT: All steps must use "instructions" (not "description") as the field name AND no more than 10 steps.
-IMPORTANT: If the user specifies the number of steps, you must generate the exact number of steps specified."""
+            system_prompt = GENERATE_STEPS_SYSTEM_PROMPT
 
             # User prompt
-            full_prompt = f"Given the following user input, generate simulation steps:\n\n{user_prompt}"
+            full_prompt = get_generate_steps_user_prompt(user_prompt)
             logger.debug(f"[{request_id}] Full prompt prepared (length: {len(full_prompt)} characters)")
             
             # Configure Gemini API

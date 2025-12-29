@@ -12,7 +12,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { Button } from "@/components/ui/button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
-import { LogOut, MousePointer, Check, Lock, Brain, Users, Laptop, LineChart, Shield, Server  } from "lucide-react"
+import { LogOut, MousePointer, Check, Lock, Brain, Users, Laptop, LineChart, Shield, Server, FileText, Edit, Trash2  } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import OneTapComponent from "./components/onetap"
 import { supabase } from "./utils/supabase"
@@ -34,13 +34,88 @@ declare global {
   }
 }
 
+interface Draft {
+  experiment_id: string;
+  title: string;
+  created_at: string;
+  sample_name: string;
+}
+
 export default function Home() {
   const router = useRouter()
   const { user, isLoading, isAuthenticated, signOut } = useAuth()
+  const [drafts, setDrafts] = useState<Draft[]>([])
+  const [loadingDrafts, setLoadingDrafts] = useState(false)
 
   // Handle sign out.
   const handleSignOut = async () => {
     await signOut()
+  }
+
+  // Fetch drafts for the authenticated user
+  const fetchDrafts = async (userId: string) => {
+    setLoadingDrafts(true)
+    try {
+      const { data, error } = await supabase
+        .from("experiments")
+        .select("experiment_id, experiment_data, created_at")
+        .eq("user_id", userId)
+        .eq("status", "Draft")
+        .order("created_at", { ascending: false })
+        .limit(10)
+
+      if (error) {
+        console.error("Error fetching drafts:", error)
+        setDrafts([])
+        return
+      }
+
+      const formattedDrafts: Draft[] = (data || []).map((experiment: any) => {
+        const experimentData = experiment.experiment_data || {}
+        return {
+          experiment_id: experiment.experiment_id,
+          title: experimentData.title || "Untitled Simulation",
+          created_at: experiment.created_at,
+          sample_name: experimentData.sample?.name || "No sample"
+        }
+      })
+
+      setDrafts(formattedDrafts)
+    } catch (error) {
+      console.error("Error processing drafts:", error)
+      setDrafts([])
+    } finally {
+      setLoadingDrafts(false)
+    }
+  }
+
+  // Delete a draft
+  const handleDeleteDraft = async (experimentId: string) => {
+    if (!confirm("Are you sure you want to delete this draft?")) {
+      return
+    }
+
+    if (!user) return
+
+    try {
+      const { error } = await supabase
+        .from("experiments")
+        .delete()
+        .eq("experiment_id", experimentId)
+        .eq("user_id", user.user_id)
+
+      if (error) {
+        console.error("Error deleting draft:", error)
+        alert(`Error deleting draft: ${error.message}`)
+        return
+      }
+
+      // Refresh drafts list
+      fetchDrafts(user.user_id)
+    } catch (error) {
+      console.error("Error deleting draft:", error)
+      alert(`Error deleting draft: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
   }
 
   // Push user data to user_emails table when user is authenticated
@@ -71,6 +146,15 @@ export default function Home() {
     pushUserToDatabase()
   }, [user, isAuthenticated])
 
+  // Fetch drafts when user is authenticated
+  useEffect(() => {
+    if (user && isAuthenticated) {
+      fetchDrafts(user.user_id)
+    } else {
+      setDrafts([])
+    }
+  }, [user, isAuthenticated])
+
   // Return the home page.
   return (
     <>
@@ -83,7 +167,7 @@ export default function Home() {
           {/* Authentication banner */}
           <section className="max-w-7xl mx-auto px-6 py-16 grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
             <div>
-              <h1 className="text-4xl md:text-5xl font-bold text-[#8302AE] mb-6">Welcome to CogSim Portal!</h1>
+              <h1 className="text-4xl md:text-5xl font-bold text-[#8302AE] mb-6">Welcome to Psycsim Portal!</h1>
               <p className="text-gray-700 mb-8 max-w-lg">
                 Your gateway to cutting-edge cognitive simulations powered by artificial intelligence. Experience the future
                 of social scientific experimentation today.
@@ -120,6 +204,11 @@ export default function Home() {
               />
             </div>
           </section>
+
+         
+          
+           
+          
 
           {/* Authentication banner */}
           <section className="max-w-7xl mx-auto px-6 py-16">
@@ -194,7 +283,7 @@ export default function Home() {
                   </div>
                   <h3 className="text-xl font-semibold mb-2">Access Granted</h3>
                   <p className="text-gray-600 text-center">
-                    Gain immediate entry to your personalized CogSim workspace and all simulation tools.
+                    Gain immediate entry to your personalized Psycsim workspace and all simulation tools.
                   </p>
                 </div>
               </div>
@@ -202,81 +291,10 @@ export default function Home() {
           </section>
 
 
-          {/* Features overview */}
-          <section className="bg-gray-50 py-16">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-                {/* Left side - Simulation Visualization */}
-                <div className="relative rounded-xl overflow-hidden shadow-2xl">
-                  <img
-                    src="https://imgproxy.gamma.app/resize/quality:80/resizing_type:fit/width:1200/https://cdn.gamma.app/wbxlv1atbikacw4/generated-images/SahgKnEAflqgdLFhc_HYL.png"
-                    alt="Advanced cognitive simulation visualization"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-
-                {/* Right side - Features */}
-                <div className="space-y-12">
-                  <h2 className="text-4xl font-bold text-[#8302AE]">Features Overview</h2>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    {/* Feature 1 */}
-                    <div className="space-y-4">
-                      <div className="text-[#8302AE]">
-                        <Brain className="h-10 w-10" />
-                      </div>
-                      <h3 className="text-xl font-semibold">Advanced Simulation</h3>
-                      <p className="text-gray-600">
-                        Create sophisticated cognitive models with our intuitive AI-powered tools designed for researchers at
-                        all technical levels.
-                      </p>
-                    </div>
-
-                    {/* Feature 2 */}
-                    <div className="space-y-4">
-                      <div className="text-[#8302AE]">
-                        <Users className="h-10 w-10" />
-                      </div>
-                      <h3 className="text-xl font-semibold">Real-time Collaboration</h3>
-                      <p className="text-gray-600">
-                        Work seamlessly with colleagues across the globe, sharing simulations and insights with secure,
-                        instant synchronization.
-                      </p>
-                    </div>
-
-                    {/* Feature 3 */}
-                    <div className="space-y-4">
-                      <div className="text-[#8302AE]">
-                        <Laptop className="h-10 w-10" />
-                      </div>
-                      <h3 className="text-xl font-semibold">Cross-platform Access</h3>
-                      <p className="text-gray-600">
-                        Access your simulations from any device or operating system with our responsive, cloud-based platform.
-                      </p>
-                    </div>
-
-                    {/* Feature 4 */}
-                    <div className="space-y-4">
-                      <div className="text-[#8302AE]">
-                        <LineChart className="h-10 w-10" />
-                      </div>
-                      <h3 className="text-xl font-semibold">Powerful Analytics</h3>
-                      <p className="text-gray-600">
-                        Gain deeper insights with comprehensive data visualization and analytical tools built for social
-                        scientific research.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-
-
-          {/* About CogSim */}
+          {/* About Psycsim */}
           <section className="bg-gray-50 py-16">
             <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-              <h2 className="text-4xl font-bold text-[#8302AE] text-center mb-16">About CogSim</h2>
+              <h2 className="text-4xl font-bold text-[#8302AE] text-center mb-16">About Psycsim</h2>
 
               <div className="relative">
                 {/* Timeline line */}
@@ -341,120 +359,18 @@ export default function Home() {
           </section>
 
 
-          {/* Security assurance */}
-          <section className="bg-gray-50 py-16">
-            <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-              <h2 className="text-4xl font-bold text-[#8302AE] text-center mb-16">Security Assurance</h2>
-
-              <div className="relative max-w-3xl mx-auto">
-                {/* Diagonal background lines - for visual effect */}
-                <div className="absolute -left-4 top-0 bottom-0 w-1 bg-gray-100 transform -rotate-12 origin-top-left"></div>
-
-                <div className="space-y-8">
-                  {/* End-to-End Protection */}
-                  <div className="flex items-start gap-6 border-b border-gray-200 pb-8">
-                    <div className="p-3 rounded-full bg-white shadow-sm">
-                      <Shield className="h-6 w-6 text-gray-600" />
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-semibold">End-to-End Protection</h3>
-                      <p className="text-gray-600 mt-1">Enterprise-grade security at every level</p>
-                    </div>
-                  </div>
-
-                  {/* Data Encryption */}
-                  <div className="flex items-start gap-6 border-b border-gray-200 pb-8">
-                    <div className="p-3 rounded-full bg-white shadow-sm">
-                      <Lock className="h-6 w-6 text-gray-600" />
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-semibold">Data Encryption</h3>
-                      <p className="text-gray-600 mt-1">AES-256 encryption for all stored data</p>
-                    </div>
-                  </div>
-
-                  {/* Secure Infrastructure */}
-                  <div className="flex items-start gap-6 border-b border-gray-200 pb-8">
-                    <div className="p-3 rounded-full bg-white shadow-sm">
-                      <Server className="h-6 w-6 text-gray-600" />
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-semibold">Secure Infrastructure</h3>
-                      <p className="text-gray-600 mt-1">SOC 2 compliant cloud architecture</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Bottom text */}
-                <div className="mt-12 text-center">
-                  <p className="text-gray-700 max-w-3xl mx-auto">
-                    Your research deserves the highest level of protection. That's why we implement bank-level security
-                    protocols and regular third-party security audits to ensure your valuable data remains protected.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </section>
-          
-
-          {/* Support information */}
-          <section
-      className="relative py-16 bg-cover bg-center"
-      style={{
-        backgroundImage:
-          "linear-gradient(rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.85)), url('https://imgproxy.gamma.app/resize/quality:80/resizing_type:fit/width:2400/https://cdn.gamma.app/wbxlv1atbikacw4/generated-images/6mOvIb9bIAlndFkJPnlKy.png')",
-      }}
-    >
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        <h2 className="text-4xl font-bold text-[#8302AE] text-center mb-16">Support Information</h2>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
-          {/* 24/7 Support Hours */}
-          <div className="text-center">
-            <div className="text-5xl font-bold mb-4">24/7</div>
-            <h3 className="text-xl font-semibold mb-2">Support Hours</h3>
-            <p className="text-gray-600">Around-the-clock assistance for critical issues</p>
-          </div>
-
-          {/* Response Time */}
-          <div className="text-center">
-            <div className="text-5xl font-bold mb-4">3min</div>
-            <h3 className="text-xl font-semibold mb-2">Response Time</h3>
-            <p className="text-gray-600">Average email response during business hours</p>
-          </div>
-
-          {/* Uptime */}
-          <div className="text-center">
-            <div className="text-5xl font-bold mb-4">99.9%</div>
-            <h3 className="text-xl font-semibold mb-2">Uptime</h3>
-            <p className="text-gray-600">Platform reliability you can count on</p>
-          </div>
-        </div>
-
-        {/* Support Description */}
-        <div className="text-center max-w-3xl mx-auto">
-          <p className="text-gray-700">
-            Our dedicated support team is ready to help with any questions or technical issues. Access our comprehensive
-            knowledge base or contact <span className="font-medium">support@cogsim.ai</span> for personalized
-            assistance.
-          </p>
-        </div>
-      </div>
-    </section>
-
-
-    {/* Join the CogSim community */} 
+    {/* Join the Psycsim community */} 
     <div className="bg-gray-50 py-16">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        <h2 className="text-4xl font-bold text-[#8302AE] text-center mb-12">Join the CogSim Community</h2>
+        <h2 className="text-4xl font-bold text-[#8302AE] text-center mb-12">Join the Psycsim Community</h2>
 
         <Accordion type="multiple" defaultValue={["item-1", "item-2", "item-3"]} className="space-y-4">
           <AccordionItem value="item-1" className="border border-gray-200 rounded-md bg-white">
             <AccordionTrigger className="px-6 py-4 hover:no-underline">
-              <span className="text-left font-medium">What kinds of research can I conduct with CogSim?</span>
+              <span className="text-left font-medium">What kinds of research can I conduct with Psycsim?</span>
             </AccordionTrigger>
             <AccordionContent className="px-6 pb-4 pt-0 text-gray-600">
-              CogSim supports a wide range of social scientific research including cognitive modeling, decision-making
+              Psycsim supports a wide range of social scientific research including cognitive modeling, decision-making
               simulations, social network analysis, behavioral economics experiments, and educational psychology
               studies.
             </AccordionContent>
@@ -463,18 +379,18 @@ export default function Home() {
           <AccordionItem value="item-2" className="border border-gray-200 rounded-md bg-white">
             <AccordionTrigger className="px-6 py-4 hover:no-underline">
               <span className="text-left font-medium">
-                Is CogSim suitable for both individual researchers and teams?
+                Is Psycsim suitable for both individual researchers and teams?
               </span>
             </AccordionTrigger>
             <AccordionContent className="px-6 pb-4 pt-0 text-gray-600">
-              CogSim scales seamlessly from individual researchers to large collaborative teams with customizable
+              Psycsim scales seamlessly from individual researchers to large collaborative teams with customizable
               permissions and workspace configurations.
             </AccordionContent>
           </AccordionItem>
 
           <AccordionItem value="item-3" className="border border-gray-200 rounded-md bg-white">
             <AccordionTrigger className="px-6 py-4 hover:no-underline">
-              <span className="text-left font-medium">How do I cite CogSim in my research publications?</span>
+              <span className="text-left font-medium">How do I cite Psycsim in my research publications?</span>
             </AccordionTrigger>
             <AccordionContent className="px-6 pb-4 pt-0 text-gray-600">
               We provide standardized citation formats in APA, MLA, and Chicago styles for all simulations created on
