@@ -20,9 +20,8 @@ interface AppLayoutProps {
 export default function AppLayout({ currentPage, headerTitle, userData, children }: AppLayoutProps) {
   return (
     <div className="flex h-screen bg-gray-50">
-      <Sidebar currentPage={currentPage} />
+      <Sidebar currentPage={currentPage} userData={userData} />
       <div className="flex-1 flex flex-col">
-        <AppHeader title={headerTitle} userData={userData} />
         {children}
       </div>
     </div>

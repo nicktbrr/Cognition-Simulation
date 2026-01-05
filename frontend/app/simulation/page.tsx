@@ -836,7 +836,9 @@ function SimulationPageContent() {
     const nodes: Node[] = [];
     const edges: Edge[] = [];
     
-    const nodeSpacing = 400; // Horizontal spacing between nodes
+    const nodeWidth = 400; // Default node width
+    const gapBetweenNodes = 50; // Gap between nodes to show arrows
+    const nodeSpacing = nodeWidth + gapBetweenNodes; // Total spacing (450 pixels)
     const startY = 200; // Y position for all nodes
     const startX = 100; // Starting X position
     
