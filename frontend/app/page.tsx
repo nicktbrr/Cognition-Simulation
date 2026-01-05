@@ -181,7 +181,7 @@ export default function Home() {
                       Go to Dashboard
                     </button>
                   </Link>
-                  <Link href="/simulation">
+                  <Link href="/simulation?new=true">
                     <Button
                       variant="outline"
                       className="border-[#8302AE] text-[#8302AE] font-bold py-3 px-6 rounded-lg hover:bg-[#8302AE] hover:text-white transition-all"

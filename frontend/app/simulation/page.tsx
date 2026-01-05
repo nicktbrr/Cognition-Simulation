@@ -47,6 +47,7 @@ interface Measure {
 function SimulationPageContent() {
   const searchParams = useSearchParams();
   const modifyExperimentId = searchParams.get('modify');
+  const isNewSimulation = searchParams.get('new') === 'true';
   const { user, isLoading, isAuthenticated } = useAuth();
   const [userData, setUserData] = useState<UserData | null>(null);
   const [processDescription, setProcessDescription] = useState("");
@@ -988,9 +989,40 @@ function SimulationPageContent() {
     }
   }, [user?.user_id, isAuthenticated]);
 
-  // Load process title from localStorage on mount (only if not in modify mode)
+  // Clear draft if starting a new simulation
   useEffect(() => {
-    if (!modifyExperimentId) {
+    if (isNewSimulation && !modifyExperimentId) {
+      // Clear form fields
+      setProcessDescription("");
+      setProcessTitle("");
+      setStudyIntroduction("");
+      setSelectedSample("");
+      
+      // Clear React Flow
+      if (reactFlowRef.current) {
+        reactFlowRef.current.clearFlow();
+      }
+      
+      // Clear localStorage
+      localStorage.removeItem('simulation-flow');
+      localStorage.removeItem('simulation-title');
+      localStorage.removeItem('simulation-introduction');
+      localStorage.removeItem('simulation-sample');
+      localStorage.removeItem('last-loaded-modify-experiment-id');
+      
+      // Reset the modify experiment ref
+      loadedModifyExperimentIdRef.current = null;
+      
+      // Remove the 'new' parameter from URL without reloading
+      const url = new URL(window.location.href);
+      url.searchParams.delete('new');
+      window.history.replaceState({}, '', url.toString());
+    }
+  }, [isNewSimulation, modifyExperimentId]);
+
+  // Load process title from localStorage on mount (only if not in modify mode and not new simulation)
+  useEffect(() => {
+    if (!modifyExperimentId && !isNewSimulation) {
       const savedTitle = localStorage.getItem('simulation-title');
       if (savedTitle) {
         setProcessTitle(savedTitle);
@@ -1000,7 +1032,7 @@ function SimulationPageContent() {
         setStudyIntroduction(savedIntroduction);
       }
     }
-  }, [modifyExperimentId]);
+  }, [modifyExperimentId, isNewSimulation]);
 
   // Save process title to localStorage whenever it changes
   useEffect(() => {
@@ -1020,9 +1052,9 @@ function SimulationPageContent() {
     }
   }, [studyIntroduction]);
 
-  // Load selected sample from localStorage on mount (only if not in modify mode)
+  // Load selected sample from localStorage on mount (only if not in modify mode and not new simulation)
   useEffect(() => {
-    if (!modifyExperimentId && samples.length > 0) {
+    if (!modifyExperimentId && !isNewSimulation && samples.length > 0) {
       const savedSample = localStorage.getItem('simulation-sample');
       if (savedSample) {
         // Verify the saved sample still exists in the samples list
@@ -1035,7 +1067,7 @@ function SimulationPageContent() {
         }
       }
     }
-  }, [modifyExperimentId, samples.length]);
+  }, [modifyExperimentId, isNewSimulation, samples.length]);
 
   // Save selected sample to localStorage whenever it changes
   useEffect(() => {
@@ -1168,32 +1200,35 @@ function SimulationPageContent() {
           <>
             {/* Left Sidebar - Tools */}
             <div className={`w-56 bg-white border-r border-gray-200 p-4 space-y-6 transition-opacity duration-500 overflow-y-auto ${contentLoaded ? 'opacity-100' : 'opacity-0'}`}>
-          {/* Title of Study */}
+          {/* Describe Your Study */}
           <div>
             <h3 className="text-sm font-semibold text-gray-700 mb-2">
-              Title of Study
-            </h3>
-            <input
-              type="text"
-              placeholder="Enter study title..."
-              value={processTitle}
-              onChange={(e) => setProcessTitle(e.target.value)}
-              className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-
-          {/* Study Introduction */}
-          <div>
-            <h3 className="text-sm font-semibold text-gray-700 mb-2">
-              Study Introduction
+              Describe Your Study
             </h3>
             <textarea
-              placeholder="Enter study introduction..."
-              value={studyIntroduction}
-              onChange={(e) => setStudyIntroduction(e.target.value)}
-              className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              rows={4}
+              placeholder="Describe the study you want to simulate..."
+              value={processDescription}
+              onChange={(e) => setProcessDescription(e.target.value)}
+              disabled={isGeneratingSteps}
+              className="w-full h-32 px-3 py-2 text-sm bg-white border border-gray-200 rounded resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed mb-2"
             />
+            <Button 
+              onClick={handleGenerateSteps}
+              disabled={isGeneratingSteps}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+            >
+              {isGeneratingSteps ? (
+                <>
+                  <Spinner size="sm" />
+                  <span>Generating...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4" />
+                  Generate Steps
+                </>
+              )}
+            </Button>
           </div>
 
           {/* Colors Section */}
@@ -1330,38 +1365,36 @@ function SimulationPageContent() {
 
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col">
-          {/* Form Section - Describe Your Study */}
+          {/* Form Section - Title and Introduction */}
           <div className="bg-gray-50 p-4 border-b border-gray-200 flex-shrink-0">
             <div className="max-w-2xl mx-auto w-full">
-              <div className="flex flex-col">
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Describe Your Study
-                </h3>
-                <div className="flex items-center gap-3">
-                  <textarea
-                    placeholder="Describe the study you want to simulate..."
-                    value={processDescription}
-                    onChange={(e) => setProcessDescription(e.target.value)}
-                    disabled={isGeneratingSteps}
-                    className="flex-1 h-20 px-4 py-3 bg-white border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+              <div className="flex flex-col space-y-4">
+                {/* Title of Study */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    Title of Study
+                  </h3>
+                  <input
+                    type="text"
+                    placeholder="Enter study title..."
+                    value={processTitle}
+                    onChange={(e) => setProcessTitle(e.target.value)}
+                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
-                  <Button 
-                    onClick={handleGenerateSteps}
-                    disabled={isGeneratingSteps}
-                    className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-                  >
-                    {isGeneratingSteps ? (
-                      <>
-                        <Spinner size="sm" />
-                        <span>Generating...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-4 h-4" />
-                        Generate Steps
-                      </>
-                    )}
-                  </Button>
+                </div>
+
+                {/* Study Introduction */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    Study Introduction
+                  </h3>
+                  <textarea
+                    placeholder="Enter study introduction..."
+                    value={studyIntroduction}
+                    onChange={(e) => setStudyIntroduction(e.target.value)}
+                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    rows={4}
+                  />
                 </div>
               </div>
             </div>

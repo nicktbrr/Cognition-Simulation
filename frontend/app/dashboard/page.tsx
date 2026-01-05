@@ -825,7 +825,7 @@ export default function DashboardHistory() {
             <FolderPlus className="w-4 h-4" />
             New Folder
           </Button>
-          <Link href="/simulation">
+          <Link href="/simulation?new=true">
             <Button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg flex items-center gap-2">
               <Play className="w-4 h-4" />
               New Simulation

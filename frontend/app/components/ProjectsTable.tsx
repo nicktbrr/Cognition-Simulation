@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { ChevronDown, Folder } from "lucide-react";
+import { ChevronDown, ChevronRight, Folder } from "lucide-react";
 import StatusBadge from "./ui/StatusBadge";
 import DownloadButton from "./ui/DownloadButton";
 import ProjectDropdown from "./ui/ProjectDropdown";
@@ -196,12 +196,16 @@ export default function ProjectsTable({
                 className="flex items-center gap-2 text-left"
               >
                 <div 
-                  className={`w-8 h-8 flex items-center justify-center transition-transform ${expandedRows.has(project.id!) ? 'rotate-180' : ''}`}
+                  className="w-8 h-8 flex items-center justify-center"
                   style={{
                     borderRadius: 'calc(var(--radius) - 2px)'
                   }}
                 >
-                  <ChevronDown className="w-4 h-4" />
+                  {expandedRows.has(project.id!) ? (
+                    <ChevronDown className="w-4 h-4" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4" />
+                  )}
                 </div>
                 <span className="font-medium text-gray-900">{project.name}</span>
               </button>
@@ -301,10 +305,12 @@ export default function ProjectsTable({
                         onClick={() => toggleFolderExpansion(folder.folder_id)}
                         className="flex items-center gap-2 text-left w-full"
                       >
-                        <div 
-                          className={`w-6 h-6 flex items-center justify-center transition-transform ${expandedFolders.has(folder.folder_id) ? 'rotate-90' : ''}`}
-                        >
-                          <ChevronDown className="w-4 h-4" />
+                        <div className="w-6 h-6 flex items-center justify-center">
+                          {expandedFolders.has(folder.folder_id) ? (
+                            <ChevronDown className="w-4 h-4" />
+                          ) : (
+                            <ChevronRight className="w-4 h-4" />
+                          )}
                         </div>
                         <Folder className="w-4 h-4 text-gray-600" />
                         <span className="font-medium text-gray-900">{folder.folder_name}</span>
