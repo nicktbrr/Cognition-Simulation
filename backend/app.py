@@ -200,17 +200,6 @@ def run_evaluation(uuid, data, key_g, jwt=None):
             "progress": 10,
         }).eq("experiment_id", uuid).execute()
 
-        # Check and generate persona for sample with 'NA' persona
-        # sample = data.get('sample')
-        # if sample and sample.get('persona', '').upper() == 'NA':
-        #     print("Sample has NA persona, generating new persona...")
-        #     from utils.evaluate import generate_persona_from_attributes
-        #     generated_persona = generate_persona_from_attributes(sample, key_g, supabase)
-        #     if generated_persona:
-        #         print(f"Generated persona: {generated_persona}")
-        #         # Update the sample in the data with the new persona
-        #         sample['persona'] = generated_persona
-        #         data['sample'] = sample
 
         # Check if persona already exists in the database
         sample_id = data.get('sample')['id']
@@ -359,8 +348,6 @@ class Evaluation(Resource):
             uuid = request.get_json()['id']
             data = request.get_json()['data']
 
-
-            print("data", data)
             supabase: Client = create_client(url, key)
             if jwt:
                 supabase.auth.set_session(jwt, "")
@@ -464,6 +451,9 @@ class GenerateSteps(Resource):
             logger.debug(f"[{request_id}] Request data received: {json.dumps(data, indent=2)[:500]}")  # Log first 500 chars
             
             user_prompt = data.get('prompt')
+            title = data.get('title', '')  # Optional: study title for context
+            introduction = data.get('introduction', '')  # Optional: study introduction for context
+            
             logger.info(f"[{request_id}] User prompt length: {len(user_prompt) if user_prompt else 0} characters")
             
             if not user_prompt:
@@ -473,8 +463,8 @@ class GenerateSteps(Resource):
             # System prompt for the cognitive science researcher
             system_prompt = GENERATE_STEPS_SYSTEM_PROMPT
 
-            # User prompt
-            full_prompt = get_generate_steps_user_prompt(user_prompt)
+            # User prompt with title and introduction as context
+            full_prompt = get_generate_steps_user_prompt(user_prompt, title=title, introduction=introduction)
             logger.debug(f"[{request_id}] Full prompt prepared (length: {len(full_prompt)} characters)")
             
             # Configure Gemini API
@@ -568,17 +558,45 @@ class GenerateSteps(Resource):
             logger.debug(f"[{request_id}] Step keys: {step_keys}")
             
             # Normalize any steps that use "description" instead of "instructions"
-            for step_key in step_keys:
+            # Also filter out introduction steps
+            introduction_keywords = ['introduction', 'welcome', 'overview', 'context', 'background', 'purpose']
+            filtered_steps = {}
+            step_counter = 1
+            
+            for step_key in sorted(step_keys):  # Sort to maintain order
                 step = steps_data[step_key]
                 if isinstance(step, dict):
+                    # Normalize "description" to "instructions"
                     if "description" in step and "instructions" not in step:
                         logger.warning(f"[{request_id}] Step {step_key} uses 'description' instead of 'instructions', normalizing...")
                         step["instructions"] = step.pop("description")
                     elif "description" in step and "instructions" in step:
                         logger.warning(f"[{request_id}] Step {step_key} has both 'description' and 'instructions', removing 'description'")
                         step.pop("description")
+                    
+                    # Check if this is an introduction step and filter it out
+                    step_title = step.get('title', '').lower().strip()
+                    is_introduction_step = any(keyword in step_title for keyword in introduction_keywords)
+                    
+                    if is_introduction_step:
+                        logger.warning(f"[{request_id}] Filtering out introduction step: {step_key} with title '{step.get('title', '')}'")
+                        continue  # Skip this step
+                    
+                    # Renumber the step
+                    new_step_key = f"step{step_counter:02d}"
+                    filtered_steps[new_step_key] = step
+                    step_counter += 1
             
-            logger.info(f"[{request_id}] Response validated and normalized successfully")
+            if not filtered_steps:
+                logger.error(f"[{request_id}] All steps were filtered out as introduction steps")
+                return jsonify({
+                    "status": "error",
+                    "message": "No valid steps generated. Please ensure your prompt describes actual tasks, not just an introduction."
+                }), 500
+            
+            # Replace steps_data with filtered steps
+            steps_data = filtered_steps
+            logger.info(f"[{request_id}] Response validated and normalized successfully. {len(filtered_steps)} step(s) after filtering out introduction steps.")
             
             # steps_data is already a dict with all dynamic step fields, ready to return
             output_dict = steps_data

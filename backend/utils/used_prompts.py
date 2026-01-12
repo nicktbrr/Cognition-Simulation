@@ -20,15 +20,11 @@ Your goal: Receive a description as user input and convert it into a more specif
 
 The input should be a description of a cognitive task, behavior, or goal to accomplish. It may be poorly worded, theoretically incomplete, or overly general, in which case you should use your expertise as a cognitive scientist to add more detail and rigor.
 
+If a study title or introduction is provided as context, these are FOR CONTEXT ONLY. They help you understand the study's purpose, but you must NEVER generate them as steps. The introduction is already provided to participants separately and should NOT appear in your step output.
+
 ### Output specifications:
 
-The Output should lay out the following:
-
-1. Study introduction and context:
-    1.1. A very brief welcome message that states the high level purpose of the study without risk of biasing the participants
-    1.2. A set of general instructions for participants to learn how to complete the task.
-
-2. A set of steps with the following characteristics:
+Generate ONLY a set of steps with the following characteristics:
   - Each step should have a one-or-two-word title
   - Each step should have a set of clear instructions for the participant to follow
   - Step instruction should be aligned with the title of the step
@@ -36,6 +32,7 @@ The Output should lay out the following:
   - Each step should be concise and clear, avoiding unnecessary jargon or complexity
   - There's no limit to the number of steps unless the user specifies the number of steps, and each step should represent one discrete and atomic activity at a time until it reaches the end goal
   - Remember your main goal is to convert the user input into a sequence of steps representing a cognitive model or process for participants to follow
+  - CRITICAL: NEVER generate an introduction step. If a study introduction is provided as context, use it ONLY for understanding the study context. The introduction is NOT a step and must NEVER appear in your output.
 
 Generate the output in JSON format with the following EXACT structure (use "instructions" not "description" for steps):
 {
@@ -50,8 +47,17 @@ Generate the output in JSON format with the following EXACT structure (use "inst
   ...
 }
 
-IMPORTANT: All steps must use "instructions" (not "description") as the field name AND no more than 10 steps.
-IMPORTANT: If the user specifies the number of steps, you must generate the exact number of steps specified."""
+CRITICAL RULES - MUST FOLLOW:
+1. All steps must use "instructions" (not "description") as the field name AND no more than 10 steps.
+2. If the user specifies the number of steps, you must generate the exact number of steps specified.
+3. NEVER, UNDER ANY CIRCUMSTANCES, generate an introduction step. The study introduction (if provided) is context only and must NEVER appear as a step in the output.
+4. Do NOT create steps with titles like "Introduction", "Welcome", "Overview", "Context", or any variation that suggests introducing the study. These are NOT steps.
+5. Start directly with the first actual task/activity step. The introduction is handled separately and is not part of the step sequence.
+
+VALIDATION: Before returning your response, verify that:
+- No step has a title related to introduction, welcome, overview, or context
+- All steps are actual tasks/activities that participants will perform
+- The study introduction (if provided) does not appear anywhere in your step output"""
 
 
 # System prompt for baseline prompt generation (from utils/prompts.py - baseline_prompt)
@@ -153,17 +159,44 @@ IMPORTANT:
 # ============================================================================
 
 # User prompt for generating simulation steps (from app.py - GenerateSteps)
-def get_generate_steps_user_prompt(user_prompt: str) -> str:
+def get_generate_steps_user_prompt(user_prompt: str, title: str = '', introduction: str = '') -> str:
     """
     Generate the user prompt for simulation step generation.
     
     Args:
         user_prompt: The user's description of a cognitive task, behavior, or goal
+        title: Optional study title for context only
+        introduction: Optional study introduction for context only
     
     Returns:
-        str: Formatted user prompt
+        str: Formatted user prompt with context
     """
-    return f"Given the following user input, generate simulation steps:\n\n{user_prompt}"
+    context_parts = []
+    
+    # Add title as context if provided
+    if title and title.strip():
+        context_parts.append(f"Study Title: {title.strip()}")
+    
+    # Add introduction as context if provided
+    if introduction and introduction.strip():
+        context_parts.append(f"Study Introduction: {introduction.strip()}")
+    
+    # Build the prompt
+    prompt = "Given the following user input, generate simulation steps"
+    
+    if context_parts:
+        prompt += " (use the following context for reference only - do NOT generate these as steps):\n\n"
+        prompt += "\n\n".join(context_parts)
+        prompt += "\n\n"
+    else:
+        prompt += ":\n\n"
+    
+    prompt += f"User Input: {user_prompt}"
+    
+    if context_parts:
+        prompt += "\n\nRemember: The study title and introduction above are provided as context only. Do NOT generate an introduction step - only generate the actual simulation steps."
+    
+    return prompt
 
 
 # User prompt for first column in baseline prompt (from utils/prompts.py - process_row_with_chat)
