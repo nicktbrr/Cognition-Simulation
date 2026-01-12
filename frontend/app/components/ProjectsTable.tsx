@@ -37,6 +37,7 @@ interface Project {
   downloads: Download[];
   steps: SimulationStep[];
   id?: string;
+  experiment_id?: string; // Backend experiment ID for polling
   folder_id?: string | null;
 }
 
@@ -135,6 +136,10 @@ export default function ProjectsTable({
   const handleDragStart = (e: React.DragEvent, projectId: string) => {
     setDraggedProject(projectId);
     e.dataTransfer.effectAllowed = "move";
+    // Store the project ID in dataTransfer for better compatibility
+    e.dataTransfer.setData("text/plain", projectId);
+    // Allow dragging from anywhere
+    e.stopPropagation();
   };
 
   const handleDragOver = (e: React.DragEvent, folderId: string | null | 'root') => {
@@ -149,8 +154,11 @@ export default function ProjectsTable({
 
   const handleDrop = (e: React.DragEvent, folderId: string | null) => {
     e.preventDefault();
-    if (draggedProject && onDropToFolder) {
-      onDropToFolder(draggedProject, folderId);
+    e.stopPropagation();
+    // Get project ID from either draggedProject state or dataTransfer
+    const projectId = draggedProject || e.dataTransfer.getData("text/plain");
+    if (projectId && onDropToFolder) {
+      onDropToFolder(projectId, folderId);
     }
     setDraggedProject(null);
     setDragOverFolder(null);
@@ -181,18 +189,41 @@ export default function ProjectsTable({
 
   const renderProjectRow = (project: Project, index: number, isInFolder: boolean = false, totalInGroup: number = 0) => {
     const projectIndex = projects.findIndex(p => p.id === project.id);
+    // Use experiment_id if available, otherwise fall back to id
+    const projectId = project.experiment_id || project.id;
     return (
       <React.Fragment key={project.id || index}>
         <tr 
-          className={`${isInFolder ? 'bg-gray-50 hover:bg-gray-100' : 'hover:bg-gray-50'} ${draggedProject === project.id ? 'opacity-50' : ''}`}
-          draggable
-          onDragStart={(e) => handleDragStart(e, project.id!)}
+          className={`${isInFolder ? 'bg-gray-50 hover:bg-gray-100' : 'hover:bg-gray-50'} ${draggedProject === projectId ? 'opacity-50' : ''}`}
+          draggable={true}
+          onDragStart={(e) => {
+            if (projectId) {
+              handleDragStart(e, projectId);
+            }
+          }}
           onDragEnd={handleDragEnd}
+          onDragOver={(e) => {
+            // Prevent default to allow drop
+            e.preventDefault();
+          }}
         >
           <td className={`px-6 py-4 ${isInFolder ? 'pl-12' : ''}`}>
             <div className="flex items-center justify-between">
               <button 
-                onClick={() => toggleRowExpansion(project.id!)}
+                onClick={(e) => {
+                  // Don't trigger expand when dragging
+                  if (draggedProject) {
+                    e.preventDefault();
+                    return;
+                  }
+                  toggleRowExpansion(project.id!);
+                }}
+                onMouseDown={(e) => {
+                  // Allow drag to start even if button is pressed
+                  if (!draggedProject) {
+                    e.stopPropagation();
+                  }
+                }}
                 className="flex items-center gap-2 text-left"
               >
                 <div 
@@ -296,14 +327,53 @@ export default function ProjectsTable({
                 <React.Fragment key={folder.folder_id}>
                   <tr
                     className={`hover:bg-gray-50 ${dragOverFolder === folder.folder_id ? 'bg-blue-50' : ''}`}
-                    onDragOver={(e) => handleDragOver(e, folder.folder_id)}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleDragOver(e, folder.folder_id);
+                    }}
                     onDragLeave={handleDragLeave}
-                    onDrop={(e) => handleDrop(e, folder.folder_id)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleDrop(e, folder.folder_id);
+                    }}
                   >
-                    <td colSpan={6} className="px-6 py-3 bg-gray-100">
+                    <td 
+                      colSpan={6} 
+                      className="px-6 py-3 bg-gray-100"
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleDragOver(e, folder.folder_id);
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleDrop(e, folder.folder_id);
+                      }}
+                    >
                       <button
-                        onClick={() => toggleFolderExpansion(folder.folder_id)}
-                        className="flex items-center gap-2 text-left w-full"
+                        onClick={(e) => {
+                          // Don't trigger drag when clicking
+                          if (draggedProject) {
+                            e.preventDefault();
+                            return;
+                          }
+                          toggleFolderExpansion(folder.folder_id);
+                        }}
+                        className="flex items-center gap-2 text-left w-full pointer-events-auto"
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleDragOver(e, folder.folder_id);
+                        }}
+                        onMouseDown={(e) => {
+                          // Allow drag to work even when button is pressed
+                          if (draggedProject) {
+                            e.preventDefault();
+                          }
+                        }}
                       >
                         <div className="w-6 h-6 flex items-center justify-center">
                           {expandedFolders.has(folder.folder_id) ? (

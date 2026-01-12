@@ -127,6 +127,8 @@ def process_row_with_chat(row_idx, df, prompt, key_g, system_prompt, persona):
 
             # Configure and call the AI model
             genai.configure(api_key=key_g)
+
+            print("llm_prompt", llm_prompt)
             model = genai.GenerativeModel(
                 "gemini-2.0-flash", system_instruction=system_prompt)
 
