@@ -197,7 +197,11 @@ function SimulationPageContent() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({ prompt: processDescription }),
+        body: JSON.stringify({ 
+          prompt: processDescription,
+          title: processTitle || '',
+          introduction: studyIntroduction || ''
+        }),
       });
 
       if (!response.ok) {
