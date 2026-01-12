@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { Plus, ChevronLeft, ChevronRight, ChevronDown, MoreVertical, Edit, Copy, Trash2 } from "lucide-react";
+import { Plus, ChevronDown, MoreVertical, Edit, Copy, Trash2 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
@@ -398,7 +398,7 @@ export default function MeasuresPage() {
                         >
                           <ChevronDown 
                             className={`h-4 w-4 transition-transform ${
-                              expandedRows.has(measure.id) ? 'rotate-180' : ''
+                              expandedRows.has(measure.id) ? '' : '-rotate-90'
                             }`}
                           />
                         </Button>

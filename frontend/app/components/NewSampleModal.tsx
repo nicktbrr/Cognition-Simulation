@@ -103,9 +103,9 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample 
   const [attributeSelections, setAttributeSelections] = useState<AttributeSelection[]>([]);
   const [activeAttributePanel, setActiveAttributePanel] = useState<Attribute | null>(null);
   const [tempSelectedOptions, setTempSelectedOptions] = useState<string[]>([]);
-  const [ageRange, setAgeRange] = useState({ min: 18, max: 82 });
-  const [tempAgeRange, setTempAgeRange] = useState({ min: 18, max: 82 });
-  const [tempAgeInput, setTempAgeInput] = useState({ min: '18', max: '82' });
+  const [ageRange, setAgeRange] = useState({ min: 5, max: 82 });
+  const [tempAgeRange, setTempAgeRange] = useState({ min: 5, max: 82 });
+  const [tempAgeInput, setTempAgeInput] = useState({ min: '5', max: '82' });
   const [panelPosition, setPanelPosition] = useState<{ top: number; left: number } | null>(null);
   const [checkedOptions, setCheckedOptions] = useState<Set<string>>(new Set());
   const [categoryExpanded, setCategoryExpanded] = useState<{ [key: string]: boolean }>({
@@ -241,8 +241,8 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample 
         setTempAgeRange({ min: minAge, max: maxAge });
         setTempAgeInput({ min: minAge.toString(), max: maxAge.toString() });
       } else {
-        setTempAgeRange({ min: 18, max: 82 });
-        setTempAgeInput({ min: '18', max: '82' });
+        setTempAgeRange({ min: 5, max: 82 });
+        setTempAgeInput({ min: '5', max: '82' });
       }
     } else if (attribute.options) {
       // If attribute has options, open the detail panel
@@ -309,8 +309,8 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample 
 
         // Close panel
         setActiveAttributePanel(null);
-        setTempAgeRange({ min: 18, max: 82 });
-        setTempAgeInput({ min: '18', max: '82' });
+        setTempAgeRange({ min: 5, max: 82 });
+        setTempAgeInput({ min: '5', max: '82' });
       } else if (tempSelectedOptions.length > 0) {
         // Handle regular options selection
         const newSelection: AttributeSelection = {
@@ -343,8 +343,8 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample 
   const handleCloseAttributePanel = () => {
     setActiveAttributePanel(null);
     setTempSelectedOptions([]);
-    setTempAgeRange({ min: 18, max: 82 });
-    setTempAgeInput({ min: '18', max: '82' });
+    setTempAgeRange({ min: 5, max: 82 });
+    setTempAgeInput({ min: '5', max: '82' });
     setPanelPosition(null);
   };
 
@@ -422,8 +422,8 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample 
     setAttributeSelections([]);
     setActiveAttributePanel(null);
     setTempSelectedOptions([]);
-    setTempAgeRange({ min: 18, max: 82 });
-    setTempAgeInput({ min: '18', max: '82' });
+    setTempAgeRange({ min: 5, max: 82 });
+    setTempAgeInput({ min: '5', max: '82' });
     setPanelPosition(null);
     setCheckedOptions(new Set());
     onClose();
@@ -658,11 +658,11 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample 
             </div>
 
             {/* Options List / Age Range Inputs */}
-            <div className="flex-1 overflow-y-auto p-4 min-h-0" style={{ maxHeight: 'calc(85vh - 200px)' }}>
+            <div className="flex-1 overflow-y-auto p-4 min-h-0 pb-4">
               {activeAttributePanel.id === 'age' ? (
                 <div className="space-y-4">
                   <div className="text-sm text-gray-600 mb-4">
-                    Select the age range for your sample (18-82 years):
+                    Select the age range for your sample (5-82 years):
                   </div>
                   <div className="space-y-4">
                     <div>
@@ -671,7 +671,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample 
                       </label>
                       <input
                         type="text"
-                        placeholder="18"
+                        placeholder="5"
                         value={tempAgeInput.min}
                         onChange={(e) => {
                           const inputValue = e.target.value;
@@ -680,7 +680,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample 
                           // Update the numeric range for validation
                           const numValue = parseInt(inputValue);
                           if (!isNaN(numValue)) {
-                            const validValue = Math.max(18, Math.min(82, numValue));
+                            const validValue = Math.max(5, Math.min(82, numValue));
                             setTempAgeRange(prev => ({ 
                               ...prev, 
                               min: validValue,
@@ -706,7 +706,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample 
                           // Update the numeric range for validation
                           const numValue = parseInt(inputValue);
                           if (!isNaN(numValue)) {
-                            const validValue = Math.max(18, Math.min(82, numValue));
+                            const validValue = Math.max(5, Math.min(82, numValue));
                             setTempAgeRange(prev => ({ 
                               ...prev, 
                               max: validValue,
@@ -743,7 +743,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample 
             </div>
 
             {/* Tooltip Footer */}
-            <div className="border-t border-gray-200 p-4 flex-shrink-0 bg-white sticky bottom-0">
+            <div className="border-t border-gray-200 p-4 flex-shrink-0 bg-white">
               {activeAttributePanel.id === 'age' ? (
                 <Button
                   onClick={handleAddToSelection}
