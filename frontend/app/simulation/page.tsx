@@ -1366,12 +1366,12 @@ function SimulationPageContent() {
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col">
           {/* Form Section - Title and Introduction */}
-          <div className="bg-gray-50 p-4 border-b border-gray-200 flex-shrink-0">
-            <div className="max-w-2xl mx-auto w-full">
-              <div className="flex flex-col space-y-4">
+          <div className="bg-gray-50 p-3 border-b border-gray-200 flex-shrink-0">
+            <div className="w-full">
+              <div className="flex flex-row gap-4">
                 {/* Title of Study */}
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                <div className="w-[20%]">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-1.5">
                     Title of Study
                   </h3>
                   <input
@@ -1379,21 +1379,21 @@ function SimulationPageContent() {
                     placeholder="Enter study title..."
                     value={processTitle}
                     onChange={(e) => setProcessTitle(e.target.value)}
-                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                   />
                 </div>
 
                 {/* Study Introduction */}
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                <div className="w-[80%]">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-1.5">
                     Study Introduction
                   </h3>
                   <textarea
                     placeholder="Enter study introduction..."
                     value={studyIntroduction}
                     onChange={(e) => setStudyIntroduction(e.target.value)}
-                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    rows={4}
+                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    rows={2}
                   />
                 </div>
               </div>

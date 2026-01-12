@@ -645,7 +645,7 @@ export default function SamplesPage() {
                             >
                               <ChevronDown 
                                 className={`h-4 w-4 transition-transform ${
-                                  sample.expanded ? 'rotate-180' : ''
+                                  sample.expanded ? '' : '-rotate-90'
                                 }`}
                               />
                             </Button>

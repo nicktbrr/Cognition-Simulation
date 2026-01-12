@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { ChevronDown, ChevronRight, Folder } from "lucide-react";
+import { ChevronDown, Folder } from "lucide-react";
 import StatusBadge from "./ui/StatusBadge";
 import DownloadButton from "./ui/DownloadButton";
 import ProjectDropdown from "./ui/ProjectDropdown";
@@ -232,11 +232,11 @@ export default function ProjectsTable({
                     borderRadius: 'calc(var(--radius) - 2px)'
                   }}
                 >
-                  {expandedRows.has(project.id!) ? (
-                    <ChevronDown className="w-4 h-4" />
-                  ) : (
-                    <ChevronRight className="w-4 h-4" />
-                  )}
+                  <ChevronDown 
+                    className={`w-4 h-4 transition-transform ${
+                      expandedRows.has(project.id!) ? '' : '-rotate-90'
+                    }`}
+                  />
                 </div>
                 <span className="font-medium text-gray-900">{project.name}</span>
               </button>
@@ -376,11 +376,11 @@ export default function ProjectsTable({
                         }}
                       >
                         <div className="w-6 h-6 flex items-center justify-center">
-                          {expandedFolders.has(folder.folder_id) ? (
-                            <ChevronDown className="w-4 h-4" />
-                          ) : (
-                            <ChevronRight className="w-4 h-4" />
-                          )}
+                          <ChevronDown 
+                            className={`w-4 h-4 transition-transform ${
+                              expandedFolders.has(folder.folder_id) ? '' : '-rotate-90'
+                            }`}
+                          />
                         </div>
                         <Folder className="w-4 h-4 text-gray-600" />
                         <span className="font-medium text-gray-900">{folder.folder_name}</span>
