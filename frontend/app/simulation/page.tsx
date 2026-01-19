@@ -12,7 +12,7 @@ import SubHeader from "../components/layout/SubHeader";
 import ReactFlowApp, { ReactFlowRef } from "../components/react-flow";
 import { Node, Edge } from "@xyflow/react";
 import Spinner from "../components/ui/spinner";
-import IntroductionSelectionModal from "../components/IntroductionSelectionModal";
+import IntroductionSelectionModal from "@/app/components/IntroductionSelectionModal";
 
 type Sample = {
   id: string; // Changed to string for UUID

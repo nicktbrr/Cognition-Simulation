@@ -5,7 +5,7 @@ import { ChevronDown, Folder } from "lucide-react";
 import StatusBadge from "./ui/StatusBadge";
 import DownloadButton from "./ui/DownloadButton";
 import ProjectDropdown from "./ui/ProjectDropdown";
-import FolderDropdown from "./ui/FolderDropdown";
+import FolderDropdown from "@/app/components/ui/FolderDropdown";
 import SortableTableHeader from "./ui/SortableTableHeader";
 import SimulationSteps from "./ui/SimulationSteps";
 
