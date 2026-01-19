@@ -338,7 +338,7 @@ export default function DashboardHistory() {
     }
 
     try {
-      // Find the project to get its configKey (to move all experiments in the group)
+      // Find the project to get its configKey and folder_id (to move all experiments in the group)
       const project = projects.find(p => p.experiment_id === projectId);
       if (!project) {
         console.error("Project not found");
@@ -346,50 +346,15 @@ export default function DashboardHistory() {
         return;
       }
 
-      // If project has a configKey, find all experiments with the same configKey
-      // Otherwise, just update the single experiment
-      let experimentIds: string[] = [];
-      
-      if (project.configKey) {
-        // Find all experiments with the same configKey
-        const { data: allExperiments, error: fetchError } = await supabase
-          .from("experiments")
-          .select("experiment_id, experiment_data")
-          .eq("user_id", user.user_id);
-
-        if (fetchError) {
-          console.error("Error fetching experiments:", fetchError);
-          alert("Error fetching experiments. Please try again.");
-          return;
-        }
-
-        // Find experiments with matching configKey
-        const matchingExperiments = (allExperiments || []).filter((exp: any) => {
-          const expData = exp.experiment_data || {};
-          const expConfigKey = getExperimentConfigKey(expData);
-          return expConfigKey === project.configKey;
-        });
-
-        experimentIds = matchingExperiments.map((exp: any) => exp.experiment_id);
-      } else {
-        // If no configKey, just update the single experiment
-        experimentIds = [projectId];
-      }
-
-      if (experimentIds.length === 0) {
-        console.error("No experiments found to update");
-        alert("Error: No experiments found to move. Please try again.");
-        return;
-      }
-
-      // Update all matching experiments
+      // Update only the specific experiment (not all in the group)
       // Handle null folderId by explicitly setting it to null (not undefined)
+      const oldFolderId = project.folder_id || null;
       const updateData: { folder_id: string | null } = { folder_id: folderId };
       
       const { error: updateError } = await supabase
         .from("experiments")
         .update(updateData)
-        .in("experiment_id", experimentIds)
+        .eq("experiment_id", projectId)
         .eq("user_id", user.user_id); // Add user_id filter for security
 
       if (updateError) {
@@ -398,11 +363,41 @@ export default function DashboardHistory() {
         return;
       }
 
-      // Refresh projects and folders after successful move
-      await Promise.all([
-        getProjects(user.user_id),
-        getFolders(user.user_id) // Refresh to update project counts
-      ]);
+      // Update local state instead of refreshing
+      // Update projects state - match by experiment_id to move only the specific project
+      setProjects(prevProjects => {
+        return prevProjects.map(p => {
+          // Match the specific project by experiment_id
+          if (p.experiment_id === projectId) {
+            return {
+              ...p,
+              folder_id: folderId
+            };
+          }
+          return p;
+        });
+      });
+
+      // Update folder counts locally
+      setFolders(prevFolders => {
+        return prevFolders.map(folder => {
+          // Decrease count for old folder (if it exists)
+          if (oldFolderId && folder.folder_id === oldFolderId) {
+            return {
+              ...folder,
+              project_count: Math.max(0, (folder.project_count || 0) - 1)
+            };
+          }
+          // Increase count for new folder (if it exists and is not null)
+          if (folderId && folder.folder_id === folderId) {
+            return {
+              ...folder,
+              project_count: (folder.project_count || 0) + 1
+            };
+          }
+          return folder;
+        });
+      });
       
       setShowMoveToFolderModal(false);
       setProjectToMove(null);

@@ -14,6 +14,7 @@ interface Download {
   id: number;
   url?: string;
   filename?: string;
+  created_at?: string;
 }
 
 interface SimulationStep {
@@ -78,10 +79,59 @@ export default function ProjectsTable({
   const [draggedProject, setDraggedProject] = useState<string | null>(null);
   const [dragOverFolder, setDragOverFolder] = useState<string | null | 'root'>(null);
 
-  // Update sortedProjects when projects prop changes
+  // Update sortedProjects when projects prop changes or sortConfig changes
   React.useEffect(() => {
-    setSortedProjects(projects);
-  }, [projects]);
+    if (!sortConfig) {
+      setSortedProjects(projects);
+      return;
+    }
+
+    const sorted = [...projects].sort((a, b) => {
+      const { key, direction } = sortConfig;
+      
+      if (key === 'name') {
+        return direction === 'asc' 
+          ? a.name.localeCompare(b.name) 
+          : b.name.localeCompare(a.name);
+      }
+      
+      if (key === 'sample_name') {
+        return direction === 'asc' 
+          ? a.sample_name.localeCompare(b.sample_name) 
+          : b.sample_name.localeCompare(a.sample_name);
+      }
+      
+      if (key === 'status') {
+        return direction === 'asc' 
+          ? a.status.localeCompare(b.status) 
+          : b.status.localeCompare(a.status);
+      }
+      
+      if (key === 'download_date') {
+        // Sort by the most recent download date
+        // Projects with no downloads go to the end
+        const aHasDownloads = a.downloads.length > 0;
+        const bHasDownloads = b.downloads.length > 0;
+        
+        // If one has downloads and the other doesn't, prioritize the one with downloads
+        if (aHasDownloads && !bHasDownloads) return -1;
+        if (!aHasDownloads && bHasDownloads) return 1;
+        if (!aHasDownloads && !bHasDownloads) return 0;
+        
+        // Both have downloads, sort by date
+        const aDate = new Date(a.downloads[0].created_at || a.downloads[0].date).getTime();
+        const bDate = new Date(b.downloads[0].created_at || b.downloads[0].date).getTime();
+        
+        return direction === 'asc' 
+          ? aDate - bDate 
+          : bDate - aDate;
+      }
+      
+      return 0;
+    });
+    
+    setSortedProjects(sorted);
+  }, [projects, sortConfig]);
 
   const toggleRowExpansion = (projectId: string) => {
     const newExpandedRows = new Set(expandedRows);
@@ -119,20 +169,7 @@ export default function ProjectsTable({
       direction = 'desc';
     }
     setSortConfig({ key, direction });
-
-    const sorted = [...projects].sort((a, b) => {
-      if (key === 'name') {
-        return direction === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name);
-      }
-      if (key === 'sample_name') {
-        return direction === 'asc' ? a.sample_name.localeCompare(b.sample_name) : b.sample_name.localeCompare(a.sample_name);
-      }
-      if (key === 'status') {
-        return direction === 'asc' ? a.status.localeCompare(b.status) : b.status.localeCompare(a.status);
-      }
-      return 0;
-    });
-    setSortedProjects(sorted);
+    // The actual sorting is handled in the useEffect above
   };
 
   const handleStartRename = (projectId: string, currentName: string) => {
@@ -185,9 +222,9 @@ export default function ProjectsTable({
     setDragOverFolder(null);
   };
 
-  // Group projects by folder
+  // Group sorted projects by folder
   const projectsByFolder = new Map<string | null, Project[]>();
-  projects.forEach(project => {
+  sortedProjects.forEach(project => {
     // Handle both undefined and null folder_id - treat both as root (null)
     const folderId = (project.folder_id === undefined || project.folder_id === null) ? null : project.folder_id;
     if (!projectsByFolder.has(folderId)) {
@@ -204,7 +241,7 @@ export default function ProjectsTable({
   };
 
   const renderProjectRow = (project: Project, index: number, isInFolder: boolean = false, totalInGroup: number = 0) => {
-    const projectIndex = projects.findIndex(p => p.id === project.id);
+    const projectIndex = sortedProjects.findIndex(p => p.id === project.id);
     // Use experiment_id if available, otherwise fall back to id
     const projectId = project.experiment_id || project.id;
     return (
@@ -330,11 +367,11 @@ export default function ProjectsTable({
         <table className="w-full">
           <thead>
             <tr>
-              <SortableTableHeader label="Simulation Name" sortKey="name" onSort={handleSort} />
-              <SortableTableHeader label="Status" sortKey="status" onSort={handleSort} />
+              <SortableTableHeader label="Simulation Name" sortKey="name" onSort={handleSort} currentSort={sortConfig} />
+              <SortableTableHeader label="Status" sortKey="status" onSort={handleSort} currentSort={sortConfig} />
               <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Sample Size</th>
-              <SortableTableHeader label="Sample Name" sortKey="sample_name" onSort={handleSort} />
-              <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Data Download</th>
+              <SortableTableHeader label="Sample Name" sortKey="sample_name" onSort={handleSort} currentSort={sortConfig} />
+              <SortableTableHeader label="Data Download" sortKey="download_date" onSort={handleSort} currentSort={sortConfig} />
               <th className="px-6 py-3 text-left text-sm font-medium text-gray-700"></th>
             </tr>
           </thead>
@@ -456,8 +493,8 @@ export default function ProjectsTable({
             {/* Fallback: if no projects are showing and we have projects, show them all as root */}
             {hasAnyProjects && !hasRootProjects && !hasFolderProjects && (
               <>
-                {projects.map((project, idx) => 
-                  renderProjectRow(project, idx, false, projects.length)
+                {sortedProjects.map((project, idx) => 
+                  renderProjectRow(project, idx, false, sortedProjects.length)
                 )}
               </>
             )}

@@ -37,9 +37,9 @@ export default function Sidebar({ currentPage, userData }: SidebarProps) {
 
   const navItems = [
     { id: 'dashboard', href: '/dashboard', icon: Home, label: 'Dashboard' },
-    { id: 'simulation', href: '/simulation', icon: Activity, label: 'Simulation' },
-    { id: 'measures', href: '/measures', icon: BarChart3, label: 'Measures' },
     { id: 'samples', href: '/samples', icon: Users, label: 'Samples' },
+    { id: 'measures', href: '/measures', icon: BarChart3, label: 'Measures' },
+    { id: 'simulation', href: '/simulation', icon: Activity, label: 'Simulation' },
   ];
 
   // Keep sidebar open when navigating via sidebar links

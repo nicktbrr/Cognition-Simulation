@@ -1253,7 +1253,7 @@ function SimulationPageContent() {
               ) : (
                 <>
                   <Sparkles className="w-4 h-4" />
-                  Generate Steps
+                  Generate Design
                 </>
               )}
             </Button>
