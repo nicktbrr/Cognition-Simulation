@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useRef, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { Save, Download, RotateCcw, RotateCw, HelpCircle, Sparkles, Info } from "lucide-react";
+import { Save, Download, HelpCircle, Sparkles, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "../utils/supabase";
 import { useAuth } from "../hooks/useAuth";
@@ -1310,14 +1310,24 @@ function SimulationPageContent() {
 
           {/* Action Buttons */}
           <div className="space-y-2">
-            <Button 
-              variant="outline" 
-              className="w-full text-xs"
-              onClick={handleClearAll}
-            >
-              Clear All
-            </Button>
-            <div className="flex gap-1">
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                className="flex-1 text-xs"
+                onClick={handleClearAll}
+              >
+                Clear All
+              </Button>
+              <Button 
+                variant="outline" 
+                className="flex-1 text-xs"
+                onClick={handleRealign}
+              >
+                Realign
+              </Button>
+            </div>
+            {/* Undo/Redo buttons - commented out until functionality is implemented */}
+            {/* <div className="flex gap-1">
               <Button 
                 variant="outline" 
                 size="sm" 
@@ -1338,14 +1348,7 @@ function SimulationPageContent() {
               >
                 <RotateCw className="w-3 h-3" />
               </Button>
-            </div>
-            <Button 
-              variant="outline" 
-              className="w-full text-xs"
-              onClick={handleRealign}
-            >
-              Realign
-            </Button>
+            </div> */}
           </div>
 
           {/* Pick Sample Section */}
