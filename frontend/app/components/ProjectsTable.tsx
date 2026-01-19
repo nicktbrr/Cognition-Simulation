@@ -5,6 +5,7 @@ import { ChevronDown, Folder } from "lucide-react";
 import StatusBadge from "./ui/StatusBadge";
 import DownloadButton from "./ui/DownloadButton";
 import ProjectDropdown from "./ui/ProjectDropdown";
+import FolderDropdown from "./ui/FolderDropdown";
 import SortableTableHeader from "./ui/SortableTableHeader";
 import SimulationSteps from "./ui/SimulationSteps";
 
@@ -51,6 +52,8 @@ interface ProjectsTableProps {
   onReplicate?: (projectId: string) => Promise<boolean>;
   onMoveToFolder?: (projectId: string) => void;
   onDropToFolder?: (projectId: string, folderId: string | null) => void;
+  onRenameFolder?: (folderId: string, currentName: string) => void;
+  onDeleteFolder?: (folderId: string) => void;
 }
 
 export default function ProjectsTable({ 
@@ -62,11 +65,14 @@ export default function ProjectsTable({
   onDelete, 
   onReplicate,
   onMoveToFolder,
-  onDropToFolder
+  onDropToFolder,
+  onRenameFolder,
+  onDeleteFolder
 }: ProjectsTableProps) {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [projectDropdowns, setProjectDropdowns] = useState<Set<string>>(new Set());
+  const [folderDropdowns, setFolderDropdowns] = useState<Set<string>>(new Set());
   const [sortConfig, setSortConfig] = useState<{key: string, direction: 'asc' | 'desc'} | null>(null);
   const [sortedProjects, setSortedProjects] = useState(projects);
   const [draggedProject, setDraggedProject] = useState<string | null>(null);
@@ -95,6 +101,16 @@ export default function ProjectsTable({
       newProjectDropdowns.add(projectId);
     }
     setProjectDropdowns(newProjectDropdowns);
+  };
+
+  const toggleFolderDropdown = (folderId: string) => {
+    const newFolderDropdowns = new Set(folderDropdowns);
+    if (folderDropdowns.has(folderId)) {
+      newFolderDropdowns.delete(folderId);
+    } else {
+      newFolderDropdowns.add(folderId);
+    }
+    setFolderDropdowns(newFolderDropdowns);
   };
 
   const handleSort = (key: string) => {
@@ -249,8 +265,13 @@ export default function ProjectsTable({
                 onReplicate={() => onReplicate?.(project.id!)}
                 onModify={() => onModify?.(project.id!)}
                 onDelete={() => onDelete?.(project.id!)}
-                onMoveToFolder={() => onMoveToFolder?.(project.id!)}
+                onMoveToFolder={(folderId) => {
+                  if (projectId && onDropToFolder) {
+                    onDropToFolder(projectId, folderId);
+                  }
+                }}
                 folders={folders}
+                currentFolderId={project.folder_id}
               />
             </div>
           </td>
@@ -340,7 +361,6 @@ export default function ProjectsTable({
                     }}
                   >
                     <td 
-                      colSpan={6} 
                       className="px-6 py-3 bg-gray-100"
                       onDragOver={(e) => {
                         e.preventDefault();
@@ -353,42 +373,56 @@ export default function ProjectsTable({
                         handleDrop(e, folder.folder_id);
                       }}
                     >
-                      <button
-                        onClick={(e) => {
-                          // Don't trigger drag when clicking
-                          if (draggedProject) {
+                      <div className="flex items-center justify-between">
+                        <button
+                          onClick={(e) => {
+                            // Don't trigger drag when clicking
+                            if (draggedProject) {
+                              e.preventDefault();
+                              return;
+                            }
+                            toggleFolderExpansion(folder.folder_id);
+                          }}
+                          className="flex items-center gap-2 text-left pointer-events-auto"
+                          onDragOver={(e) => {
                             e.preventDefault();
-                            return;
-                          }
-                          toggleFolderExpansion(folder.folder_id);
-                        }}
-                        className="flex items-center gap-2 text-left w-full pointer-events-auto"
-                        onDragOver={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          handleDragOver(e, folder.folder_id);
-                        }}
-                        onMouseDown={(e) => {
-                          // Allow drag to work even when button is pressed
-                          if (draggedProject) {
-                            e.preventDefault();
-                          }
-                        }}
-                      >
-                        <div className="w-6 h-6 flex items-center justify-center">
-                          <ChevronDown 
-                            className={`w-4 h-4 transition-transform ${
-                              expandedFolders.has(folder.folder_id) ? '' : '-rotate-90'
-                            }`}
-                          />
-                        </div>
-                        <Folder className="w-4 h-4 text-gray-600" />
-                        <span className="font-medium text-gray-900">{folder.folder_name}</span>
-                        <span className="text-sm text-gray-500 ml-2">
-                          ({folderProjects.length} {folderProjects.length === 1 ? 'project' : 'projects'})
-                        </span>
-                      </button>
+                            e.stopPropagation();
+                            handleDragOver(e, folder.folder_id);
+                          }}
+                          onMouseDown={(e) => {
+                            // Allow drag to work even when button is pressed
+                            if (draggedProject) {
+                              e.preventDefault();
+                            }
+                          }}
+                        >
+                          <div className="w-6 h-6 flex items-center justify-center">
+                            <ChevronDown 
+                              className={`w-4 h-4 transition-transform ${
+                                expandedFolders.has(folder.folder_id) ? '' : '-rotate-90'
+                              }`}
+                            />
+                          </div>
+                          <Folder className="w-4 h-4 text-gray-600" />
+                          <span className="font-medium text-gray-900">{folder.folder_name}</span>
+                          <span className="text-sm text-gray-500 ml-2">
+                            ({folderProjects.length} {folderProjects.length === 1 ? 'project' : 'projects'})
+                          </span>
+                        </button>
+                        <FolderDropdown
+                          isOpen={folderDropdowns.has(folder.folder_id)}
+                          onToggle={() => toggleFolderDropdown(folder.folder_id)}
+                          position={sortedFolders.indexOf(folder) >= sortedFolders.length - 2 ? 'top' : 'bottom'}
+                          onRename={() => onRenameFolder?.(folder.folder_id, folder.folder_name)}
+                          onDelete={() => onDeleteFolder?.(folder.folder_id)}
+                        />
+                      </div>
                     </td>
+                    <td className="px-6 py-3 bg-gray-100"></td>
+                    <td className="px-6 py-3 bg-gray-100"></td>
+                    <td className="px-6 py-3 bg-gray-100"></td>
+                    <td className="px-6 py-3 bg-gray-100"></td>
+                    <td className="px-6 py-3 bg-gray-100"></td>
                   </tr>
                   {expandedFolders.has(folder.folder_id) && folderProjects.map((project, idx) => 
                     renderProjectRow(project, idx, true, folderProjects.length)

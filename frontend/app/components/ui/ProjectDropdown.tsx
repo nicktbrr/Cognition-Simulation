@@ -18,8 +18,9 @@ interface ProjectDropdownProps {
   onReplicate?: () => void;
   onModify?: () => void;
   onDelete?: () => void;
-  onMoveToFolder?: () => void;
+  onMoveToFolder?: (folderId: string | null) => void;
   folders?: Folder[];
+  currentFolderId?: string | null;
   position?: 'top' | 'bottom';
 }
 
@@ -32,12 +33,15 @@ export default function ProjectDropdown({
   onDelete,
   onMoveToFolder,
   folders = [],
+  currentFolderId = null,
   position = 'bottom' 
 }: ProjectDropdownProps) {
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0, maxHeight: 200 });
   const [showFolderSubmenu, setShowFolderSubmenu] = useState(false);
+  const [submenuPosition, setSubmenuPosition] = useState({ top: 0, left: 0 });
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const moveToFolderButtonRef = useRef<HTMLButtonElement>(null);
 
   const calculatePosition = useCallback((rect: DOMRect) => {
     // Estimate dropdown height (approximately 200px for all menu items)
@@ -216,7 +220,32 @@ export default function ProjectDropdown({
             </button>
             <div className="relative">
               <button 
-                onMouseEnter={() => setShowFolderSubmenu(true)}
+                ref={moveToFolderButtonRef}
+                onMouseEnter={(e) => {
+                  if (moveToFolderButtonRef.current) {
+                    const rect = moveToFolderButtonRef.current.getBoundingClientRect();
+                    const submenuWidth = 192; // w-48 = 12rem = 192px
+                    const spaceOnRight = window.innerWidth - rect.right;
+                    const spaceOnLeft = rect.left;
+                    
+                    // Position to the right if there's space, otherwise to the left
+                    let leftPosition: number;
+                    if (spaceOnRight >= submenuWidth) {
+                      leftPosition = rect.right + 4;
+                    } else if (spaceOnLeft >= submenuWidth) {
+                      leftPosition = rect.left - submenuWidth - 4;
+                    } else {
+                      // Default to right, but adjust if needed
+                      leftPosition = Math.max(8, Math.min(rect.right + 4, window.innerWidth - submenuWidth - 8));
+                    }
+                    
+                    setSubmenuPosition({
+                      top: rect.top,
+                      left: leftPosition
+                    });
+                  }
+                  setShowFolderSubmenu(true);
+                }}
                 onMouseLeave={() => setShowFolderSubmenu(false)}
                 className="flex items-center justify-between w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
               >
@@ -226,20 +255,41 @@ export default function ProjectDropdown({
                 </div>
                 <span className="text-xs text-gray-400">›</span>
               </button>
-              {showFolderSubmenu && (
+              {showFolderSubmenu && createPortal(
                 <div 
-                  className="absolute left-full top-0 ml-1 w-48 bg-white border border-gray-200 rounded-lg shadow-xl z-[99999]"
+                  className="fixed w-48 bg-white border border-gray-200 rounded-lg shadow-xl z-[99999]"
+                  style={{
+                    top: `${submenuPosition.top}px`,
+                    left: `${submenuPosition.left}px`
+                  }}
                   onMouseEnter={() => setShowFolderSubmenu(true)}
                   onMouseLeave={() => setShowFolderSubmenu(false)}
                 >
                   <div className="py-1">
+                    {currentFolderId && (
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onMoveToFolder?.(null);
+                          onToggle();
+                        }}
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                        }}
+                        className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        <Folder className="h-4 w-4" />
+                        Remove from folder
+                      </button>
+                    )}
                     {folders.map((folder) => (
                       <button
                         key={folder.folder_id}
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          onMoveToFolder?.();
+                          onMoveToFolder?.(folder.folder_id);
                           onToggle();
                         }}
                         onMouseDown={(e) => {
@@ -252,7 +302,8 @@ export default function ProjectDropdown({
                       </button>
                     ))}
                   </div>
-                </div>
+                </div>,
+                document.body
               )}
             </div>
             <button 
