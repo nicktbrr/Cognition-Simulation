@@ -88,7 +88,7 @@ const CustomNode = memo(({ id, data, selected, width, height }: NodeProps) => {
             value={(data as any).title}
             onChange={(e) => (data as any).onTitleChange(id, e.target.value)}
             onBlur={() => (data as any).onTitleBlur?.()}
-            placeholder="Click to add title..."
+            placeholder="Click to add step title..."
             className="text-base"
           />
         </div>
@@ -101,7 +101,7 @@ const CustomNode = memo(({ id, data, selected, width, height }: NodeProps) => {
             maxLength={(data as any).numDescriptionsChars}
             onChange={(e) => (data as any).onDescriptionChange(id, e.target.value)}
             onBlur={() => (data as any).onDescriptionBlur?.()}
-            placeholder="Click to add description..."
+            placeholder="Click to add step instructions..."
             className="text-base w-full resize-none flex-1 min-h-[150px]"
             style={{
               overflow: 'auto',

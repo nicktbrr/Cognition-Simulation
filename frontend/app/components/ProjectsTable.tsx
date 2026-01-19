@@ -5,6 +5,7 @@ import { ChevronDown, Folder } from "lucide-react";
 import StatusBadge from "./ui/StatusBadge";
 import DownloadButton from "./ui/DownloadButton";
 import ProjectDropdown from "./ui/ProjectDropdown";
+import FolderDropdown from "@/app/components/ui/FolderDropdown";
 import SortableTableHeader from "./ui/SortableTableHeader";
 import SimulationSteps from "./ui/SimulationSteps";
 
@@ -13,6 +14,7 @@ interface Download {
   id: number;
   url?: string;
   filename?: string;
+  created_at?: string;
 }
 
 interface SimulationStep {
@@ -51,6 +53,8 @@ interface ProjectsTableProps {
   onReplicate?: (projectId: string) => Promise<boolean>;
   onMoveToFolder?: (projectId: string) => void;
   onDropToFolder?: (projectId: string, folderId: string | null) => void;
+  onRenameFolder?: (folderId: string, currentName: string) => void;
+  onDeleteFolder?: (folderId: string) => void;
 }
 
 export default function ProjectsTable({ 
@@ -62,20 +66,72 @@ export default function ProjectsTable({
   onDelete, 
   onReplicate,
   onMoveToFolder,
-  onDropToFolder
+  onDropToFolder,
+  onRenameFolder,
+  onDeleteFolder
 }: ProjectsTableProps) {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [projectDropdowns, setProjectDropdowns] = useState<Set<string>>(new Set());
+  const [folderDropdowns, setFolderDropdowns] = useState<Set<string>>(new Set());
   const [sortConfig, setSortConfig] = useState<{key: string, direction: 'asc' | 'desc'} | null>(null);
   const [sortedProjects, setSortedProjects] = useState(projects);
   const [draggedProject, setDraggedProject] = useState<string | null>(null);
   const [dragOverFolder, setDragOverFolder] = useState<string | null | 'root'>(null);
 
-  // Update sortedProjects when projects prop changes
+  // Update sortedProjects when projects prop changes or sortConfig changes
   React.useEffect(() => {
-    setSortedProjects(projects);
-  }, [projects]);
+    if (!sortConfig) {
+      setSortedProjects(projects);
+      return;
+    }
+
+    const sorted = [...projects].sort((a, b) => {
+      const { key, direction } = sortConfig;
+      
+      if (key === 'name') {
+        return direction === 'asc' 
+          ? a.name.localeCompare(b.name) 
+          : b.name.localeCompare(a.name);
+      }
+      
+      if (key === 'sample_name') {
+        return direction === 'asc' 
+          ? a.sample_name.localeCompare(b.sample_name) 
+          : b.sample_name.localeCompare(a.sample_name);
+      }
+      
+      if (key === 'status') {
+        return direction === 'asc' 
+          ? a.status.localeCompare(b.status) 
+          : b.status.localeCompare(a.status);
+      }
+      
+      if (key === 'download_date') {
+        // Sort by the most recent download date
+        // Projects with no downloads go to the end
+        const aHasDownloads = a.downloads.length > 0;
+        const bHasDownloads = b.downloads.length > 0;
+        
+        // If one has downloads and the other doesn't, prioritize the one with downloads
+        if (aHasDownloads && !bHasDownloads) return -1;
+        if (!aHasDownloads && bHasDownloads) return 1;
+        if (!aHasDownloads && !bHasDownloads) return 0;
+        
+        // Both have downloads, sort by date
+        const aDate = new Date(a.downloads[0].created_at || a.downloads[0].date).getTime();
+        const bDate = new Date(b.downloads[0].created_at || b.downloads[0].date).getTime();
+        
+        return direction === 'asc' 
+          ? aDate - bDate 
+          : bDate - aDate;
+      }
+      
+      return 0;
+    });
+    
+    setSortedProjects(sorted);
+  }, [projects, sortConfig]);
 
   const toggleRowExpansion = (projectId: string) => {
     const newExpandedRows = new Set(expandedRows);
@@ -97,26 +153,23 @@ export default function ProjectsTable({
     setProjectDropdowns(newProjectDropdowns);
   };
 
+  const toggleFolderDropdown = (folderId: string) => {
+    const newFolderDropdowns = new Set(folderDropdowns);
+    if (folderDropdowns.has(folderId)) {
+      newFolderDropdowns.delete(folderId);
+    } else {
+      newFolderDropdowns.add(folderId);
+    }
+    setFolderDropdowns(newFolderDropdowns);
+  };
+
   const handleSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'asc';
     if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
       direction = 'desc';
     }
     setSortConfig({ key, direction });
-
-    const sorted = [...projects].sort((a, b) => {
-      if (key === 'name') {
-        return direction === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name);
-      }
-      if (key === 'sample_name') {
-        return direction === 'asc' ? a.sample_name.localeCompare(b.sample_name) : b.sample_name.localeCompare(a.sample_name);
-      }
-      if (key === 'status') {
-        return direction === 'asc' ? a.status.localeCompare(b.status) : b.status.localeCompare(a.status);
-      }
-      return 0;
-    });
-    setSortedProjects(sorted);
+    // The actual sorting is handled in the useEffect above
   };
 
   const handleStartRename = (projectId: string, currentName: string) => {
@@ -169,9 +222,9 @@ export default function ProjectsTable({
     setDragOverFolder(null);
   };
 
-  // Group projects by folder
+  // Group sorted projects by folder
   const projectsByFolder = new Map<string | null, Project[]>();
-  projects.forEach(project => {
+  sortedProjects.forEach(project => {
     // Handle both undefined and null folder_id - treat both as root (null)
     const folderId = (project.folder_id === undefined || project.folder_id === null) ? null : project.folder_id;
     if (!projectsByFolder.has(folderId)) {
@@ -188,7 +241,7 @@ export default function ProjectsTable({
   };
 
   const renderProjectRow = (project: Project, index: number, isInFolder: boolean = false, totalInGroup: number = 0) => {
-    const projectIndex = projects.findIndex(p => p.id === project.id);
+    const projectIndex = sortedProjects.findIndex(p => p.id === project.id);
     // Use experiment_id if available, otherwise fall back to id
     const projectId = project.experiment_id || project.id;
     return (
@@ -249,8 +302,13 @@ export default function ProjectsTable({
                 onReplicate={() => onReplicate?.(project.id!)}
                 onModify={() => onModify?.(project.id!)}
                 onDelete={() => onDelete?.(project.id!)}
-                onMoveToFolder={() => onMoveToFolder?.(project.id!)}
+                onMoveToFolder={(folderId) => {
+                  if (projectId && onDropToFolder) {
+                    onDropToFolder(projectId, folderId);
+                  }
+                }}
                 folders={folders}
+                currentFolderId={project.folder_id}
               />
             </div>
           </td>
@@ -309,11 +367,11 @@ export default function ProjectsTable({
         <table className="w-full">
           <thead>
             <tr>
-              <SortableTableHeader label="Simulation Name" sortKey="name" onSort={handleSort} />
-              <SortableTableHeader label="Status" sortKey="status" onSort={handleSort} />
+              <SortableTableHeader label="Simulation Name" sortKey="name" onSort={handleSort} currentSort={sortConfig} />
+              <SortableTableHeader label="Status" sortKey="status" onSort={handleSort} currentSort={sortConfig} />
               <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Sample Size</th>
-              <SortableTableHeader label="Sample Name" sortKey="sample_name" onSort={handleSort} />
-              <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Data Download</th>
+              <SortableTableHeader label="Sample Name" sortKey="sample_name" onSort={handleSort} currentSort={sortConfig} />
+              <SortableTableHeader label="Data Download" sortKey="download_date" onSort={handleSort} currentSort={sortConfig} />
               <th className="px-6 py-3 text-left text-sm font-medium text-gray-700"></th>
             </tr>
           </thead>
@@ -340,7 +398,6 @@ export default function ProjectsTable({
                     }}
                   >
                     <td 
-                      colSpan={6} 
                       className="px-6 py-3 bg-gray-100"
                       onDragOver={(e) => {
                         e.preventDefault();
@@ -353,42 +410,56 @@ export default function ProjectsTable({
                         handleDrop(e, folder.folder_id);
                       }}
                     >
-                      <button
-                        onClick={(e) => {
-                          // Don't trigger drag when clicking
-                          if (draggedProject) {
+                      <div className="flex items-center justify-between">
+                        <button
+                          onClick={(e) => {
+                            // Don't trigger drag when clicking
+                            if (draggedProject) {
+                              e.preventDefault();
+                              return;
+                            }
+                            toggleFolderExpansion(folder.folder_id);
+                          }}
+                          className="flex items-center gap-2 text-left pointer-events-auto"
+                          onDragOver={(e) => {
                             e.preventDefault();
-                            return;
-                          }
-                          toggleFolderExpansion(folder.folder_id);
-                        }}
-                        className="flex items-center gap-2 text-left w-full pointer-events-auto"
-                        onDragOver={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          handleDragOver(e, folder.folder_id);
-                        }}
-                        onMouseDown={(e) => {
-                          // Allow drag to work even when button is pressed
-                          if (draggedProject) {
-                            e.preventDefault();
-                          }
-                        }}
-                      >
-                        <div className="w-6 h-6 flex items-center justify-center">
-                          <ChevronDown 
-                            className={`w-4 h-4 transition-transform ${
-                              expandedFolders.has(folder.folder_id) ? '' : '-rotate-90'
-                            }`}
-                          />
-                        </div>
-                        <Folder className="w-4 h-4 text-gray-600" />
-                        <span className="font-medium text-gray-900">{folder.folder_name}</span>
-                        <span className="text-sm text-gray-500 ml-2">
-                          ({folderProjects.length} {folderProjects.length === 1 ? 'project' : 'projects'})
-                        </span>
-                      </button>
+                            e.stopPropagation();
+                            handleDragOver(e, folder.folder_id);
+                          }}
+                          onMouseDown={(e) => {
+                            // Allow drag to work even when button is pressed
+                            if (draggedProject) {
+                              e.preventDefault();
+                            }
+                          }}
+                        >
+                          <div className="w-6 h-6 flex items-center justify-center">
+                            <ChevronDown 
+                              className={`w-4 h-4 transition-transform ${
+                                expandedFolders.has(folder.folder_id) ? '' : '-rotate-90'
+                              }`}
+                            />
+                          </div>
+                          <Folder className="w-4 h-4 text-gray-600" />
+                          <span className="font-medium text-gray-900">{folder.folder_name}</span>
+                          <span className="text-sm text-gray-500 ml-2">
+                            ({folderProjects.length} {folderProjects.length === 1 ? 'project' : 'projects'})
+                          </span>
+                        </button>
+                        <FolderDropdown
+                          isOpen={folderDropdowns.has(folder.folder_id)}
+                          onToggle={() => toggleFolderDropdown(folder.folder_id)}
+                          position={sortedFolders.indexOf(folder) >= sortedFolders.length - 2 ? 'top' : 'bottom'}
+                          onRename={() => onRenameFolder?.(folder.folder_id, folder.folder_name)}
+                          onDelete={() => onDeleteFolder?.(folder.folder_id)}
+                        />
+                      </div>
                     </td>
+                    <td className="px-6 py-3 bg-gray-100"></td>
+                    <td className="px-6 py-3 bg-gray-100"></td>
+                    <td className="px-6 py-3 bg-gray-100"></td>
+                    <td className="px-6 py-3 bg-gray-100"></td>
+                    <td className="px-6 py-3 bg-gray-100"></td>
                   </tr>
                   {expandedFolders.has(folder.folder_id) && folderProjects.map((project, idx) => 
                     renderProjectRow(project, idx, true, folderProjects.length)
@@ -422,8 +493,8 @@ export default function ProjectsTable({
             {/* Fallback: if no projects are showing and we have projects, show them all as root */}
             {hasAnyProjects && !hasRootProjects && !hasFolderProjects && (
               <>
-                {projects.map((project, idx) => 
-                  renderProjectRow(project, idx, false, projects.length)
+                {sortedProjects.map((project, idx) => 
+                  renderProjectRow(project, idx, false, sortedProjects.length)
                 )}
               </>
             )}

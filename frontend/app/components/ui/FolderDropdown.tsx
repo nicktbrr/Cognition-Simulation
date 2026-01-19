@@ -2,55 +2,34 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { MoreVertical, Edit, Copy, Trash2, Folder } from "lucide-react";
+import { MoreVertical, Edit, Trash2 } from "lucide-react";
 
-interface Folder {
-  folder_id: string;
-  folder_name: string;
-  created_at: string;
-  project_count?: number;
-}
-
-interface ProjectDropdownProps {
+interface FolderDropdownProps {
   isOpen: boolean;
   onToggle: () => void;
   onRename?: () => void;
-  onReplicate?: () => void;
-  onModify?: () => void;
   onDelete?: () => void;
-  onMoveToFolder?: (folderId: string | null) => void;
-  folders?: Folder[];
-  currentFolderId?: string | null;
   position?: 'top' | 'bottom';
 }
 
-export default function ProjectDropdown({ 
+export default function FolderDropdown({ 
   isOpen, 
   onToggle, 
   onRename,
-  onReplicate, 
-  onModify,
   onDelete,
-  onMoveToFolder,
-  folders = [],
-  currentFolderId = null,
   position = 'bottom' 
-}: ProjectDropdownProps) {
+}: FolderDropdownProps) {
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0, maxHeight: 200 });
-  const [showFolderSubmenu, setShowFolderSubmenu] = useState(false);
-  const [submenuPosition, setSubmenuPosition] = useState({ top: 0, left: 0 });
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const moveToFolderButtonRef = useRef<HTMLButtonElement>(null);
 
   const calculatePosition = useCallback((rect: DOMRect) => {
-    // Estimate dropdown height (approximately 200px for all menu items)
-    const estimatedDropdownHeight = 200;
+    // Estimate dropdown height (approximately 100px for menu items)
+    const estimatedDropdownHeight = 100;
     const spaceBelow = window.innerHeight - rect.bottom;
     const spaceAbove = rect.top;
     
     // Determine if we should show above or below based on available space
-    // Use 'top' position if there's not enough space below but enough above
     const shouldShowAbove = spaceBelow < estimatedDropdownHeight && spaceAbove > spaceBelow;
     const actualPosition = position === 'top' || shouldShowAbove ? 'top' : 'bottom';
     
@@ -157,6 +136,7 @@ export default function ProjectDropdown({
         ref={buttonRef}
         onClick={handleToggle}
         className="p-1 hover:bg-gray-100 rounded"
+        onMouseDown={(e) => e.stopPropagation()}
       >
         <MoreVertical className="w-4 h-4 text-gray-500" />
       </button>
@@ -188,124 +168,6 @@ export default function ProjectDropdown({
               <Edit className="h-4 w-4" />
               Rename
             </button>
-            <button 
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onReplicate?.();
-                onToggle(); // Close the dropdown
-              }}
-              onMouseDown={(e) => {
-                e.stopPropagation();
-              }}
-              className="flex items-center gap-3 w-full px-4 py-2 text-sm font-semibold text-blue-600 hover:bg-blue-50 transition-colors border-b border-gray-100"
-            >
-              <Copy className="h-4 w-4" />
-              Replicate
-            </button>
-            <button 
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onModify?.();
-                onToggle(); // Close the dropdown
-              }}
-              onMouseDown={(e) => {
-                e.stopPropagation();
-              }}
-              className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              <Edit className="h-4 w-4" />
-              Modify
-            </button>
-            <div className="relative">
-              <button 
-                ref={moveToFolderButtonRef}
-                onMouseEnter={(e) => {
-                  if (moveToFolderButtonRef.current) {
-                    const rect = moveToFolderButtonRef.current.getBoundingClientRect();
-                    const submenuWidth = 192; // w-48 = 12rem = 192px
-                    const spaceOnRight = window.innerWidth - rect.right;
-                    const spaceOnLeft = rect.left;
-                    
-                    // Position to the right if there's space, otherwise to the left
-                    let leftPosition: number;
-                    if (spaceOnRight >= submenuWidth) {
-                      leftPosition = rect.right + 4;
-                    } else if (spaceOnLeft >= submenuWidth) {
-                      leftPosition = rect.left - submenuWidth - 4;
-                    } else {
-                      // Default to right, but adjust if needed
-                      leftPosition = Math.max(8, Math.min(rect.right + 4, window.innerWidth - submenuWidth - 8));
-                    }
-                    
-                    setSubmenuPosition({
-                      top: rect.top,
-                      left: leftPosition
-                    });
-                  }
-                  setShowFolderSubmenu(true);
-                }}
-                onMouseLeave={() => setShowFolderSubmenu(false)}
-                className="flex items-center justify-between w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <Folder className="h-4 w-4" />
-                  Move to folder
-                </div>
-                <span className="text-xs text-gray-400">›</span>
-              </button>
-              {showFolderSubmenu && createPortal(
-                <div 
-                  className="fixed w-48 bg-white border border-gray-200 rounded-lg shadow-xl z-[99999]"
-                  style={{
-                    top: `${submenuPosition.top}px`,
-                    left: `${submenuPosition.left}px`
-                  }}
-                  onMouseEnter={() => setShowFolderSubmenu(true)}
-                  onMouseLeave={() => setShowFolderSubmenu(false)}
-                >
-                  <div className="py-1">
-                    {currentFolderId && (
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          onMoveToFolder?.(null);
-                          onToggle();
-                        }}
-                        onMouseDown={(e) => {
-                          e.stopPropagation();
-                        }}
-                        className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                      >
-                        <Folder className="h-4 w-4" />
-                        Remove from folder
-                      </button>
-                    )}
-                    {folders.map((folder) => (
-                      <button
-                        key={folder.folder_id}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          onMoveToFolder?.(folder.folder_id);
-                          onToggle();
-                        }}
-                        onMouseDown={(e) => {
-                          e.stopPropagation();
-                        }}
-                        className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                      >
-                        <Folder className="h-4 w-4" />
-                        {folder.folder_name}
-                      </button>
-                    ))}
-                  </div>
-                </div>,
-                document.body
-              )}
-            </div>
             <button 
               onClick={(e) => {
                 e.preventDefault();

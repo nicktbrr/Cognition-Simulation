@@ -20,11 +20,11 @@ Your goal: Receive a description as user input and convert it into a more specif
 
 The input should be a description of a cognitive task, behavior, or goal to accomplish. It may be poorly worded, theoretically incomplete, or overly general, in which case you should use your expertise as a cognitive scientist to add more detail and rigor.
 
-If a study title or introduction is provided as context, these are FOR CONTEXT ONLY. They help you understand the study's purpose, but you must NEVER generate them as steps. The introduction is already provided to participants separately and should NOT appear in your step output.
+If a study title or introduction is provided as context, these help you understand the study's purpose. If an introduction is provided, you should also generate an improved or alternative introduction based on the study description and context.
 
 ### Output specifications:
 
-Generate ONLY a set of steps with the following characteristics:
+Generate a set of steps with the following characteristics:
   - Each step should have a one-or-two-word title
   - Each step should have a set of clear instructions for the participant to follow
   - Step instruction should be aligned with the title of the step
@@ -32,10 +32,17 @@ Generate ONLY a set of steps with the following characteristics:
   - Each step should be concise and clear, avoiding unnecessary jargon or complexity
   - There's no limit to the number of steps unless the user specifies the number of steps, and each step should represent one discrete and atomic activity at a time until it reaches the end goal
   - Remember your main goal is to convert the user input into a sequence of steps representing a cognitive model or process for participants to follow
-  - CRITICAL: NEVER generate an introduction step. If a study introduction is provided as context, use it ONLY for understanding the study context. The introduction is NOT a step and must NEVER appear in your output.
+  - CRITICAL: NEVER generate an introduction step. The introduction is handled separately and is not part of the step sequence.
+
+If an introduction is provided in the context, you MUST also generate an improved introduction. The generated introduction should:
+  - Be concise (2-4 sentences)
+  - Clearly explain the purpose and context of the study
+  - Be appropriate for participants to read before starting the simulation
+  - Align with the generated steps and study description
 
 Generate the output in JSON format with the following EXACT structure (use "instructions" not "description" for steps):
 {
+  "introduction": "generated introduction text (only include this field if an introduction was provided in the context)",
   "step01": {
     "title": "step title (one or two words)",
     "instructions": "instructions for participants to follow in this step"
@@ -50,14 +57,17 @@ Generate the output in JSON format with the following EXACT structure (use "inst
 CRITICAL RULES - MUST FOLLOW:
 1. All steps must use "instructions" (not "description") as the field name AND no more than 10 steps.
 2. If the user specifies the number of steps, you must generate the exact number of steps specified.
-3. NEVER, UNDER ANY CIRCUMSTANCES, generate an introduction step. The study introduction (if provided) is context only and must NEVER appear as a step in the output.
+3. NEVER, UNDER ANY CIRCUMSTANCES, generate an introduction step. The introduction is handled separately and must NEVER appear as a step in the output.
 4. Do NOT create steps with titles like "Introduction", "Welcome", "Overview", "Context", or any variation that suggests introducing the study. These are NOT steps.
 5. Start directly with the first actual task/activity step. The introduction is handled separately and is not part of the step sequence.
+6. If an introduction is provided in the context, you MUST include an "introduction" field in your JSON response with an improved version.
+7. If no introduction is provided in the context, you should still generate an introduction and include it in the "introduction" field.
 
 VALIDATION: Before returning your response, verify that:
 - No step has a title related to introduction, welcome, overview, or context
 - All steps are actual tasks/activities that participants will perform
-- The study introduction (if provided) does not appear anywhere in your step output"""
+- If an introduction was provided in context, you have included an "introduction" field with an improved version
+- If no introduction was provided, you have included an "introduction" field with a newly generated introduction"""
 
 
 # System prompt for baseline prompt generation (from utils/prompts.py - baseline_prompt)
@@ -185,7 +195,7 @@ def get_generate_steps_user_prompt(user_prompt: str, title: str = '', introducti
     prompt = "Given the following user input, generate simulation steps"
     
     if context_parts:
-        prompt += " (use the following context for reference only - do NOT generate these as steps):\n\n"
+        prompt += " (use the following context for reference):\n\n"
         prompt += "\n\n".join(context_parts)
         prompt += "\n\n"
     else:
@@ -193,8 +203,11 @@ def get_generate_steps_user_prompt(user_prompt: str, title: str = '', introducti
     
     prompt += f"User Input: {user_prompt}"
     
-    if context_parts:
-        prompt += "\n\nRemember: The study title and introduction above are provided as context only. Do NOT generate an introduction step - only generate the actual simulation steps."
+    # Add instruction about introduction generation
+    if introduction and introduction.strip():
+        prompt += "\n\nIMPORTANT: An introduction has been provided above. Please generate an improved or alternative introduction based on the study description and context. Include this in the 'introduction' field of your JSON response. Do NOT generate an introduction step - only generate the actual simulation steps."
+    else:
+        prompt += "\n\nIMPORTANT: Please generate a study introduction (2-4 sentences) that explains the purpose and context of the study. Include this in the 'introduction' field of your JSON response. Do NOT generate an introduction step - only generate the actual simulation steps."
     
     return prompt
 

@@ -12,6 +12,7 @@ import SubHeader from "../components/layout/SubHeader";
 import ReactFlowApp, { ReactFlowRef } from "../components/react-flow";
 import { Node, Edge } from "@xyflow/react";
 import Spinner from "../components/ui/spinner";
+import IntroductionSelectionModal from "@/app/components/IntroductionSelectionModal";
 
 type Sample = {
   id: string; // Changed to string for UUID
@@ -68,6 +69,8 @@ function SimulationPageContent() {
   const [simulationTaskId, setSimulationTaskId] = useState<string | null>(null);
   const [simulationProgress, setSimulationProgress] = useState<number | null>(null);
   const [isSimulationRunning, setIsSimulationRunning] = useState(false);
+  const [showIntroductionModal, setShowIntroductionModal] = useState(false);
+  const [generatedIntroduction, setGeneratedIntroduction] = useState<string>("");
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const reactFlowRef = useRef<ReactFlowRef>(null);
   const hasInitiallyLoadedRef = useRef(false);
@@ -217,6 +220,9 @@ function SimulationPageContent() {
         // Convert the backend response to the format expected by convertStepsToFlow
         const stepsData = result.data;
         
+        // Extract generated introduction if present
+        const newIntroduction = stepsData.introduction || "";
+        
         const convertedSteps: Array<{
           label: string;
           instructions: string;
@@ -261,6 +267,18 @@ function SimulationPageContent() {
           
           setFlowNodes(nodes);
           setFlowEdges(edges);
+
+          // Handle introduction
+          if (newIntroduction) {
+            if (studyIntroduction && studyIntroduction.trim()) {
+              // Show modal to choose between old and new introduction
+              setGeneratedIntroduction(newIntroduction);
+              setShowIntroductionModal(true);
+            } else {
+              // No existing introduction, just set the new one
+              setStudyIntroduction(newIntroduction);
+            }
+          }
 
           // Optionally set the title from study context if available
           if (stepsData.study_context_and_instructions?.context && !processTitle) {
@@ -889,6 +907,12 @@ function SimulationPageContent() {
     return { nodes, edges };
   };
 
+  const handleIntroductionSelect = useCallback((introduction: string) => {
+    setStudyIntroduction(introduction);
+    setShowIntroductionModal(false);
+    setGeneratedIntroduction("");
+  }, []);
+
   const handleRealign = useCallback(() => {
     if (flowNodes.length === 0) return;
 
@@ -1229,7 +1253,7 @@ function SimulationPageContent() {
               ) : (
                 <>
                   <Sparkles className="w-4 h-4" />
-                  Generate Steps
+                  Generate Design
                 </>
               )}
             </Button>
@@ -1383,7 +1407,7 @@ function SimulationPageContent() {
                     placeholder="Enter study title..."
                     value={processTitle}
                     onChange={(e) => setProcessTitle(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm h-[58px]"
                   />
                 </div>
 
@@ -1422,6 +1446,18 @@ function SimulationPageContent() {
           </>
         )}
       </div>
+
+      {/* Introduction Selection Modal */}
+      <IntroductionSelectionModal
+        isOpen={showIntroductionModal}
+        onClose={() => {
+          setShowIntroductionModal(false);
+          setGeneratedIntroduction("");
+        }}
+        oldIntroduction={studyIntroduction}
+        newIntroduction={generatedIntroduction}
+        onSelect={handleIntroductionSelect}
+      />
     </AppLayout>
   );
 }

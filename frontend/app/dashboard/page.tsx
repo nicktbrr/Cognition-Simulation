@@ -89,6 +89,12 @@ export default function DashboardHistory() {
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [showMoveToFolderModal, setShowMoveToFolderModal] = useState(false);
   const [projectToMove, setProjectToMove] = useState<string | null>(null);
+  const [showRenameFolderModal, setShowRenameFolderModal] = useState(false);
+  const [folderToRename, setFolderToRename] = useState<{ id: string; name: string } | null>(null);
+  const [newFolderRename, setNewFolderRename] = useState("");
+  const [showDeleteFolderConfirm, setShowDeleteFolderConfirm] = useState(false);
+  const [folderToDelete, setFolderToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [isDeletingFolder, setIsDeletingFolder] = useState(false);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const hasInitiallyLoadedRef = useRef(false); // Add this ref to track initial load
 
@@ -201,13 +207,138 @@ export default function DashboardHistory() {
     }
   };
 
+  const handleRenameFolder = (folderId: string, currentName: string) => {
+    setFolderToRename({ id: folderId, name: currentName });
+    setNewFolderRename(currentName);
+    setShowRenameFolderModal(true);
+  };
+
+  const handleSaveRenameFolder = async () => {
+    if (!folderToRename || !newFolderRename.trim() || !user) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("folders")
+        .update({ folder_name: newFolderRename.trim() })
+        .eq("folder_id", folderToRename.id)
+        .eq("user_id", user.user_id);
+
+      if (error) {
+        console.error("Error renaming folder:", error);
+        alert("Error renaming folder. Please try again.");
+        return;
+      }
+
+      // Refresh folders after successful update
+      await getFolders(user.user_id);
+      
+      // Close modal
+      setShowRenameFolderModal(false);
+      setFolderToRename(null);
+      setNewFolderRename("");
+    } catch (error) {
+      console.error("Error in folder rename operation:", error);
+      alert("Error renaming folder. Please try again.");
+    }
+  };
+
+  const handleCancelRenameFolder = () => {
+    setShowRenameFolderModal(false);
+    setFolderToRename(null);
+    setNewFolderRename("");
+  };
+
+  const handleDeleteFolder = (folderId: string) => {
+    const folder = folders.find(f => f.folder_id === folderId);
+    if (folder) {
+      setFolderToDelete({ id: folderId, name: folder.folder_name });
+      setShowDeleteFolderConfirm(true);
+    }
+  };
+
+  const confirmDeleteFolder = async () => {
+    if (!folderToDelete || !user || isDeletingFolder) {
+      return;
+    }
+
+    setIsDeletingFolder(true);
+    try {
+      // First, delete all experiments in the folder
+      const { data: experiments, error: fetchError } = await supabase
+        .from("experiments")
+        .select("experiment_id")
+        .eq("folder_id", folderToDelete.id)
+        .eq("user_id", user.user_id);
+
+      if (fetchError) {
+        console.error("Error fetching experiments in folder:", fetchError);
+        alert("Error fetching experiments in folder. Please try again.");
+        setIsDeletingFolder(false);
+        return;
+      }
+
+      // Delete all experiments in the folder
+      if (experiments && experiments.length > 0) {
+        const experimentIds = experiments.map(exp => exp.experiment_id);
+        const { error: deleteExperimentsError } = await supabase
+          .from("experiments")
+          .delete()
+          .in("experiment_id", experimentIds)
+          .eq("user_id", user.user_id);
+
+        if (deleteExperimentsError) {
+          console.error("Error deleting experiments in folder:", deleteExperimentsError);
+          alert("Error deleting experiments in folder. Please try again.");
+          setIsDeletingFolder(false);
+          return;
+        }
+      }
+
+      // Then delete the folder itself
+      const { error: deleteFolderError } = await supabase
+        .from("folders")
+        .delete()
+        .eq("folder_id", folderToDelete.id)
+        .eq("user_id", user.user_id);
+
+      if (deleteFolderError) {
+        console.error("Error deleting folder:", deleteFolderError);
+        alert("Error deleting folder. Please try again.");
+        setIsDeletingFolder(false);
+        return;
+      }
+
+      // Refresh projects and folders after successful deletion
+      await Promise.all([
+        getProjects(user.user_id),
+        getFolders(user.user_id)
+      ]);
+      
+      // Close modal
+      setShowDeleteFolderConfirm(false);
+      setFolderToDelete(null);
+    } catch (error) {
+      console.error("Error in folder delete operation:", error);
+      alert(`Error deleting folder: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`);
+    } finally {
+      setIsDeletingFolder(false);
+    }
+  };
+
+  const cancelDeleteFolder = () => {
+    setShowDeleteFolderConfirm(false);
+    setFolderToDelete(null);
+  };
+
   const handleMoveToFolder = async (projectId: string, folderId: string | null) => {
     if (!user) {
       return;
     }
 
     try {
-      // Find the project to get its configKey (to move all experiments in the group)
+      // Find the project to get its configKey and folder_id (to move all experiments in the group)
       const project = projects.find(p => p.experiment_id === projectId);
       if (!project) {
         console.error("Project not found");
@@ -215,50 +346,15 @@ export default function DashboardHistory() {
         return;
       }
 
-      // If project has a configKey, find all experiments with the same configKey
-      // Otherwise, just update the single experiment
-      let experimentIds: string[] = [];
-      
-      if (project.configKey) {
-        // Find all experiments with the same configKey
-        const { data: allExperiments, error: fetchError } = await supabase
-          .from("experiments")
-          .select("experiment_id, experiment_data")
-          .eq("user_id", user.user_id);
-
-        if (fetchError) {
-          console.error("Error fetching experiments:", fetchError);
-          alert("Error fetching experiments. Please try again.");
-          return;
-        }
-
-        // Find experiments with matching configKey
-        const matchingExperiments = (allExperiments || []).filter((exp: any) => {
-          const expData = exp.experiment_data || {};
-          const expConfigKey = getExperimentConfigKey(expData);
-          return expConfigKey === project.configKey;
-        });
-
-        experimentIds = matchingExperiments.map((exp: any) => exp.experiment_id);
-      } else {
-        // If no configKey, just update the single experiment
-        experimentIds = [projectId];
-      }
-
-      if (experimentIds.length === 0) {
-        console.error("No experiments found to update");
-        alert("Error: No experiments found to move. Please try again.");
-        return;
-      }
-
-      // Update all matching experiments
+      // Update only the specific experiment (not all in the group)
       // Handle null folderId by explicitly setting it to null (not undefined)
+      const oldFolderId = project.folder_id || null;
       const updateData: { folder_id: string | null } = { folder_id: folderId };
       
       const { error: updateError } = await supabase
         .from("experiments")
         .update(updateData)
-        .in("experiment_id", experimentIds)
+        .eq("experiment_id", projectId)
         .eq("user_id", user.user_id); // Add user_id filter for security
 
       if (updateError) {
@@ -267,11 +363,41 @@ export default function DashboardHistory() {
         return;
       }
 
-      // Refresh projects and folders after successful move
-      await Promise.all([
-        getProjects(user.user_id),
-        getFolders(user.user_id) // Refresh to update project counts
-      ]);
+      // Update local state instead of refreshing
+      // Update projects state - match by experiment_id to move only the specific project
+      setProjects(prevProjects => {
+        return prevProjects.map(p => {
+          // Match the specific project by experiment_id
+          if (p.experiment_id === projectId) {
+            return {
+              ...p,
+              folder_id: folderId
+            };
+          }
+          return p;
+        });
+      });
+
+      // Update folder counts locally
+      setFolders(prevFolders => {
+        return prevFolders.map(folder => {
+          // Decrease count for old folder (if it exists)
+          if (oldFolderId && folder.folder_id === oldFolderId) {
+            return {
+              ...folder,
+              project_count: Math.max(0, (folder.project_count || 0) - 1)
+            };
+          }
+          // Increase count for new folder (if it exists and is not null)
+          if (folderId && folder.folder_id === folderId) {
+            return {
+              ...folder,
+              project_count: (folder.project_count || 0) + 1
+            };
+          }
+          return folder;
+        });
+      });
       
       setShowMoveToFolderModal(false);
       setProjectToMove(null);
@@ -860,6 +986,8 @@ export default function DashboardHistory() {
               onDropToFolder={(projectId, folderId) => {
                 handleMoveToFolder(projectId, folderId);
               }}
+              onRenameFolder={handleRenameFolder}
+              onDeleteFolder={handleDeleteFolder}
             />
           </div>
         )}
@@ -1091,6 +1219,98 @@ export default function DashboardHistory() {
                 className="px-4 py-2"
               >
                 Cancel
+              </Button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Rename Folder Modal */}
+      {showRenameFolderModal && createPortal(
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[99999]">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Rename Folder</h3>
+            <div className="mb-6">
+              <label htmlFor="new-folder-name" className="block text-sm font-medium text-gray-700 mb-2">
+                New Name
+              </label>
+              <input
+                id="new-folder-name"
+                type="text"
+                value={newFolderRename}
+                onChange={(e) => setNewFolderRename(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleSaveRenameFolder();
+                  } else if (e.key === 'Escape') {
+                    handleCancelRenameFolder();
+                  }
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Enter folder name"
+                autoFocus
+              />
+            </div>
+            <div className="flex gap-3 justify-end">
+              <Button
+                onClick={handleCancelRenameFolder}
+                variant="outline"
+                className="px-4 py-2"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSaveRenameFolder}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white"
+                disabled={!newFolderRename.trim()}
+              >
+                Save
+              </Button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Delete Folder Confirmation Modal */}
+      {showDeleteFolderConfirm && createPortal(
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[99999]">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                <Trash2 className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Delete Folder</h3>
+                <p className="text-sm text-gray-500">This action cannot be undone</p>
+              </div>
+            </div>
+            <p className="text-gray-700 mb-6">
+              Are you sure you want to delete the folder <strong className="font-semibold">"{folderToDelete?.name}"</strong>? <strong className="text-red-600">All projects inside this folder will be permanently deleted.</strong> This action cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <Button
+                onClick={cancelDeleteFolder}
+                variant="outline"
+                className="px-4 py-2"
+                disabled={isDeletingFolder}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={confirmDeleteFolder}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white flex items-center gap-2"
+                disabled={isDeletingFolder}
+              >
+                {isDeletingFolder ? (
+                  <>
+                    <Spinner size="sm" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  "Delete Folder"
+                )}
               </Button>
             </div>
           </div>

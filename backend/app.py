@@ -545,6 +545,11 @@ class GenerateSteps(Resource):
                     "message": "Invalid response format: expected a JSON object"
                 }), 500
             
+            # Extract introduction if present
+            generated_introduction = steps_data.get('introduction', '')
+            if generated_introduction:
+                logger.info(f"[{request_id}] Generated introduction found (length: {len(generated_introduction)} characters)")
+            
             # Validate and normalize step structure - check for "description" vs "instructions"
             step_keys = [k for k in steps_data.keys() if k.startswith('step')]
             if not step_keys:
@@ -594,14 +599,16 @@ class GenerateSteps(Resource):
                     "message": "No valid steps generated. Please ensure your prompt describes actual tasks, not just an introduction."
                 }), 500
             
-            # Replace steps_data with filtered steps
-            steps_data = filtered_steps
+            # Build output dict with steps and introduction
+            output_dict = filtered_steps.copy()
+            if generated_introduction:
+                output_dict['introduction'] = generated_introduction
+            
             logger.info(f"[{request_id}] Response validated and normalized successfully. {len(filtered_steps)} step(s) after filtering out introduction steps.")
+            if generated_introduction:
+                logger.info(f"[{request_id}] Generated introduction included in response")
             
-            # steps_data is already a dict with all dynamic step fields, ready to return
-            output_dict = steps_data
-            
-            # Return the structured data (output_dict already contains all dynamic step fields)
+            # Return the structured data (output_dict contains steps and optionally introduction)
             logger.info(f"[{request_id}] Returning successful response")
             return jsonify({
                 "status": "success",
