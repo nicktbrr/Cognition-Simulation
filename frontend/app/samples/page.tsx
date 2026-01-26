@@ -1452,6 +1452,22 @@ export default function SamplesPage() {
             right: dropdownPosition.right
           }}
         >
+          {/* 1. Rename */}
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleRenameSample(openDropdown);
+            }}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+            }}
+            className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+          >
+            <Edit2 className="w-4 h-4 mr-3" />
+            Rename
+          </button>
+          {/* 2. Edit */}
           <button
             onClick={(e) => {
               e.preventDefault();
@@ -1466,6 +1482,7 @@ export default function SamplesPage() {
             <Edit2 className="w-4 h-4 mr-3" />
             Edit
           </button>
+          {/* 3. Copy */}
           <button
             onClick={(e) => {
               e.preventDefault();
@@ -1480,6 +1497,7 @@ export default function SamplesPage() {
             <Copy className="w-4 h-4 mr-3" />
             Make a copy
           </button>
+          {/* 4. Move to Folder */}
           <button
             onClick={(e) => {
               e.preventDefault();
@@ -1497,21 +1515,7 @@ export default function SamplesPage() {
             Move to folder
           </button>
           <hr className="my-1 border-gray-100" />
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleRenameSample(openDropdown);
-            }}
-            onMouseDown={(e) => {
-              e.stopPropagation();
-            }}
-            className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-          >
-            <Edit2 className="w-4 h-4 mr-3" />
-            Rename
-          </button>
-          <hr className="my-1 border-gray-100" />
+          {/* 5. Delete */}
           <button
             onClick={(e) => {
               e.preventDefault();

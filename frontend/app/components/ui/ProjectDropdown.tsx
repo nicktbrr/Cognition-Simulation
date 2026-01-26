@@ -173,6 +173,7 @@ export default function ProjectDropdown({
           }}
         >
           <div className="py-1">
+            {/* 1. Rename */}
             <button 
               onClick={(e) => {
                 e.preventDefault();
@@ -188,21 +189,7 @@ export default function ProjectDropdown({
               <Edit className="h-4 w-4" />
               Rename
             </button>
-            <button 
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onReplicate?.();
-                onToggle(); // Close the dropdown
-              }}
-              onMouseDown={(e) => {
-                e.stopPropagation();
-              }}
-              className="flex items-center gap-3 w-full px-4 py-2 text-sm font-semibold text-blue-600 hover:bg-blue-50 transition-colors border-b border-gray-100"
-            >
-              <Copy className="h-4 w-4" />
-              Replicate
-            </button>
+            {/* 2. Edit (Modify) */}
             <button 
               onClick={(e) => {
                 e.preventDefault();
@@ -216,8 +203,9 @@ export default function ProjectDropdown({
               className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
             >
               <Edit className="h-4 w-4" />
-              Modify
+              Edit
             </button>
+            {/* 3. Move to folder */}
             <div className="relative">
               <button 
                 ref={moveToFolderButtonRef}
@@ -306,6 +294,24 @@ export default function ProjectDropdown({
                 document.body
               )}
             </div>
+            {/* 4. Replicate */}
+            <button 
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onReplicate?.();
+                onToggle(); // Close the dropdown
+              }}
+              onMouseDown={(e) => {
+                e.stopPropagation();
+              }}
+              className="flex items-center gap-3 w-full px-4 py-2 text-sm font-semibold text-blue-600 hover:bg-blue-50 transition-colors"
+            >
+              <Copy className="h-4 w-4" />
+              Replicate
+            </button>
+            <hr className="my-1 border-gray-100" />
+            {/* 5. Delete */}
             <button 
               onClick={(e) => {
                 e.preventDefault();
