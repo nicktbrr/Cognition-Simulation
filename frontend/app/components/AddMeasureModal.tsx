@@ -35,9 +35,10 @@ interface AddMeasureModalProps {
     range: string;
     desiredValues: { value: number; label: string }[];
   }) => void;
+  checkNameExists?: (title: string, excludeId?: string) => boolean;
 }
 
-export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure, onUpdate }: AddMeasureModalProps) {
+export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure, onUpdate, checkNameExists }: AddMeasureModalProps) {
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -45,6 +46,7 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
     maxValue: ""
   });
   const [desiredValues, setDesiredValues] = useState<DesiredValue[]>([]);
+  const [titleError, setTitleError] = useState<string>('');
 
   // Populate form when editing measure changes
   useEffect(() => {
@@ -72,7 +74,25 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
       });
       setDesiredValues([]);
     }
+    setTitleError(''); // Reset error when modal opens/changes
   }, [editingMeasure, isOpen]);
+
+  // Handle title change with validation
+  const handleTitleChange = (title: string) => {
+    setFormData(prev => ({ ...prev, title }));
+    
+    // Check for duplicate title if the function is provided
+    if (checkNameExists && title.trim()) {
+      const excludeId = editingMeasure?.id;
+      if (checkNameExists(title, excludeId)) {
+        setTitleError(`A measure with the title "${title.trim()}" already exists.`);
+      } else {
+        setTitleError('');
+      }
+    } else {
+      setTitleError('');
+    }
+  };
 
   const addDesiredValue = () => {
     setDesiredValues([...desiredValues, { value: "", label: "" }]);
@@ -136,6 +156,7 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
       maxValue: ""
     });
     setDesiredValues([]);
+    setTitleError('');
     onClose();
   };
 
@@ -151,10 +172,17 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
             <Input
               placeholder="e.g., Customer Satisfaction"
               value={formData.title}
-              onChange={(e) => setFormData({...formData, title: e.target.value})}
+              onChange={(e) => handleTitleChange(e.target.value)}
               required
-              className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-20 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-opacity-20 focus-visible:ring-offset-0"
+              className={`w-full border-2 rounded-lg px-4 py-3 focus:ring-2 focus:ring-opacity-20 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-opacity-20 focus-visible:ring-offset-0 ${
+                titleError
+                  ? 'border-red-500 focus:border-red-500 focus:ring-red-500 focus-visible:ring-red-500'
+                  : 'border-gray-200 focus:border-blue-500 focus:ring-blue-500 focus-visible:ring-blue-500'
+              }`}
             />
+            {titleError && (
+              <p className="mt-1 text-sm text-red-600">{titleError}</p>
+            )}
           </div>
 
           {/* Definition */}
@@ -293,6 +321,7 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
             <Button
               type="submit"
               className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2"
+              disabled={!!titleError}
             >
               {editingMeasure ? "Update Measure" : "Add Measure"}
             </Button>

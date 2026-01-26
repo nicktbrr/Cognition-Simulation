@@ -139,8 +139,32 @@ export default function MeasuresPage() {
     }
   };
 
+  // Check if a folder name already exists (case-insensitive)
+  const isFolderNameTaken = (name: string, excludeFolderId?: string): boolean => {
+    const normalizedName = name.trim().toLowerCase();
+    return folders.some(folder => 
+      folder.folder_name.toLowerCase() === normalizedName && 
+      folder.folder_id !== excludeFolderId
+    );
+  };
+
+  // Check if a measure name (title) already exists (case-insensitive)
+  const isMeasureNameTaken = (title: string, excludeMeasureId?: string): boolean => {
+    const normalizedTitle = title.trim().toLowerCase();
+    return measures.some(measure => 
+      measure.title.toLowerCase() === normalizedTitle && 
+      measure.id !== excludeMeasureId
+    );
+  };
+
   const handleCreateFolder = async () => {
     if (!newFolderName.trim() || !user || isCreatingFolder) {
+      return;
+    }
+
+    // Check for duplicate folder name
+    if (isFolderNameTaken(newFolderName)) {
+      alert(`A folder with the name "${newFolderName.trim()}" already exists. Please choose a different name.`);
       return;
     }
 
@@ -182,6 +206,12 @@ export default function MeasuresPage() {
 
   const handleSaveRenameFolder = async () => {
     if (!folderToRename || !newFolderRename.trim() || !user) {
+      return;
+    }
+
+    // Check for duplicate folder name (excluding current folder)
+    if (isFolderNameTaken(newFolderRename, folderToRename.id)) {
+      alert(`A folder with the name "${newFolderRename.trim()}" already exists. Please choose a different name.`);
       return;
     }
 
@@ -453,6 +483,12 @@ export default function MeasuresPage() {
       return;
     }
 
+    // Validation is now handled in the modal with inline errors
+    // Double-check here just in case
+    if (isMeasureNameTaken(newMeasure.title)) {
+      return;
+    }
+
     try {
       // Parse the range to get min and max values
       const [min, max] = newMeasure.range.split(' - ').map(val => parseFloat(val.trim()));
@@ -494,6 +530,12 @@ export default function MeasuresPage() {
   const handleUpdateMeasure = async (id: string, updatedMeasure: Omit<Measure, 'id'>) => {
     if (!user) {
       console.error("No user found");
+      return;
+    }
+
+    // Validation is now handled in the modal with inline errors
+    // Double-check here just in case
+    if (isMeasureNameTaken(updatedMeasure.title, id)) {
       return;
     }
 
@@ -594,6 +636,15 @@ export default function MeasuresPage() {
       return;
     }
 
+    // Generate a unique name for the duplicate
+    let baseName = `${measureToDuplicate.title} (Copy)`;
+    let duplicateTitle = baseName;
+    let counter = 1;
+    while (isMeasureNameTaken(duplicateTitle)) {
+      counter++;
+      duplicateTitle = `${measureToDuplicate.title} (Copy ${counter})`;
+    }
+
     try {
       // Parse the range to get min and max values
       const [min, max] = measureToDuplicate.range.split(' - ').map(val => parseFloat(val.trim()));
@@ -602,7 +653,7 @@ export default function MeasuresPage() {
         .from("measures")
         .insert({
           user_id: user.user_id,
-          title: `${measureToDuplicate.title} (Copy)`,
+          title: duplicateTitle,
           definition: measureToDuplicate.description,
           min: min,
           max: max,
@@ -1020,6 +1071,7 @@ export default function MeasuresPage() {
         onAdd={handleAddMeasure}
         editingMeasure={editingMeasure}
         onUpdate={handleUpdateMeasure}
+        checkNameExists={isMeasureNameTaken}
       />
 
       {/* Portal-based Dropdown */}

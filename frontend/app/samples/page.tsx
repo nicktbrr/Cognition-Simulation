@@ -162,8 +162,32 @@ export default function SamplesPage() {
     }
   };
 
+  // Check if a folder name already exists (case-insensitive)
+  const isFolderNameTaken = (name: string, excludeFolderId?: string): boolean => {
+    const normalizedName = name.trim().toLowerCase();
+    return folders.some(folder => 
+      folder.folder_name.toLowerCase() === normalizedName && 
+      folder.folder_id !== excludeFolderId
+    );
+  };
+
+  // Check if a sample name already exists (case-insensitive)
+  const isSampleNameTaken = (name: string, excludeSampleId?: string): boolean => {
+    const normalizedName = name.trim().toLowerCase();
+    return samples.some(sample => 
+      sample.name.toLowerCase() === normalizedName && 
+      sample.id !== excludeSampleId
+    );
+  };
+
   const handleCreateFolder = async () => {
     if (!newFolderName.trim() || !user || isCreatingFolder) {
+      return;
+    }
+
+    // Check for duplicate folder name
+    if (isFolderNameTaken(newFolderName)) {
+      alert(`A folder with the name "${newFolderName.trim()}" already exists. Please choose a different name.`);
       return;
     }
 
@@ -208,6 +232,12 @@ export default function SamplesPage() {
 
   const handleSaveRenameFolder = async () => {
     if (!folderToRename || !newFolderRename.trim() || !user) {
+      return;
+    }
+
+    // Check for duplicate folder name (excluding current folder)
+    if (isFolderNameTaken(newFolderRename, folderToRename.id)) {
+      alert(`A folder with the name "${newFolderRename.trim()}" already exists. Please choose a different name.`);
       return;
     }
 
@@ -726,9 +756,18 @@ export default function SamplesPage() {
     const sample = samples.find(s => s.id === sampleId);
     if (!sample || !user) return;
 
+    // Generate a unique name for the duplicate
+    let baseName = `${sample.name} (Copy)`;
+    let duplicateName = baseName;
+    let counter = 1;
+    while (isSampleNameTaken(duplicateName)) {
+      counter++;
+      duplicateName = `${sample.name} (Copy ${counter})`;
+    }
+
     try {
       const duplicateData = {
-        name: `${sample.name} (Copy)`,
+        name: duplicateName,
         attributes: sample.attributes,
         user_id: user.user_id
       };
@@ -809,6 +848,12 @@ export default function SamplesPage() {
   const saveRename = async () => {
     if (!renamingSample || !newSampleName.trim()) return;
 
+    // Check for duplicate sample name (excluding current sample)
+    if (isSampleNameTaken(newSampleName, renamingSample)) {
+      alert(`A sample with the name "${newSampleName.trim()}" already exists. Please choose a different name.`);
+      return;
+    }
+
     try {
       const { error } = await supabase
         .from('samples')
@@ -844,6 +889,15 @@ export default function SamplesPage() {
   const handleNewSample = async (sampleName: string, selectedAttributes: Attribute[], attributeSelections: AttributeSelection[]) => {
     if (!user) return;
 
+    // Generate sample name if not provided
+    const finalSampleName = sampleName || `Sample ${samples.length + 1}`;
+
+    // Validation is now handled in the modal with inline errors
+    // Double-check here just in case
+    if (isSampleNameTaken(finalSampleName)) {
+      return;
+    }
+
     try {
       // Process each selected attribute with its selected options
       const attributesJson = selectedAttributes.map(attr => {
@@ -876,7 +930,7 @@ export default function SamplesPage() {
 
       // Insert into Supabase
       const newSampleData = {
-        name: sampleName || `Sample ${samples.length + 1}`,
+        name: finalSampleName,
         attributes: attributesJson,
         user_id: user.user_id
       };
@@ -902,6 +956,13 @@ export default function SamplesPage() {
 
   const handleUpdateSample = async (sampleName: string, selectedAttributes: Attribute[], attributeSelections: AttributeSelection[]) => {
     if (!user || !editingSample) return;
+
+    // Validation is now handled in the modal with inline errors
+    // Double-check here just in case
+    const finalSampleName = sampleName || editingSample.name;
+    if (isSampleNameTaken(finalSampleName, editingSample.id)) {
+      return;
+    }
 
     try {
       // Process each selected attribute with its selected options
@@ -1539,6 +1600,7 @@ export default function SamplesPage() {
         isOpen={isNewSampleModalOpen}
         onClose={() => setIsNewSampleModalOpen(false)}
         onSave={handleNewSample}
+        checkNameExists={isSampleNameTaken}
       />
 
       {/* Edit Sample Modal */}
@@ -1551,6 +1613,7 @@ export default function SamplesPage() {
           }}
           onSave={handleUpdateSample}
           initialSample={editingSample}
+          checkNameExists={isSampleNameTaken}
         />
       )}
 

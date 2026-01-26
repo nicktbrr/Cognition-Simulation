@@ -172,8 +172,32 @@ export default function DashboardHistory() {
     }
   };
 
+  // Check if a folder name already exists (case-insensitive)
+  const isFolderNameTaken = (name: string, excludeFolderId?: string): boolean => {
+    const normalizedName = name.trim().toLowerCase();
+    return folders.some(folder => 
+      folder.folder_name.toLowerCase() === normalizedName && 
+      folder.folder_id !== excludeFolderId
+    );
+  };
+
+  // Check if a simulation name already exists (case-insensitive)
+  const isSimulationNameTaken = (name: string, excludeProjectId?: string): boolean => {
+    const normalizedName = name.trim().toLowerCase();
+    return projects.some(project => 
+      project.name.toLowerCase() === normalizedName && 
+      project.experiment_id !== excludeProjectId
+    );
+  };
+
   const handleCreateFolder = async () => {
     if (!newFolderName.trim() || !user || isCreatingFolder) {
+      return;
+    }
+
+    // Check for duplicate folder name
+    if (isFolderNameTaken(newFolderName)) {
+      alert(`A folder with the name "${newFolderName.trim()}" already exists. Please choose a different name.`);
       return;
     }
 
@@ -217,6 +241,12 @@ export default function DashboardHistory() {
 
   const handleSaveRenameFolder = async () => {
     if (!folderToRename || !newFolderRename.trim() || !user) {
+      return;
+    }
+
+    // Check for duplicate folder name (excluding current folder)
+    if (isFolderNameTaken(newFolderRename, folderToRename.id)) {
+      alert(`A folder with the name "${newFolderRename.trim()}" already exists. Please choose a different name.`);
       return;
     }
 
@@ -594,6 +624,12 @@ export default function DashboardHistory() {
 
   const handleSaveRename = async () => {
     if (!projectToRename || !newName.trim()) {
+      return;
+    }
+
+    // Check for duplicate simulation name (excluding current project)
+    if (isSimulationNameTaken(newName, projectToRename.id)) {
+      alert(`A simulation with the name "${newName.trim()}" already exists. Please choose a different name.`);
       return;
     }
 
