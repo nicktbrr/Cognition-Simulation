@@ -304,8 +304,8 @@ export default function SamplesPage() {
       }
 
       // Delete all samples in the folder
-      if (folderSamples && folderSamples.length > 0) {
-        const sampleIds = folderSamples.map(s => s.id);
+      const sampleIds = folderSamples ? folderSamples.map(s => s.id) : [];
+      if (sampleIds.length > 0) {
         const { error: deleteSamplesError } = await supabase
           .from("samples")
           .delete()
@@ -334,11 +334,16 @@ export default function SamplesPage() {
         return;
       }
 
-      // Refresh samples and folders after successful deletion
-      await Promise.all([
-        loadSamples(user.user_id),
-        getFolders(user.user_id)
-      ]);
+      // Update local state instead of refetching to avoid table flash
+      // Remove samples that were in the deleted folder
+      setSamples(prevSamples => 
+        prevSamples.filter(s => s.folder_id !== folderToDelete.id)
+      );
+      
+      // Remove the folder from folders state
+      setFolders(prevFolders => 
+        prevFolders.filter(f => f.folder_id !== folderToDelete.id)
+      );
       
       // Close modal
       setShowDeleteFolderConfirm(false);

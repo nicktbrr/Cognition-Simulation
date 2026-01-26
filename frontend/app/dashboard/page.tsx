@@ -312,8 +312,8 @@ export default function DashboardHistory() {
       }
 
       // Delete all experiments in the folder
-      if (experiments && experiments.length > 0) {
-        const experimentIds = experiments.map(exp => exp.experiment_id);
+      const experimentIds = experiments ? experiments.map(exp => exp.experiment_id) : [];
+      if (experimentIds.length > 0) {
         const { error: deleteExperimentsError } = await supabase
           .from("experiments")
           .delete()
@@ -342,11 +342,16 @@ export default function DashboardHistory() {
         return;
       }
 
-      // Refresh projects and folders after successful deletion
-      await Promise.all([
-        getProjects(user.user_id),
-        getFolders(user.user_id)
-      ]);
+      // Update local state instead of refetching to avoid table flash
+      // Remove projects that were in the deleted folder
+      setProjects(prevProjects => 
+        prevProjects.filter(p => p.folder_id !== folderToDelete.id)
+      );
+      
+      // Remove the folder from folders state
+      setFolders(prevFolders => 
+        prevFolders.filter(f => f.folder_id !== folderToDelete.id)
+      );
       
       // Close modal
       setShowDeleteFolderConfirm(false);
