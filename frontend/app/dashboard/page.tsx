@@ -136,6 +136,7 @@ export default function DashboardHistory() {
         .from("folders")
         .select("*")
         .eq("user_id", userId)
+        .eq("folder_type", "dashboard")
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -184,7 +185,8 @@ export default function DashboardHistory() {
         .insert({
           folder_id: folderId,
           folder_name: newFolderName.trim(),
-          user_id: user.user_id
+          user_id: user.user_id,
+          folder_type: "dashboard"
         });
 
       if (error) {

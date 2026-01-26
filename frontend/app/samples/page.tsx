@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { ChevronDown, Plus, Users, MoreVertical, Trash2, Edit2, Copy, Lock } from "lucide-react";
+import { ChevronDown, Plus, Users, MoreVertical, Trash2, Edit2, Copy, Lock, Folder, FolderPlus, FolderInput, ChevronRight } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent } from "../../components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
@@ -21,6 +21,13 @@ interface UserData {
   pic_url: string;
 }
 
+interface Folder {
+  folder_id: string;
+  folder_name: string;
+  created_at: string;
+  sample_count?: number;
+}
+
 interface Sample {
   id: string; // Changed to string for uuid
   user_id: string;
@@ -35,6 +42,7 @@ interface Sample {
     values: string[];
   }[];
   isLocked?: boolean; // Whether the sample has been used in an experiment
+  folder_id?: string | null; // Folder ID if sample is in a folder
 }
 
 interface Attribute {
@@ -74,6 +82,29 @@ export default function SamplesPage() {
   const [showLockedWarning, setShowLockedWarning] = useState(false);
   const [lockedSampleId, setLockedSampleId] = useState<string | null>(null);
 
+  // Folder state
+  const [folders, setFolders] = useState<Folder[]>([]);
+  const [showNewFolderModal, setShowNewFolderModal] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [isCreatingFolder, setIsCreatingFolder] = useState(false);
+  const [showMoveToFolderModal, setShowMoveToFolderModal] = useState(false);
+  const [sampleToMove, setSampleToMove] = useState<string | null>(null);
+  const [showRenameFolderModal, setShowRenameFolderModal] = useState(false);
+  const [folderToRename, setFolderToRename] = useState<{ id: string; name: string } | null>(null);
+  const [newFolderRename, setNewFolderRename] = useState("");
+  const [showDeleteFolderConfirm, setShowDeleteFolderConfirm] = useState(false);
+  const [folderToDelete, setFolderToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [isDeletingFolder, setIsDeletingFolder] = useState(false);
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+  const [folderDropdownOpen, setFolderDropdownOpen] = useState<string | null>(null);
+  const [folderDropdownPosition, setFolderDropdownPosition] = useState({ top: 0, right: 0 });
+  const folderButtonRefs = useRef<Record<string, HTMLButtonElement>>({});
+  const folderDropdownRef = useRef<HTMLDivElement>(null);
+  
+  // Drag and drop state
+  const [draggedSample, setDraggedSample] = useState<string | null>(null);
+  const [dragOverFolder, setDragOverFolder] = useState<string | null | 'root'>(null);
+
   const getUserData = async (userId: string) => {
     const { data, error } = await supabase
       .from("user_emails")
@@ -87,6 +118,344 @@ export default function SamplesPage() {
       setUserData(data);
     }
     setContentLoaded(true);
+  };
+
+  const getFolders = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("folders")
+        .select("*")
+        .eq("user_id", userId)
+        .eq("folder_type", "samples")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching folders:", error);
+        setFolders([]);
+        return;
+      }
+
+      // Count samples in each folder
+      const foldersWithCounts = await Promise.all(
+        (data || []).map(async (folder) => {
+          const { count, error: countError } = await supabase
+            .from("samples")
+            .select("*", { count: "exact", head: true })
+            .eq("folder_id", folder.folder_id)
+            .eq("user_id", userId);
+          
+          if (countError) {
+            console.error("Error counting samples in folder:", countError);
+          }
+          
+          return {
+            ...folder,
+            sample_count: count || 0
+          };
+        })
+      );
+
+      setFolders(foldersWithCounts);
+    } catch (error) {
+      console.error("Error processing folders data:", error);
+      setFolders([]);
+    }
+  };
+
+  const handleCreateFolder = async () => {
+    if (!newFolderName.trim() || !user || isCreatingFolder) {
+      return;
+    }
+
+    setIsCreatingFolder(true);
+    try {
+      const folderId = crypto.randomUUID();
+      const { error } = await supabase
+        .from("folders")
+        .insert({
+          folder_id: folderId,
+          folder_name: newFolderName.trim(),
+          user_id: user.user_id,
+          folder_type: "samples"
+        });
+
+      if (error) {
+        console.error("Error creating folder:", error);
+        alert("Error creating folder. Please try again.");
+        return;
+      }
+
+      // Refresh folders list
+      await getFolders(user.user_id);
+      
+      // Close modal and reset
+      setShowNewFolderModal(false);
+      setNewFolderName("");
+    } catch (error) {
+      console.error("Error in folder creation:", error);
+      alert("Error creating folder. Please try again.");
+    } finally {
+      setIsCreatingFolder(false);
+    }
+  };
+
+  const handleRenameFolder = (folderId: string, currentName: string) => {
+    setFolderToRename({ id: folderId, name: currentName });
+    setNewFolderRename(currentName);
+    setShowRenameFolderModal(true);
+    setFolderDropdownOpen(null);
+  };
+
+  const handleSaveRenameFolder = async () => {
+    if (!folderToRename || !newFolderRename.trim() || !user) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("folders")
+        .update({ folder_name: newFolderRename.trim() })
+        .eq("folder_id", folderToRename.id)
+        .eq("user_id", user.user_id);
+
+      if (error) {
+        console.error("Error renaming folder:", error);
+        alert("Error renaming folder. Please try again.");
+        return;
+      }
+
+      // Refresh folders after successful update
+      await getFolders(user.user_id);
+      
+      // Close modal
+      setShowRenameFolderModal(false);
+      setFolderToRename(null);
+      setNewFolderRename("");
+    } catch (error) {
+      console.error("Error in folder rename operation:", error);
+      alert("Error renaming folder. Please try again.");
+    }
+  };
+
+  const handleCancelRenameFolder = () => {
+    setShowRenameFolderModal(false);
+    setFolderToRename(null);
+    setNewFolderRename("");
+  };
+
+  const handleDeleteFolder = (folderId: string) => {
+    const folder = folders.find(f => f.folder_id === folderId);
+    if (folder) {
+      setFolderToDelete({ id: folderId, name: folder.folder_name });
+      setShowDeleteFolderConfirm(true);
+      setFolderDropdownOpen(null);
+    }
+  };
+
+  const confirmDeleteFolder = async () => {
+    if (!folderToDelete || !user || isDeletingFolder) {
+      return;
+    }
+
+    setIsDeletingFolder(true);
+    try {
+      // First, delete all samples in the folder
+      const { data: folderSamples, error: fetchError } = await supabase
+        .from("samples")
+        .select("id")
+        .eq("folder_id", folderToDelete.id)
+        .eq("user_id", user.user_id);
+
+      if (fetchError) {
+        console.error("Error fetching samples in folder:", fetchError);
+        alert("Error fetching samples in folder. Please try again.");
+        setIsDeletingFolder(false);
+        return;
+      }
+
+      // Delete all samples in the folder
+      if (folderSamples && folderSamples.length > 0) {
+        const sampleIds = folderSamples.map(s => s.id);
+        const { error: deleteSamplesError } = await supabase
+          .from("samples")
+          .delete()
+          .in("id", sampleIds)
+          .eq("user_id", user.user_id);
+
+        if (deleteSamplesError) {
+          console.error("Error deleting samples in folder:", deleteSamplesError);
+          alert("Error deleting samples in folder. Please try again.");
+          setIsDeletingFolder(false);
+          return;
+        }
+      }
+
+      // Then delete the folder itself
+      const { error: deleteFolderError } = await supabase
+        .from("folders")
+        .delete()
+        .eq("folder_id", folderToDelete.id)
+        .eq("user_id", user.user_id);
+
+      if (deleteFolderError) {
+        console.error("Error deleting folder:", deleteFolderError);
+        alert("Error deleting folder. Please try again.");
+        setIsDeletingFolder(false);
+        return;
+      }
+
+      // Refresh samples and folders after successful deletion
+      await Promise.all([
+        loadSamples(user.user_id),
+        getFolders(user.user_id)
+      ]);
+      
+      // Close modal
+      setShowDeleteFolderConfirm(false);
+      setFolderToDelete(null);
+    } catch (error) {
+      console.error("Error in folder delete operation:", error);
+      alert(`Error deleting folder: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`);
+    } finally {
+      setIsDeletingFolder(false);
+    }
+  };
+
+  const cancelDeleteFolder = () => {
+    setShowDeleteFolderConfirm(false);
+    setFolderToDelete(null);
+  };
+
+  const handleMoveToFolder = async (sampleId: string, folderId: string | null) => {
+    if (!user) {
+      return;
+    }
+
+    try {
+      const sample = samples.find(s => s.id === sampleId);
+      if (!sample) {
+        console.error("Sample not found");
+        alert("Error: Sample not found. Please try again.");
+        return;
+      }
+
+      const oldFolderId = sample.folder_id || null;
+      const updateData: { folder_id: string | null } = { folder_id: folderId };
+      
+      const { error: updateError } = await supabase
+        .from("samples")
+        .update(updateData)
+        .eq("id", sampleId)
+        .eq("user_id", user.user_id);
+
+      if (updateError) {
+        console.error("Error moving sample to folder:", updateError);
+        alert(`Error moving sample to folder: ${updateError.message}. Please try again.`);
+        return;
+      }
+
+      // Update local state
+      setSamples(prevSamples => {
+        return prevSamples.map(s => {
+          if (s.id === sampleId) {
+            return {
+              ...s,
+              folder_id: folderId
+            };
+          }
+          return s;
+        });
+      });
+
+      // Update folder counts locally
+      setFolders(prevFolders => {
+        return prevFolders.map(folder => {
+          if (oldFolderId && folder.folder_id === oldFolderId) {
+            return {
+              ...folder,
+              sample_count: Math.max(0, (folder.sample_count || 0) - 1)
+            };
+          }
+          if (folderId && folder.folder_id === folderId) {
+            return {
+              ...folder,
+              sample_count: (folder.sample_count || 0) + 1
+            };
+          }
+          return folder;
+        });
+      });
+      
+      setShowMoveToFolderModal(false);
+      setSampleToMove(null);
+    } catch (error) {
+      console.error("Error in move to folder operation:", error);
+      alert(`Error moving sample to folder: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`);
+    }
+  };
+
+  const toggleFolderExpansion = (folderId: string) => {
+    setExpandedFolders(prev => {
+      const next = new Set(prev);
+      if (next.has(folderId)) {
+        next.delete(folderId);
+      } else {
+        next.add(folderId);
+      }
+      return next;
+    });
+  };
+
+  const toggleFolderDropdown = (folderId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    if (folderDropdownOpen === folderId) {
+      setFolderDropdownOpen(null);
+    } else {
+      const button = folderButtonRefs.current[folderId];
+      if (button) {
+        const rect = button.getBoundingClientRect();
+        setFolderDropdownPosition({
+          top: rect.bottom + 4,
+          right: window.innerWidth - rect.right
+        });
+      }
+      setFolderDropdownOpen(folderId);
+    }
+  };
+
+  // Drag and drop handlers
+  const handleDragStart = (e: React.DragEvent, sampleId: string) => {
+    setDraggedSample(sampleId);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", sampleId);
+    e.stopPropagation();
+  };
+
+  const handleDragOver = (e: React.DragEvent, folderId: string | null | 'root') => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDragOverFolder(folderId === 'root' ? 'root' : folderId);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverFolder(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, folderId: string | null) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const sampleId = draggedSample || e.dataTransfer.getData("text/plain");
+    if (sampleId) {
+      handleMoveToFolder(sampleId, folderId);
+    }
+    setDraggedSample(null);
+    setDragOverFolder(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedSample(null);
+    setDragOverFolder(null);
   };
 
   const fetchSamples = async (userId: string) => {
@@ -122,6 +491,7 @@ export default function SamplesPage() {
         ...sample,
         expanded: false,
         isLocked: usedSampleIds.has(sample.id),
+        folder_id: sample.folder_id || null,
         // Parse attributes if it's a JSON string
         attributes: typeof sample.attributes === 'string' ? JSON.parse(sample.attributes) : sample.attributes,
         // Convert created_at to a readable date format
@@ -193,10 +563,12 @@ export default function SamplesPage() {
       hasInitiallyLoadedRef.current = true;
       getUserData(user.user_id);
       loadSamples(user.user_id);
+      getFolders(user.user_id);
     } else if (!user || !isAuthenticated) {
       // Reset the ref when user logs out
       hasInitiallyLoadedRef.current = false;
       setSamples([]);
+      setFolders([]);
       setContentLoaded(false);
     }
   }, [user?.user_id, isAuthenticated]);
@@ -232,6 +604,35 @@ export default function SamplesPage() {
       document.removeEventListener('click', handleClickOutside);
     };
   }, [openDropdown]);
+
+  // Close folder dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!folderDropdownOpen) return;
+
+      const target = event.target as Node;
+      
+      if (folderDropdownRef.current && folderDropdownRef.current.contains(target)) {
+        return;
+      }
+
+      const clickedButton = Object.values(folderButtonRefs.current).find(
+        button => button && button.contains(target)
+      );
+      
+      if (!clickedButton) {
+        setFolderDropdownOpen(null);
+      }
+    };
+
+    if (folderDropdownOpen) {
+      document.addEventListener('click', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [folderDropdownOpen]);
 
   const loadSamples = async (userId: string) => {
     setIsLoadingSamples(true);
@@ -587,13 +988,22 @@ export default function SamplesPage() {
         title="Samples"
         description="View and manage your simulated samples."
       >
-        <Button 
-          onClick={() => setIsNewSampleModalOpen(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          New Sample
-        </Button>
+        <div className="flex gap-3">
+          <Button 
+            onClick={() => setShowNewFolderModal(true)}
+            className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-lg flex items-center gap-2"
+          >
+            <FolderPlus className="w-4 h-4" />
+            New Folder
+          </Button>
+          <Button 
+            onClick={() => setIsNewSampleModalOpen(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            New Sample
+          </Button>
+        </div>
       </SubHeader>
 
       {/* Content */}
@@ -607,7 +1017,7 @@ export default function SamplesPage() {
                   <span>Loading samples...</span>
                 </div>
               </div>
-            ) : samples.length === 0 ? (
+            ) : samples.length === 0 && folders.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-64">
                 <Users className="w-12 h-12 text-gray-400 mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">No samples yet</h3>
@@ -633,9 +1043,242 @@ export default function SamplesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {samples.map((sample) => (
+                    {/* Render folders first */}
+                    {folders.map((folder) => {
+                      const folderSamples = samples.filter(s => s.folder_id === folder.folder_id);
+                      const isExpanded = expandedFolders.has(folder.folder_id);
+                      
+                      return (
+                        <React.Fragment key={`folder-${folder.folder_id}`}>
+                          {/* Folder row */}
+                          <TableRow 
+                            className={`group hover:bg-accent/50 transition-fast bg-gray-50 ${dragOverFolder === folder.folder_id ? 'bg-blue-100 ring-2 ring-blue-400 ring-inset' : ''}`}
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleDragOver(e, folder.folder_id);
+                            }}
+                            onDragLeave={handleDragLeave}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleDrop(e, folder.folder_id);
+                            }}
+                          >
+                            <TableCell>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="p-1 h-8 w-8"
+                                onClick={() => toggleFolderExpansion(folder.folder_id)}
+                              >
+                                <ChevronRight 
+                                  className={`h-4 w-4 transition-transform ${
+                                    isExpanded ? 'rotate-90' : ''
+                                  }`}
+                                />
+                              </Button>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <Folder className="w-4 h-4 text-yellow-500" />
+                                  <span className="font-medium text-foreground">{folder.folder_name}</span>
+                                  <span className="text-xs text-gray-500">
+                                    ({folderSamples.length} sample{folderSamples.length !== 1 ? 's' : ''})
+                                  </span>
+                                </div>
+                                <div className="relative flex-shrink-0">
+                                  <Button
+                                    ref={(el) => {
+                                      if (el) {
+                                        folderButtonRefs.current[folder.folder_id] = el;
+                                      } else {
+                                        delete folderButtonRefs.current[folder.folder_id];
+                                      }
+                                    }}
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 w-6 p-0"
+                                    onClick={(e) => toggleFolderDropdown(folder.folder_id, e)}
+                                  >
+                                    <MoreVertical className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-sm">{new Date(folder.created_at).toLocaleDateString()}</span>
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-sm text-gray-500">—</span>
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-sm text-gray-500">—</span>
+                            </TableCell>
+                          </TableRow>
+                          
+                          {/* Samples inside the folder (when expanded) */}
+                          {isExpanded && folderSamples.map((sample) => (
+                            <React.Fragment key={sample.id}>
+                              <TableRow 
+                                className={`group hover:bg-accent/50 transition-fast cursor-grab ${draggedSample === sample.id ? 'opacity-50' : ''}`}
+                                draggable={true}
+                                onDragStart={(e) => handleDragStart(e, sample.id)}
+                                onDragEnd={handleDragEnd}
+                              >
+                                <TableCell>
+                                  <div className="ml-4">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="p-1 h-8 w-8"
+                                      onClick={() => toggleSampleExpansion(sample.id)}
+                                    >
+                                      <ChevronDown 
+                                        className={`h-4 w-4 transition-transform ${
+                                          sample.expanded ? '' : '-rotate-90'
+                                        }`}
+                                      />
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex items-center justify-between ml-4">
+                                    {renamingSample === sample.id ? (
+                                      <div className="flex items-center space-x-2">
+                                        <input
+                                          type="text"
+                                          value={newSampleName}
+                                          onChange={(e) => setNewSampleName(e.target.value)}
+                                          className="text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                          autoFocus
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                              saveRename();
+                                            } else if (e.key === 'Escape') {
+                                              cancelRename();
+                                            }
+                                          }}
+                                        />
+                                        <button
+                                          onClick={saveRename}
+                                          className="text-green-600 hover:text-green-800 text-xs"
+                                        >
+                                          Save
+                                        </button>
+                                        <button
+                                          onClick={cancelRename}
+                                          className="text-gray-500 hover:text-gray-700 text-xs"
+                                        >
+                                          Cancel
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <span className="font-medium text-foreground">{sample.name}</span>
+                                    )}
+                                    <div className="relative flex-shrink-0" ref={openDropdown === sample.id ? dropdownRef : null}>
+                                      <Button
+                                        ref={(el) => {
+                                          if (el) {
+                                            buttonRefs.current[sample.id] = el;
+                                          } else {
+                                            delete buttonRefs.current[sample.id];
+                                          }
+                                        }}
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 w-6 p-0"
+                                        onClick={(e) => toggleDropdown(sample.id, e)}
+                                      >
+                                        <MoreVertical className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <span className="text-sm">{new Date(sample.created_at).toLocaleDateString()}</span>
+                                </TableCell>
+                                <TableCell>
+                                  <span className="text-sm">{Array.isArray(sample.attributes) ? sample.attributes.length : 0} attribute{Array.isArray(sample.attributes) && sample.attributes.length !== 1 ? 's' : ''}</span>
+                                </TableCell>
+                                <TableCell>
+                                  {sample.isLocked ? (
+                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                      Locked
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                      Unlocked
+                                    </span>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                              {sample.expanded && (
+                                <TableRow>
+                                  <TableCell colSpan={5} className="bg-muted/30 p-4">
+                                    <div className="space-y-2" style={{marginLeft: '85px'}}>
+                                      <h4 className="font-medium text-sm text-muted-foreground mb-3">Selected Attributes:</h4>
+                                      <div className="grid grid-cols-3 gap-4">
+                                        {Array.isArray(sample.attributes) && sample.attributes.map((attribute: any, attributeIndex: number) => (
+                                          <div key={attributeIndex} className="p-4 bg-gray-50 border border-gray-200 rounded-lg shadow-sm">
+                                            <div className="flex items-start justify-between mb-3">
+                                              <div className="flex-1 min-w-0">
+                                                <div className="text-sm font-medium text-gray-900 mb-1">{attribute.category}</div>
+                                                <div className="text-base font-semibold text-blue-600 truncate">{attribute.label}</div>
+                                              </div>
+                                            </div>
+                                            
+                                            {attribute.values && attribute.values.length > 0 && (
+                                              <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
+                                                {attribute.values.map((value: string, valueIndex: number) => (
+                                                  <div
+                                                    key={valueIndex}
+                                                    className="flex items-center space-x-2 text-sm text-gray-900"
+                                                  >
+                                                    <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
+                                                      <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                      </svg>
+                                                    </div>
+                                                    <span className="truncate">{value}</span>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            )}
+                                            
+                                            {(!attribute.values || attribute.values.length === 0) && (
+                                              <div className="flex items-center space-x-2 text-sm text-gray-900">
+                                                <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
+                                                  <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                  </svg>
+                                                </div>
+                                                <span>Selected</span>
+                                              </div>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              )}
+                            </React.Fragment>
+                          ))}
+                        </React.Fragment>
+                      );
+                    })}
+                    
+                    {/* Render samples not in any folder */}
+                    {samples.filter(s => !s.folder_id).map((sample) => (
                       <React.Fragment key={sample.id}>
-                        <TableRow className="group hover:bg-accent/50 transition-fast">
+                        <TableRow 
+                          className={`group hover:bg-accent/50 transition-fast cursor-grab ${draggedSample === sample.id ? 'opacity-50' : ''}`}
+                          draggable={true}
+                          onDragStart={(e) => handleDragStart(e, sample.id)}
+                          onDragEnd={handleDragEnd}
+                        >
                           <TableCell>
                             <Button
                               variant="ghost"
@@ -773,6 +1416,23 @@ export default function SamplesPage() {
                         )}
                       </React.Fragment>
                     ))}
+                    
+                    {/* Drop zone for removing from folders - shows when dragging a sample that's in a folder */}
+                    {draggedSample && samples.find(s => s.id === draggedSample)?.folder_id && (
+                      <TableRow
+                        className={`${dragOverFolder === 'root' ? 'bg-blue-100' : 'bg-gray-50'}`}
+                        onDragOver={(e) => handleDragOver(e, 'root')}
+                        onDragLeave={handleDragLeave}
+                        onDrop={(e) => handleDrop(e, null)}
+                      >
+                        <TableCell colSpan={5} className="py-4">
+                          <div className={`flex items-center justify-center gap-2 text-sm border-2 border-dashed rounded-lg py-3 ${dragOverFolder === 'root' ? 'border-blue-400 text-blue-600 bg-blue-50' : 'border-gray-300 text-gray-500'}`}>
+                            <Users className="w-4 h-4" />
+                            <span>Drop here to remove from folder</span>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
                   </TableBody>
                 </Table>
               </div>
@@ -818,6 +1478,22 @@ export default function SamplesPage() {
           >
             <Copy className="w-4 h-4 mr-3" />
             Make a copy
+          </button>
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setSampleToMove(openDropdown);
+              setShowMoveToFolderModal(true);
+              setOpenDropdown(null);
+            }}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+            }}
+            className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+          >
+            <FolderInput className="w-4 h-4 mr-3" />
+            Move to folder
           </button>
           <hr className="my-1 border-gray-100" />
           <button
@@ -910,6 +1586,265 @@ export default function SamplesPage() {
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white"
               >
                 Make a copy
+              </Button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Folder Dropdown Portal */}
+      {folderDropdownOpen && createPortal(
+        <div 
+          ref={folderDropdownRef}
+          className="fixed w-40 bg-white rounded-md shadow-lg border border-gray-200 py-1 z-[99999]"
+          style={{
+            top: folderDropdownPosition.top,
+            right: folderDropdownPosition.right
+          }}
+        >
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const folder = folders.find(f => f.folder_id === folderDropdownOpen);
+              if (folder) {
+                handleRenameFolder(folderDropdownOpen, folder.folder_name);
+              }
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+            className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+          >
+            <Edit2 className="w-4 h-4 mr-3" />
+            Rename
+          </button>
+          <hr className="my-1 border-gray-100" />
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleDeleteFolder(folderDropdownOpen);
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+            className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+          >
+            <Trash2 className="w-4 h-4 mr-3" />
+            Delete
+          </button>
+        </div>,
+        document.body
+      )}
+
+      {/* New Folder Modal */}
+      {showNewFolderModal && createPortal(
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[99999]">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Create New Folder</h3>
+            <div className="mb-6">
+              <label htmlFor="folder-name" className="block text-sm font-medium text-gray-700 mb-2">
+                Folder Name
+              </label>
+              <input
+                id="folder-name"
+                type="text"
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleCreateFolder();
+                  } else if (e.key === 'Escape') {
+                    setShowNewFolderModal(false);
+                    setNewFolderName("");
+                  }
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Enter folder name"
+                autoFocus
+              />
+            </div>
+            <div className="flex gap-3 justify-end">
+              <Button
+                onClick={() => {
+                  setShowNewFolderModal(false);
+                  setNewFolderName("");
+                }}
+                variant="outline"
+                className="px-4 py-2"
+                disabled={isCreatingFolder}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCreateFolder}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2"
+                disabled={!newFolderName.trim() || isCreatingFolder}
+              >
+                {isCreatingFolder ? (
+                  <>
+                    <Spinner size="sm" />
+                    <span>Creating...</span>
+                  </>
+                ) : (
+                  "Create"
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Move to Folder Modal */}
+      {showMoveToFolderModal && createPortal(
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[99999]">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Move to Folder</h3>
+            <div className="mb-6">
+              <p className="text-sm text-gray-600 mb-4">Select a folder to move this sample to:</p>
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {/* Option to remove from folder */}
+                {samples.find(s => s.id === sampleToMove)?.folder_id && (
+                  <>
+                    <button
+                      onClick={() => {
+                        if (sampleToMove) {
+                          handleMoveToFolder(sampleToMove, null);
+                        }
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-left"
+                    >
+                      <Users className="w-4 h-4" />
+                      <span>Remove from folder</span>
+                    </button>
+                    <hr className="my-2 border-gray-100" />
+                  </>
+                )}
+                {folders.map((folder) => (
+                  <button
+                    key={folder.folder_id}
+                    onClick={() => {
+                      if (sampleToMove) {
+                        handleMoveToFolder(sampleToMove, folder.folder_id);
+                      }
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-left"
+                  >
+                    <Folder className="w-4 h-4 text-yellow-500" />
+                    <span>{folder.folder_name}</span>
+                    {folder.sample_count !== undefined && (
+                      <span className="ml-auto text-xs text-gray-500">
+                        ({folder.sample_count} {folder.sample_count === 1 ? 'sample' : 'samples'})
+                      </span>
+                    )}
+                  </button>
+                ))}
+                {folders.length === 0 && (
+                  <p className="text-sm text-gray-500 text-center py-4">No folders yet. Create a folder first.</p>
+                )}
+              </div>
+            </div>
+            <div className="flex gap-3 justify-end">
+              <Button
+                onClick={() => {
+                  setShowMoveToFolderModal(false);
+                  setSampleToMove(null);
+                }}
+                variant="outline"
+                className="px-4 py-2"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Rename Folder Modal */}
+      {showRenameFolderModal && createPortal(
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[99999]">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Rename Folder</h3>
+            <div className="mb-6">
+              <label htmlFor="new-folder-name" className="block text-sm font-medium text-gray-700 mb-2">
+                New Name
+              </label>
+              <input
+                id="new-folder-name"
+                type="text"
+                value={newFolderRename}
+                onChange={(e) => setNewFolderRename(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleSaveRenameFolder();
+                  } else if (e.key === 'Escape') {
+                    handleCancelRenameFolder();
+                  }
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Enter folder name"
+                autoFocus
+              />
+            </div>
+            <div className="flex gap-3 justify-end">
+              <Button
+                onClick={handleCancelRenameFolder}
+                variant="outline"
+                className="px-4 py-2"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSaveRenameFolder}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white"
+                disabled={!newFolderRename.trim()}
+              >
+                Save
+              </Button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Delete Folder Confirmation Modal */}
+      {showDeleteFolderConfirm && createPortal(
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[99999]">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                <Trash2 className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Delete Folder</h3>
+                <p className="text-sm text-gray-500">This action cannot be undone</p>
+              </div>
+            </div>
+            <p className="text-gray-700 mb-6">
+              Are you sure you want to delete the folder <strong className="font-semibold">"{folderToDelete?.name}"</strong>? <strong className="text-red-600">All samples inside this folder will be permanently deleted.</strong> This action cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <Button
+                onClick={cancelDeleteFolder}
+                variant="outline"
+                className="px-4 py-2"
+                disabled={isDeletingFolder}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={confirmDeleteFolder}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white flex items-center gap-2"
+                disabled={isDeletingFolder}
+              >
+                {isDeletingFolder ? (
+                  <>
+                    <Spinner size="sm" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  "Delete Folder"
+                )}
               </Button>
             </div>
           </div>
