@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { createPortal } from "react-dom";
 import { ChevronDown, Folder } from "lucide-react";
 import StatusBadge from "./ui/StatusBadge";
 import DownloadButton from "./ui/DownloadButton";
@@ -473,23 +474,6 @@ export default function ProjectsTable({
               renderProjectRow(project, idx, false, rootProjects.length)
             )}
             
-            {/* Show root drop zone when dragging even if no root projects exist */}
-            {!hasRootProjects && draggedProject && (
-              <tr
-                className={`${dragOverFolder === 'root' ? 'bg-blue-50' : ''}`}
-                onDragOver={(e) => handleDragOver(e, 'root')}
-                onDragLeave={handleDragLeave}
-                onDrop={(e) => handleDrop(e, null)}
-              >
-                <td colSpan={6} className="px-6 py-2 bg-gray-50">
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <Folder className="w-4 h-4" />
-                    <span>Drop here to remove from folder</span>
-                  </div>
-                </td>
-              </tr>
-            )}
-            
             {/* Fallback: if no projects are showing and we have projects, show them all as root */}
             {hasAnyProjects && !hasRootProjects && !hasFolderProjects && (
               <>
@@ -501,6 +485,22 @@ export default function ProjectsTable({
           </tbody>
         </table>
       </div>
+      
+      {/* Fixed drop zone portal for removing from folders - shows when dragging a project that's in a folder */}
+      {draggedProject && sortedProjects.find(p => (p.experiment_id || p.id) === draggedProject)?.folder_id && typeof document !== 'undefined' && createPortal(
+        <div
+          className={`fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-200 shadow-lg z-50 ${dragOverFolder === 'root' ? 'bg-blue-50' : ''}`}
+          onDragOver={(e) => handleDragOver(e, 'root')}
+          onDragLeave={handleDragLeave}
+          onDrop={(e) => handleDrop(e, null)}
+        >
+          <div className={`flex items-center justify-center gap-2 text-sm border-2 border-dashed rounded-lg py-4 max-w-4xl mx-auto ${dragOverFolder === 'root' ? 'border-blue-400 text-blue-600 bg-blue-100' : 'border-gray-300 text-gray-500 bg-gray-50'}`}>
+            <Folder className="w-4 h-4" />
+            <span>Drop here to remove from folder</span>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

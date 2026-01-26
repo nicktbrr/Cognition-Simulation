@@ -45,6 +45,7 @@ interface NewSampleModalProps {
   onClose: () => void;
   onSave: (sampleName: string, selectedAttributes: Attribute[], attributeSelections: AttributeSelection[]) => void;
   initialSample?: Sample | null;
+  checkNameExists?: (name: string, excludeId?: string) => boolean;
 }
 
 const demographicsAttributes: Attribute[] = demographicsAttributesData as Attribute[];
@@ -97,7 +98,7 @@ const allCategories = [
   { name: "Other", attributes: otherAttributes, expanded: false },
 ];
 
-export default function NewSampleModal({ isOpen, onClose, onSave, initialSample }: NewSampleModalProps) {
+export default function NewSampleModal({ isOpen, onClose, onSave, initialSample, checkNameExists }: NewSampleModalProps) {
   const [sampleName, setSampleName] = useState<string>('');
   const [selectedAttributes, setSelectedAttributes] = useState<Attribute[]>([]);
   const [attributeSelections, setAttributeSelections] = useState<AttributeSelection[]>([]);
@@ -109,6 +110,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample 
   const [panelPosition, setPanelPosition] = useState<{ top: number; left: number } | null>(null);
   const [checkedOptions, setCheckedOptions] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [nameError, setNameError] = useState<string>('');
   const [categoryExpanded, setCategoryExpanded] = useState<{ [key: string]: boolean }>({
     "Demographics": true,
     "Health": false,
@@ -133,8 +135,26 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample 
       } else {
         setSampleName('');
       }
+      setNameError(''); // Reset error when modal opens
     }
   }, [isOpen, initialSample]);
+
+  // Check for duplicate name when sample name changes
+  const handleSampleNameChange = (name: string) => {
+    setSampleName(name);
+    
+    // Check for duplicate name if the function is provided
+    if (checkNameExists && name.trim()) {
+      const excludeId = initialSample?.id;
+      if (checkNameExists(name, excludeId)) {
+        setNameError(`A sample with the name "${name.trim()}" already exists.`);
+      } else {
+        setNameError('');
+      }
+    } else {
+      setNameError('');
+    }
+  };
 
   useEffect(() => {
     if (isOpen && initialSample && Array.isArray(initialSample.attributes)) {
@@ -429,6 +449,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample 
     setPanelPosition(null);
     setCheckedOptions(new Set());
     setSearchQuery('');
+    setNameError('');
     onClose();
   };
 
@@ -468,10 +489,17 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample 
                   id="sample-name"
                   type="text"
                   value={sampleName}
-                  onChange={(e) => setSampleName(e.target.value)}
+                  onChange={(e) => handleSampleNameChange(e.target.value)}
                   placeholder="Enter sample name"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent ${
+                    nameError 
+                      ? 'border-red-500 focus:ring-red-500' 
+                      : 'border-gray-300 focus:ring-blue-500'
+                  }`}
                 />
+                {nameError && (
+                  <p className="mt-1 text-sm text-red-600">{nameError}</p>
+                )}
               </div>
             </div>
             <button
@@ -666,7 +694,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample 
               <Button
                 onClick={handleSave}
                 className="bg-blue-600 hover:bg-blue-700 text-white"
-                disabled={selectedAttributes.length === 0 || !sampleName.trim()}
+                disabled={selectedAttributes.length === 0 || !sampleName.trim() || !!nameError}
               >
                 {initialSample ? 'Update Sample' : 'Create Sample'}
               </Button>
