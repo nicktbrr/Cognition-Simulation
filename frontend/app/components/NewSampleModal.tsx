@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { X, ChevronDown, ChevronUp } from "lucide-react";
+import { X, ChevronDown, ChevronUp, Search } from "lucide-react";
 import { Button } from "./ui/button";
 import otherAttributesData from "../data/attributes/other.json";
 import demographicsAttributesData from "../data/attributes/demographics.json";
@@ -108,6 +108,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample 
   const [tempAgeInput, setTempAgeInput] = useState({ min: '5', max: '82' });
   const [panelPosition, setPanelPosition] = useState<{ top: number; left: number } | null>(null);
   const [checkedOptions, setCheckedOptions] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [categoryExpanded, setCategoryExpanded] = useState<{ [key: string]: boolean }>({
     "Demographics": true,
     "Health": false,
@@ -203,6 +204,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample 
       setSelectedAttributes([]);
       setAttributeSelections([]);
       setCheckedOptions(new Set());
+      setSearchQuery('');
     }
   }, [isOpen, initialSample]);
 
@@ -426,6 +428,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample 
     setTempAgeInput({ min: '5', max: '82' });
     setPanelPosition(null);
     setCheckedOptions(new Set());
+    setSearchQuery('');
     onClose();
   };
 
@@ -481,7 +484,18 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample 
 
           {/* Explore Attributes Header */}
           <div className="p-6 border-b border-gray-200 flex-shrink-0">
-            <h3 className="text-lg font-semibold text-blue-600">Explore Attributes</h3>
+            <h3 className="text-lg font-semibold text-blue-600 mb-4">Explore Attributes</h3>
+            {/* Search Bar */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search for characteristics/attributes..."
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
           </div>
 
           {/* Main Content Area - Split into two halves */}
@@ -489,40 +503,71 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample 
             {/* Top Half - Scrollable Categories */}
             <div className="flex-1 overflow-y-auto border-b border-gray-200" style={{ minHeight: 0 }}>
               <div className="p-6">
-                {allCategories.map((category) => (
-                  <div key={category.name} className="mb-6">
-                    <button
-                      onClick={() => toggleCategoryExpansion(category.name)}
-                      className="flex items-center justify-between w-full text-left font-medium text-blue-600 mb-3 hover:text-blue-800 transition-colors"
-                    >
-                      <span>{category.name}</span>
-                      {categoryExpanded[category.name] ? (
-                        <ChevronUp className="w-4 h-4" />
-                      ) : (
-                        <ChevronDown className="w-4 h-4" />
+                {allCategories.map((category) => {
+                  // Filter attributes based on search query
+                  const filteredAttributes = searchQuery.trim()
+                    ? category.attributes.filter(attr =>
+                        attr.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                        attr.category.toLowerCase().includes(searchQuery.toLowerCase())
+                      )
+                    : category.attributes;
+
+                  // Only show category if it has matching attributes or search is empty
+                  if (searchQuery.trim() && filteredAttributes.length === 0) {
+                    return null;
+                  }
+
+                  // Auto-expand category if it has matching attributes when searching
+                  const shouldShowExpanded = searchQuery.trim()
+                    ? filteredAttributes.length > 0
+                    : categoryExpanded[category.name];
+
+                  return (
+                    <div key={category.name} className="mb-6">
+                      <button
+                        onClick={() => toggleCategoryExpansion(category.name)}
+                        className="flex items-center justify-between w-full text-left font-medium text-blue-600 mb-3 hover:text-blue-800 transition-colors"
+                      >
+                        <span>{category.name}</span>
+                        {shouldShowExpanded ? (
+                          <ChevronUp className="w-4 h-4" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4" />
+                        )}
+                      </button>
+                      {shouldShowExpanded && (
+                        <div className="grid grid-cols-2 gap-2 ml-4">
+                          {filteredAttributes.map((attribute) => {
+                            const isSelected = selectedAttributes.some(attr => attr.id === attribute.id);
+                            return (
+                              <div
+                                key={attribute.id}
+                                onClick={(e) => handleAttributeClick(attribute, e)}
+                                className={`p-3 rounded border cursor-pointer transition-colors text-sm ${isSelected
+                                  ? 'border-blue-500 bg-blue-50 text-blue-700'
+                                  : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                                  }`}
+                              >
+                                {attribute.label}
+                              </div>
+                            );
+                          })}
+                        </div>
                       )}
-                    </button>
-                    {categoryExpanded[category.name] && (
-                      <div className="grid grid-cols-2 gap-2 ml-4">
-                        {category.attributes.map((attribute) => {
-                          const isSelected = selectedAttributes.some(attr => attr.id === attribute.id);
-                          return (
-                            <div
-                              key={attribute.id}
-                              onClick={(e) => handleAttributeClick(attribute, e)}
-                              className={`p-3 rounded border cursor-pointer transition-colors text-sm ${isSelected
-                                ? 'border-blue-500 bg-blue-50 text-blue-700'
-                                : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                                }`}
-                            >
-                              {attribute.label}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                    </div>
+                  );
+                })}
+                {searchQuery.trim() && allCategories.every(category => {
+                  const filtered = category.attributes.filter(attr =>
+                    attr.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    attr.category.toLowerCase().includes(searchQuery.toLowerCase())
+                  );
+                  return filtered.length === 0;
+                }) && (
+                  <div className="text-center text-gray-500 py-8">
+                    <p className="text-sm">No attributes found matching "{searchQuery}"</p>
                   </div>
-                ))}
+                )}
               </div>
             </div>
 
