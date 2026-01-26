@@ -71,6 +71,7 @@ function SimulationPageContent() {
   const [isSimulationRunning, setIsSimulationRunning] = useState(false);
   const [showIntroductionModal, setShowIntroductionModal] = useState(false);
   const [generatedIntroduction, setGeneratedIntroduction] = useState<string>("");
+  const [titleError, setTitleError] = useState<string>("");
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const reactFlowRef = useRef<ReactFlowRef>(null);
   const hasInitiallyLoadedRef = useRef(false);
@@ -313,6 +314,50 @@ function SimulationPageContent() {
     }
   };
 
+  // Check if a simulation name already exists (case-insensitive)
+  const checkSimulationNameExists = async (name: string, excludeExperimentId?: string): Promise<boolean> => {
+    if (!user || !name.trim()) return false;
+    
+    try {
+      // Query all experiments for the user and check for matching titles
+      const { data, error } = await supabase
+        .from("experiments")
+        .select("experiment_id, experiment_data")
+        .eq("user_id", user.user_id);
+
+      if (error) {
+        console.error("Error checking for duplicate names:", error);
+        return false; // Allow operation to proceed if check fails
+      }
+
+      const normalizedName = name.trim().toLowerCase();
+      return (data || []).some(exp => {
+        const expTitle = (exp.experiment_data?.title || "").toLowerCase();
+        return expTitle === normalizedName && exp.experiment_id !== excludeExperimentId;
+      });
+    } catch (error) {
+      console.error("Error in name check:", error);
+      return false;
+    }
+  };
+
+  // Handle study title change with validation
+  const handleStudyTitleChange = async (title: string) => {
+    setProcessTitle(title);
+    
+    // Check for duplicate title if not empty
+    if (title.trim()) {
+      const isDuplicate = await checkSimulationNameExists(title, modifyExperimentId || undefined);
+      if (isDuplicate) {
+        setTitleError(`A simulation with the name "${title.trim()}" already exists.`);
+      } else {
+        setTitleError("");
+      }
+    } else {
+      setTitleError("");
+    }
+  };
+
   const handleSaveDraft = async () => {
     try {
       // Get the user from auth
@@ -325,6 +370,12 @@ function SimulationPageContent() {
       const selectedSampleDetails = getSelectedSampleDetails();
       if (!selectedSampleDetails) {
         alert("Please select a sample before saving the draft.");
+        return;
+      }
+
+      // Validation is now handled inline with titleError state
+      // Double-check here just in case
+      if (titleError) {
         return;
       }
 
@@ -433,6 +484,7 @@ function SimulationPageContent() {
     setProcessTitle("");
     setStudyIntroduction("");
     setSelectedSample("");
+    setTitleError("");
     
     // Clear React Flow
     if (reactFlowRef.current) {
@@ -625,6 +677,12 @@ function SimulationPageContent() {
     // Validate that a sample is selected
     if (!selectedSample) {
       alert("Please select a sample before submitting the simulation.");
+      return;
+    }
+
+    // Validation is now handled inline with titleError state
+    // Double-check here just in case
+    if (titleError) {
       return;
     }
     
@@ -1204,7 +1262,7 @@ function SimulationPageContent() {
           </Button>
           <Button 
             onClick={handleSubmitSimulation}
-            disabled={isSimulationRunning}
+            disabled={isSimulationRunning || !!titleError}
             className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Download className="w-4 h-4" />
@@ -1409,9 +1467,16 @@ function SimulationPageContent() {
                     type="text"
                     placeholder="Enter study title..."
                     value={processTitle}
-                    onChange={(e) => setProcessTitle(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm h-[58px]"
+                    onChange={(e) => handleStudyTitleChange(e.target.value)}
+                    className={`w-full px-3 py-2 bg-white border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent text-sm h-[58px] ${
+                      titleError
+                        ? 'border-red-500 focus:ring-red-500'
+                        : 'border-gray-200 focus:ring-blue-500'
+                    }`}
                   />
+                  {titleError && (
+                    <p className="mt-1 text-xs text-red-600">{titleError}</p>
+                  )}
                 </div>
 
                 {/* Study Introduction */}

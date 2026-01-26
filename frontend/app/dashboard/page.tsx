@@ -136,6 +136,7 @@ export default function DashboardHistory() {
         .from("folders")
         .select("*")
         .eq("user_id", userId)
+        .eq("folder_type", "dashboard")
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -171,8 +172,32 @@ export default function DashboardHistory() {
     }
   };
 
+  // Check if a folder name already exists (case-insensitive)
+  const isFolderNameTaken = (name: string, excludeFolderId?: string): boolean => {
+    const normalizedName = name.trim().toLowerCase();
+    return folders.some(folder => 
+      folder.folder_name.toLowerCase() === normalizedName && 
+      folder.folder_id !== excludeFolderId
+    );
+  };
+
+  // Check if a simulation name already exists (case-insensitive)
+  const isSimulationNameTaken = (name: string, excludeProjectId?: string): boolean => {
+    const normalizedName = name.trim().toLowerCase();
+    return projects.some(project => 
+      project.name.toLowerCase() === normalizedName && 
+      project.experiment_id !== excludeProjectId
+    );
+  };
+
   const handleCreateFolder = async () => {
     if (!newFolderName.trim() || !user || isCreatingFolder) {
+      return;
+    }
+
+    // Check for duplicate folder name
+    if (isFolderNameTaken(newFolderName)) {
+      alert(`A folder with the name "${newFolderName.trim()}" already exists. Please choose a different name.`);
       return;
     }
 
@@ -184,7 +209,8 @@ export default function DashboardHistory() {
         .insert({
           folder_id: folderId,
           folder_name: newFolderName.trim(),
-          user_id: user.user_id
+          user_id: user.user_id,
+          folder_type: "dashboard"
         });
 
       if (error) {
@@ -215,6 +241,12 @@ export default function DashboardHistory() {
 
   const handleSaveRenameFolder = async () => {
     if (!folderToRename || !newFolderRename.trim() || !user) {
+      return;
+    }
+
+    // Check for duplicate folder name (excluding current folder)
+    if (isFolderNameTaken(newFolderRename, folderToRename.id)) {
+      alert(`A folder with the name "${newFolderRename.trim()}" already exists. Please choose a different name.`);
       return;
     }
 
@@ -280,8 +312,8 @@ export default function DashboardHistory() {
       }
 
       // Delete all experiments in the folder
-      if (experiments && experiments.length > 0) {
-        const experimentIds = experiments.map(exp => exp.experiment_id);
+      const experimentIds = experiments ? experiments.map(exp => exp.experiment_id) : [];
+      if (experimentIds.length > 0) {
         const { error: deleteExperimentsError } = await supabase
           .from("experiments")
           .delete()
@@ -310,11 +342,16 @@ export default function DashboardHistory() {
         return;
       }
 
-      // Refresh projects and folders after successful deletion
-      await Promise.all([
-        getProjects(user.user_id),
-        getFolders(user.user_id)
-      ]);
+      // Update local state instead of refetching to avoid table flash
+      // Remove projects that were in the deleted folder
+      setProjects(prevProjects => 
+        prevProjects.filter(p => p.folder_id !== folderToDelete.id)
+      );
+      
+      // Remove the folder from folders state
+      setFolders(prevFolders => 
+        prevFolders.filter(f => f.folder_id !== folderToDelete.id)
+      );
       
       // Close modal
       setShowDeleteFolderConfirm(false);
@@ -592,6 +629,12 @@ export default function DashboardHistory() {
 
   const handleSaveRename = async () => {
     if (!projectToRename || !newName.trim()) {
+      return;
+    }
+
+    // Check for duplicate simulation name (excluding current project)
+    if (isSimulationNameTaken(newName, projectToRename.id)) {
+      alert(`A simulation with the name "${newName.trim()}" already exists. Please choose a different name.`);
       return;
     }
 
