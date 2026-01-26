@@ -1417,29 +1417,30 @@ export default function SamplesPage() {
                       </React.Fragment>
                     ))}
                     
-                    {/* Drop zone for removing from folders - shows when dragging a sample that's in a folder */}
-                    {draggedSample && samples.find(s => s.id === draggedSample)?.folder_id && (
-                      <TableRow
-                        className={`${dragOverFolder === 'root' ? 'bg-blue-100' : 'bg-gray-50'}`}
-                        onDragOver={(e) => handleDragOver(e, 'root')}
-                        onDragLeave={handleDragLeave}
-                        onDrop={(e) => handleDrop(e, null)}
-                      >
-                        <TableCell colSpan={5} className="py-4">
-                          <div className={`flex items-center justify-center gap-2 text-sm border-2 border-dashed rounded-lg py-3 ${dragOverFolder === 'root' ? 'border-blue-400 text-blue-600 bg-blue-50' : 'border-gray-300 text-gray-500'}`}>
-                            <Users className="w-4 h-4" />
-                            <span>Drop here to remove from folder</span>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )}
                   </TableBody>
                 </Table>
               </div>
             )}
           </CardContent>
         </Card>
+        
       </div>
+
+      {/* Fixed drop zone portal for removing from folders - shows when dragging a sample that's in a folder */}
+      {draggedSample && samples.find(s => s.id === draggedSample)?.folder_id && createPortal(
+        <div
+          className={`fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-200 shadow-lg z-50 ${dragOverFolder === 'root' ? 'bg-blue-50' : ''}`}
+          onDragOver={(e) => handleDragOver(e, 'root')}
+          onDragLeave={handleDragLeave}
+          onDrop={(e) => handleDrop(e, null)}
+        >
+          <div className={`flex items-center justify-center gap-2 text-sm border-2 border-dashed rounded-lg py-4 max-w-4xl mx-auto ${dragOverFolder === 'root' ? 'border-blue-400 text-blue-600 bg-blue-100' : 'border-gray-300 text-gray-500 bg-gray-50'}`}>
+            <Users className="w-4 h-4" />
+            <span>Drop here to remove from folder</span>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* Portal-based Dropdown */}
       {openDropdown && createPortal(
