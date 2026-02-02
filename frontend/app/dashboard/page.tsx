@@ -77,7 +77,6 @@ export default function DashboardHistory() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
   const [contentLoaded, setContentLoaded] = useState(false);
-  const [showRenameModal, setShowRenameModal] = useState(false);
   const [projectToRename, setProjectToRename] = useState<{ id: string; name: string } | null>(null);
   const [newName, setNewName] = useState("");
   const [showReplicateConfirm, setShowReplicateConfirm] = useState(false);
@@ -624,7 +623,6 @@ export default function DashboardHistory() {
   const handleStartRename = (projectId: string, currentName: string) => {
     setProjectToRename({ id: projectId, name: currentName });
     setNewName(currentName);
-    setShowRenameModal(true);
   };
 
   const handleSaveRename = async () => {
@@ -672,8 +670,6 @@ export default function DashboardHistory() {
         await getProjects(user.user_id);
       }
       
-      // Close modal
-      setShowRenameModal(false);
       setProjectToRename(null);
       setNewName("");
     } catch (error) {
@@ -683,7 +679,6 @@ export default function DashboardHistory() {
   };
 
   const handleCancelRename = () => {
-    setShowRenameModal(false);
     setProjectToRename(null);
     setNewName("");
   };
@@ -1031,57 +1026,15 @@ export default function DashboardHistory() {
               }}
               onRenameFolder={handleRenameFolder}
               onDeleteFolder={handleDeleteFolder}
+              renamingProjectId={projectToRename?.id ?? null}
+              renameValue={newName}
+              onRenameValueChange={setNewName}
+              onSaveRename={handleSaveRename}
+              onCancelRename={handleCancelRename}
             />
           </div>
         )}
       </div>
-
-      {/* Rename Modal */}
-      {showRenameModal && createPortal(
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[99999]">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Rename Simulation</h3>
-            <div className="mb-6">
-              <label htmlFor="new-name" className="block text-sm font-medium text-gray-700 mb-2">
-                New Name
-              </label>
-              <input
-                id="new-name"
-                type="text"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    handleSaveRename();
-                  } else if (e.key === 'Escape') {
-                    handleCancelRename();
-                  }
-                }}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Enter simulation name"
-                autoFocus
-              />
-            </div>
-            <div className="flex gap-3 justify-end">
-              <Button
-                onClick={handleCancelRename}
-                variant="outline"
-                className="px-4 py-2"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleSaveRename}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white"
-                disabled={!newName.trim()}
-              >
-                Save
-              </Button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && createPortal(

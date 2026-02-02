@@ -56,6 +56,13 @@ interface ProjectsTableProps {
   onDropToFolder?: (projectId: string, folderId: string | null) => void;
   onRenameFolder?: (folderId: string, currentName: string) => void;
   onDeleteFolder?: (folderId: string) => void;
+  /** In-place rename: which project row is being renamed (experiment_id) */
+  renamingProjectId?: string | null;
+  /** In-place rename: current input value */
+  renameValue?: string;
+  onRenameValueChange?: (value: string) => void;
+  onSaveRename?: () => void;
+  onCancelRename?: () => void;
 }
 
 export default function ProjectsTable({ 
@@ -69,7 +76,12 @@ export default function ProjectsTable({
   onMoveToFolder,
   onDropToFolder,
   onRenameFolder,
-  onDeleteFolder
+  onDeleteFolder,
+  renamingProjectId = null,
+  renameValue = "",
+  onRenameValueChange,
+  onSaveRename,
+  onCancelRename
 }: ProjectsTableProps) {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
@@ -173,10 +185,6 @@ export default function ProjectsTable({
     // The actual sorting is handled in the useEffect above
   };
 
-  const handleStartRename = (projectId: string, currentName: string) => {
-    onRename(projectId, currentName);
-  };
-
   const toggleFolderExpansion = (folderId: string) => {
     const newExpandedFolders = new Set(expandedFolders);
     if (expandedFolders.has(folderId)) {
@@ -263,7 +271,64 @@ export default function ProjectsTable({
         >
           <td className={`px-6 py-4 ${isInFolder ? 'pl-12' : ''}`}>
             <div className="flex items-center justify-between">
-              <button 
+              {renamingProjectId && (project.id === renamingProjectId || project.experiment_id === renamingProjectId) ? (
+                <>
+                  <button
+                    onClick={(e) => {
+                      if (draggedProject) {
+                        e.preventDefault();
+                        return;
+                      }
+                      toggleRowExpansion(project.id!);
+                    }}
+                    onMouseDown={(e) => {
+                      if (!draggedProject) e.stopPropagation();
+                    }}
+                    className="flex items-center gap-2 text-left"
+                  >
+                    <div
+                      className="w-8 h-8 flex items-center justify-center"
+                      style={{ borderRadius: 'calc(var(--radius) - 2px)' }}
+                    >
+                      <ChevronDown
+                        className={`w-4 h-4 transition-transform ${
+                          expandedRows.has(project.id!) ? '' : '-rotate-90'
+                        }`}
+                      />
+                    </div>
+                  </button>
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <input
+                      type="text"
+                      value={renameValue}
+                      onChange={(e) => onRenameValueChange?.(e.target.value)}
+                      className="text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-0 flex-1"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          onSaveRename?.();
+                        } else if (e.key === 'Escape') {
+                          onCancelRename?.();
+                        }
+                      }}
+                    />
+                    <button
+                      onClick={onSaveRename}
+                      className="text-green-600 hover:text-green-800 text-xs font-medium flex-shrink-0"
+                    >
+                      Save
+                    </button>
+                    <button
+                      onClick={onCancelRename}
+                      className="text-gray-500 hover:text-gray-700 text-xs font-medium flex-shrink-0"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <button 
                 onClick={(e) => {
                   // Don't trigger expand when dragging
                   if (draggedProject) {
@@ -299,7 +364,10 @@ export default function ProjectsTable({
                 isOpen={projectDropdowns.has(project.id!)}
                 onToggle={() => toggleProjectDropdown(project.id!)}
                 position={projectIndex >= projects.length - 2 ? 'top' : 'bottom'}
-                onRename={() => handleStartRename(project.id!, project.name)}
+                onRename={() => {
+                      onRename(project.id!, project.name);
+                      toggleProjectDropdown(project.id!);
+                    }}
                 onReplicate={() => onReplicate?.(project.id!)}
                 onModify={() => onModify?.(project.id!)}
                 onDelete={() => onDelete?.(project.id!)}
@@ -311,6 +379,8 @@ export default function ProjectsTable({
                 folders={folders}
                 currentFolderId={project.folder_id}
               />
+                </>
+              )}
             </div>
           </td>
           <td className={`px-6 py-4 ${isInFolder ? 'pl-12' : ''}`}>
