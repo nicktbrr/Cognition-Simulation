@@ -107,7 +107,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
   const [ageRange, setAgeRange] = useState({ min: 5, max: 82 });
   const [tempAgeRange, setTempAgeRange] = useState({ min: 5, max: 82 });
   const [tempAgeInput, setTempAgeInput] = useState({ min: '5', max: '82' });
-  const [panelPosition, setPanelPosition] = useState<{ top: number; left: number } | null>(null);
+  const [panelPosition, setPanelPosition] = useState<{ top: number; left: number; maxHeight?: number } | null>(null);
   const [checkedOptions, setCheckedOptions] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [nameError, setNameError] = useState<string>('');
@@ -235,22 +235,28 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
     const panelWidth = 384; // 24rem (w-96)
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
-    
-    // Calculate initial position to the right of the clicked element
+    const panelPadding = 24; // space from viewport edges
+
+    // Use viewport coordinates (panel is inside a fixed overlay)
     let left = rect.right + 8;
-    let top = rect.top + window.scrollY;
-    
+    let top = rect.top;
+
     // If panel would go off the right edge, position it to the left of the element
-    if (left + panelWidth > viewportWidth) {
+    if (left + panelWidth > viewportWidth - panelPadding) {
       left = rect.left - panelWidth - 8;
     }
-    
-    // Ensure the panel doesn't go off the left edge
-    if (left < 8) {
-      left = 8;
+    if (left < panelPadding) {
+      left = panelPadding;
     }
-    
-    const position = { top, left };
+
+    // Keep panel bottom within viewport so footer (Select All, Clear All, Add to Sample) is visible
+    const maxPanelHeight = Math.min(0.85 * viewportHeight, viewportHeight - top - panelPadding);
+    if (maxPanelHeight < 200) {
+      // If opening near bottom, shift panel up so it fits
+      top = Math.max(panelPadding, viewportHeight - panelPadding - 0.85 * viewportHeight);
+    }
+
+    const position = { top, left, maxHeight: Math.min(0.85 * viewportHeight, viewportHeight - top - panelPadding) };
     setPanelPosition(position);
 
     if (attribute.id === 'age') {
@@ -708,11 +714,11 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
       {activeAttributePanel && panelPosition && (
         <div className="fixed inset-0 z-[60]" onClick={handleCloseAttributePanel}>
           <div
-            className="absolute bg-white rounded-lg shadow-2xl border border-gray-200 w-96 flex flex-col"
+            className="absolute bg-white rounded-lg shadow-2xl border border-gray-200 w-96 flex flex-col min-h-0"
             style={{
               top: `${panelPosition.top}px`,
               left: `${panelPosition.left}px`,
-              maxHeight: '85vh'
+              maxHeight: panelPosition.maxHeight != null ? `${panelPosition.maxHeight}px` : '85vh'
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -730,8 +736,8 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
               </button>
             </div>
 
-            {/* Options List / Age Range Inputs */}
-            <div className="flex-1 overflow-y-auto p-4 min-h-0 pb-4">
+            {/* Options List / Age Range Inputs - scrollable so footer always stays visible */}
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 pb-4">
               {activeAttributePanel.id === 'age' ? (
                 <div className="space-y-4">
                   <div className="text-sm text-gray-600 mb-4">

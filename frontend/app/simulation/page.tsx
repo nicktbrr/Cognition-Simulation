@@ -55,6 +55,10 @@ function SimulationPageContent() {
   const [processTitle, setProcessTitle] = useState("");
   const [studyIntroduction, setStudyIntroduction] = useState("");
   const [selectedSample, setSelectedSample] = useState("");
+  const [sampleSizeInput, setSampleSizeInput] = useState<string>("10");
+  const [sampleSize, setSampleSize] = useState<number>(10);
+  const [sampleSizeError, setSampleSizeError] = useState<string>("");
+  const [isSampleSizeFocused, setIsSampleSizeFocused] = useState(false);
   const [flowNodes, setFlowNodes] = useState<Node[]>([]);
   const [flowEdges, setFlowEdges] = useState<Edge[]>([]);
   const [selectedColor, setSelectedColor] = useState<string>('#ffffff');
@@ -386,7 +390,7 @@ function SimulationPageContent() {
       const experimentData = {
         seed: "no-seed",
         steps: orderedSteps,
-        iters: 10,
+        iters: Math.min(50, Math.max(10, sampleSize)),
         temperature: 0.5,
         user_id: user.user_id,
         title: processTitle || "Untitled Simulation",
@@ -484,6 +488,9 @@ function SimulationPageContent() {
     setProcessTitle("");
     setStudyIntroduction("");
     setSelectedSample("");
+    setSampleSizeInput("10");
+    setSampleSize(10);
+    setSampleSizeError("");
     setTitleError("");
     
     // Clear React Flow
@@ -680,6 +687,17 @@ function SimulationPageContent() {
       return;
     }
 
+    // Validate sample size (10-50) – use current input when focused, else committed value
+    const rawSize = isSampleSizeFocused ? parseInt(sampleSizeInput.trim(), 10) : sampleSize;
+    const isEmpty = sampleSizeInput.trim() === "";
+    const size = isEmpty || Number.isNaN(rawSize) ? 10 : Math.min(50, Math.max(10, rawSize));
+    if (isEmpty || Number.isNaN(rawSize) || rawSize < 10 || rawSize > 50) {
+      if (isSampleSizeFocused) setIsSampleSizeFocused(false);
+      setSampleSizeError(isEmpty ? "Sample size is required." : rawSize < 10 ? "Sample size must be at least 10." : rawSize > 50 ? "Sample size must be at most 50." : "Enter a valid sample size (10–50).");
+      alert("Please enter a valid sample size between 10 and 50.");
+      return;
+    }
+
     // Validate title is not empty
     const titleToUse = (processTitle || "").trim();
     if (!titleToUse) {
@@ -733,7 +751,7 @@ function SimulationPageContent() {
       const jsonData = {
         seed: "no-seed",
         steps: orderedSteps,
-        iters: 10,
+        iters: Math.min(50, Math.max(10, sampleSize)),
         temperature: 0.5,
         user_id: parsedUser.id,
         title: processTitle || "Simulation Flow",
@@ -1048,6 +1066,10 @@ function SimulationPageContent() {
       setProcessTitle(experimentData.title || "");
       setStudyIntroduction(experimentData.study_introduction || experimentData.introduction || "");
       setSelectedSample(experimentData.sample?.id || "");
+      const itersNum = typeof experimentData.iters === "number" ? Math.min(50, Math.max(10, experimentData.iters)) : 10;
+      setSampleSizeInput(String(itersNum));
+      setSampleSize(itersNum);
+      setSampleSizeError("");
       
       // Convert steps to flow nodes and edges
       if (experimentData.steps && experimentData.steps.length > 0) {
@@ -1272,7 +1294,16 @@ function SimulationPageContent() {
           </Button>
           <Button 
             onClick={handleSubmitSimulation}
-            disabled={isSimulationRunning || !!titleError}
+            disabled={
+              isSimulationRunning ||
+              !!titleError ||
+              (isSampleSizeFocused
+                ? sampleSizeInput.trim() === "" ||
+                  Number.isNaN(parseInt(sampleSizeInput.trim(), 10)) ||
+                  parseInt(sampleSizeInput.trim(), 10) < 10 ||
+                  parseInt(sampleSizeInput.trim(), 10) > 50
+                : !!sampleSizeError)
+            }
             className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Download className="w-4 h-4" />
@@ -1446,6 +1477,59 @@ function SimulationPageContent() {
             {!loadingSamples && samples.length === 0 && (
               <p className="text-xs text-gray-500 mt-1">No samples found. Create samples in the Samples page.</p>
             )}
+
+            {/* Sample size input - under sample selection */}
+            <div className="mt-3">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Sample size</label>
+              <input
+                type="number"
+                min={10}
+                max={50}
+                value={sampleSizeInput}
+                onChange={(e) => setSampleSizeInput(e.target.value)}
+                onFocus={() => setIsSampleSizeFocused(true)}
+                onBlur={() => {
+                  setIsSampleSizeFocused(false);
+                  const raw = sampleSizeInput.trim();
+                  if (raw === "") {
+                    setSampleSizeInput("10");
+                    setSampleSize(10);
+                    setSampleSizeError("Sample size is required.");
+                    return;
+                  }
+                  const num = parseInt(raw, 10);
+                  if (Number.isNaN(num)) {
+                    setSampleSizeInput("10");
+                    setSampleSize(10);
+                    setSampleSizeError("Enter a valid number.");
+                    return;
+                  }
+                  if (num < 10) {
+                    setSampleSizeInput("10");
+                    setSampleSize(10);
+                    setSampleSizeError("Sample size must be at least 10.");
+                  } else if (num > 50) {
+                    setSampleSizeInput("50");
+                    setSampleSize(50);
+                    setSampleSizeError("Sample size must be at most 50.");
+                  } else {
+                    setSampleSizeInput(String(num));
+                    setSampleSize(num);
+                    setSampleSizeError("");
+                  }
+                }}
+                className={`w-full px-3 py-2 bg-white border rounded text-sm focus:outline-none focus:ring-2 focus:border-transparent ${
+                  !isSampleSizeFocused && sampleSizeError
+                    ? "border-red-500 focus:ring-red-500"
+                    : "border-gray-200 focus:ring-blue-500"
+                }`}
+              />
+              {!isSampleSizeFocused && sampleSizeError && (
+                <p className="mt-1 text-xs text-red-600">{sampleSizeError}</p>
+              )}
+              <p className="mt-0.5 text-xs text-gray-500">Min 10, max 50</p>
+            </div>
+
             {selectedSample && getSelectedSampleDetails() && (
               <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
                 {Array.isArray(getSelectedSampleDetails()?.attributes) && getSelectedSampleDetails()!.attributes.length > 0 && (

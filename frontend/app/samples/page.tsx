@@ -117,7 +117,6 @@ export default function SamplesPage() {
     } else {
       setUserData(data);
     }
-    setContentLoaded(true);
   };
 
   const getFolders = async (userId: string) => {
@@ -597,8 +596,11 @@ export default function SamplesPage() {
     if (user && isAuthenticated && !hasInitiallyLoadedRef.current) {
       hasInitiallyLoadedRef.current = true;
       getUserData(user.user_id);
-      loadSamples(user.user_id);
-      getFolders(user.user_id);
+      // Wait for both samples and folders so table renders with items already in folders (no flash)
+      Promise.all([
+        loadSamples(user.user_id),
+        getFolders(user.user_id)
+      ]).then(() => setContentLoaded(true));
     } else if (!user || !isAuthenticated) {
       // Reset the ref when user logs out
       hasInitiallyLoadedRef.current = false;

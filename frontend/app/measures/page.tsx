@@ -473,7 +473,6 @@ export default function MeasuresPage() {
       setMeasures([]);
     } finally {
       setLoadingMeasures(false);
-      setContentLoaded(true);
     }
   };
 
@@ -721,8 +720,11 @@ export default function MeasuresPage() {
     if (user && isAuthenticated && !hasInitiallyLoadedRef.current) {
       hasInitiallyLoadedRef.current = true;
       getUserData(user.user_id);
-      getMeasures(user.user_id);
-      getFolders(user.user_id);
+      // Wait for both measures and folders so table renders with items already in folders (no flash)
+      Promise.all([
+        getMeasures(user.user_id),
+        getFolders(user.user_id)
+      ]).then(() => setContentLoaded(true));
     } else if (!user || !isAuthenticated) {
       // Reset the ref when user logs out
       hasInitiallyLoadedRef.current = false;

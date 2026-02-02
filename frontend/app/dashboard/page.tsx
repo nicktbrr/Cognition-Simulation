@@ -498,7 +498,7 @@ export default function DashboardHistory() {
         return {
           name: experimentData.title || experiment.simulation_name || `Simulation ${index + 1}`,
           sample_name: sampleName,
-          sample_size: experiment.sample_size ?? experiment.experiment_data?.sample_size ?? 10, // Default to 10
+          sample_size: experimentData.iters ?? experiment.sample_size ?? experimentData.sample_size ?? 10, // Use iters (actual run size) from payload
           status: status,
           progress: progress,
           created_at: experiment.created_at,
@@ -599,7 +599,6 @@ export default function DashboardHistory() {
       setProjects([]);
     } finally {
       setLoadingProjects(false);
-      setContentLoaded(true);
     }
   };
 
@@ -748,7 +747,14 @@ export default function DashboardHistory() {
       const result = await response.json();
 
       if (result.status === "started") {
-        // Refresh projects to show the new experiment
+        // Keep replicated experiment in the same folder as the original (so it appears inside the folder and groups with it)
+        const originalFolderId = data.folder_id ?? null;
+        await supabase
+          .from("experiments")
+          .update({ folder_id: originalFolderId })
+          .eq("experiment_id", uuid);
+
+        // Refresh projects to show the new experiment (in folder, with new run/download date when it completes)
         await getProjects(user.user_id);
         alert("Experiment replicated successfully! The new simulation is now running.");
       } else {
@@ -810,10 +816,10 @@ export default function DashboardHistory() {
   // Function to check progress for a running simulation by querying Supabase directly
   const checkProgress = async (experimentId: string, userId: string) => {
     try {
-      // Query Supabase directly for the experiment progress
+      // Query Supabase for progress and, when complete, full row for the new download
       const { data, error } = await supabase
         .from("experiments")
-        .select("progress, status, url")
+        .select("progress, status, url, created_at, experiment_data, id")
         .eq("experiment_id", experimentId)
         .eq("user_id", userId)
         .single();
@@ -835,36 +841,39 @@ export default function DashboardHistory() {
         // Normalize status
         const status = progressData.status || '';
         const statusLower = status.toLowerCase();
-        
-        // Update the project with new progress
-        setProjects(prev => prev.map(project => {
-          if (project.experiment_id === experimentId) {
-            // Stop polling immediately when progress reaches 100%
-            const isFailed = statusLower === 'failed';
-            const isComplete = progressPercent >= 100 || statusLower === 'completed';
-            
-            // If progress >= 100, mark as completed immediately to stop polling
-            const shouldStopPolling = progressPercent >= 100 || isComplete;
-            
-            return {
-              ...project,
-              status: isFailed ? 'Failed' : 
-                     isComplete ? 'Completed' : 'Running',
-              // Clear progress when >= 100 to stop polling
-              progress: shouldStopPolling ? undefined : progressPercent
-            };
-          }
-          return project;
-        }));
+        const isComplete = progressPercent >= 100 || statusLower === 'completed';
+        const isFailed = statusLower === 'failed';
+        const shouldStopPolling = progressPercent >= 100 || isComplete || isFailed;
 
-        // If completed or failed, refresh the projects list after a delay
-        if (progressPercent >= 100 || statusLower === 'completed' || statusLower === 'failed') {
-          setTimeout(() => {
-            if (user) {
-              getProjects(user.user_id);
-            }
-          }, 1000);
-        }
+        // Update the project with new progress (and new download when just completed) — no full page refresh
+        setProjects(prev => prev.map(project => {
+          if (project.experiment_id !== experimentId) {
+            return project;
+          }
+          const updated: Project = {
+            ...project,
+            status: isFailed ? 'Failed' : (isComplete ? 'Completed' : 'Running'),
+            progress: shouldStopPolling ? undefined : progressPercent
+          };
+          // When simulation just completed and has a download URL, add it in-place so we don't need getProjects
+          if (shouldStopPolling && progressData.url) {
+            const expData = progressData.experiment_data || {};
+            const newDownload: Download = {
+              date: new Date(progressData.created_at).toLocaleString(),
+              id: progressData.id ?? 0,
+              url: progressData.url,
+              filename: expData.title || expData.simulation_name || `simulation_${progressData.id}`,
+              created_at: progressData.created_at
+            };
+            const combined = [...(project.downloads || []), newDownload].sort((a, b) => {
+              const tA = new Date(a.created_at || a.date).getTime();
+              const tB = new Date(b.created_at || b.date).getTime();
+              return tB - tA;
+            });
+            updated.downloads = combined;
+          }
+          return updated;
+        }));
       }
     } catch (error) {
       console.error("Error checking progress:", error);
@@ -876,8 +885,11 @@ export default function DashboardHistory() {
       hasInitiallyLoadedRef.current = true;
       getUserData(user.user_id);
       // getHistory(user.user_id);
-      getProjects(user.user_id);
-      getFolders(user.user_id);
+      // Wait for both projects and folders so table renders with items already in folders (no flash)
+      Promise.all([
+        getProjects(user.user_id),
+        getFolders(user.user_id)
+      ]).then(() => setContentLoaded(true));
     } else if (!user || !isAuthenticated) {
       // Reset the ref when user logs out
       hasInitiallyLoadedRef.current = false;
