@@ -91,22 +91,18 @@ def generate_persona_from_attributes(sample, key_g, supabase_client=None):
         
         generated_persona = response.text.strip()
 
-        print("generated_persona", generated_persona)
-        
         # Update the sample in the database if supabase client is provided
         if supabase_client and generated_persona:
             try:
                 supabase_client.table("samples").update({
                     "persona": generated_persona
                 }).eq("id", sample.get('id')).execute()
-                print(f"Updated persona for sample {sample.get('id')}")
-            except Exception as e:
-                print(f"Error updating persona in database: {e}")
+            except Exception:
+                pass
         
         return generated_persona
         
-    except Exception as e:
-        print(f"Error generating persona: {e}")
+    except Exception:
         return sample.get('persona', '')
 
 
@@ -279,12 +275,13 @@ def process_row(row_idx, df_row, steps):
             - dict: Token usage statistics
     """
 
-    print(f"[DEBUG PROCESS_ROW] Row {row_idx} data: {df_row}")
-    print(f"[DEBUG PROCESS_ROW] Steps: {steps}")
-
     row_scores = {}
-    all_token_usage = {}
-    
+    all_token_usage = {
+        'gemini_prompt_tokens': 0,
+        'gemini_response_tokens': 0,
+        'gemini_total_tokens': 0,
+    }
+
     # Initialize row_scores with all possible metrics
     if steps:
         for step_idx, step in enumerate(steps):
@@ -356,12 +353,16 @@ def process_row(row_idx, df_row, steps):
                     )
                 )
 
+                # Track token usage
+                if hasattr(response, 'usage_metadata') and response.usage_metadata:
+                    all_token_usage['gemini_prompt_tokens'] += response.usage_metadata.prompt_token_count
+                    all_token_usage['gemini_response_tokens'] += response.usage_metadata.candidates_token_count
+                    all_token_usage['gemini_total_tokens'] += response.usage_metadata.total_token_count
+
                 # Parse JSON response
                 json_response = json.loads(
                     response._result.candidates[0].content.parts[0].text)
 
-                print(f"[DEBUG PROCESS_ROW] Column {col} JSON Response: {json_response}")
-                
                 # Process scores for this step's measures
                 for idx, measure in enumerate(current_measures):
                     step_metric_name = f"{step_label}_{measure.get('title', '')}"
@@ -373,14 +374,10 @@ def process_row(row_idx, df_row, steps):
                                 row_scores[step_metric_name].append(score)
                             else:
                                 row_scores[step_metric_name].append('Poorly Defined Criteria')
-                        except (IndexError, KeyError) as e:
-                            print(f"[DEBUG PROCESS_ROW] Error scoring {step_metric_name}: {e}")
+                        except (IndexError, KeyError):
                             row_scores[step_metric_name].append('Error in scoring')
-                    else:
-                        print(f"[DEBUG PROCESS_ROW] Metric {step_metric_name} not found in row_scores")
                         
-            except Exception as e:
-                print(f"[DEBUG PROCESS_ROW] Error processing column {col}: {e}")
+            except Exception:
                 # Add error scores for this step's measures
                 for measure in current_measures:
                     step_metric_name = f"{step_label}_{measure.get('title', '')}"
@@ -408,18 +405,14 @@ def evaluate(df, key_g, steps=None):
     genai.configure(api_key=key_g)
     
     if steps:
-        print(f"[DEBUG EVALUATE] Processing {len(steps)} steps")
         all_metrics_to_evaluate = []
         
         for step_idx, step in enumerate(steps):
             step_label = step.get('label', f'Step_{step_idx + 1}')
-            print(f"[DEBUG EVALUATE] Step {step_idx}: {step_label}")
             measures = step.get('measures', [])
-            print(f"[DEBUG EVALUATE] Step {step_idx} measures: {measures}")
             
             for measure_idx, measure in enumerate(measures):
                 measure_title = measure.get('title', '')
-                print(f"[DEBUG EVALUATE] Measure {measure_idx} title: '{measure_title}'")
                 
                 # Create step-specific metric name
                 step_metric_name = f"{step_label}_{measure_title}"
@@ -434,7 +427,6 @@ def evaluate(df, key_g, steps=None):
         metrics_to_evaluate = [m["name"] for m in all_metrics_to_evaluate]
         metric_description = {m["name"]: m["description"] for m in all_metrics_to_evaluate}
     else:
-        print("[DEBUG EVALUATE] No steps provided")
         metrics_to_evaluate = []
         metric_description = {}
 
@@ -457,8 +449,8 @@ def evaluate(df, key_g, steps=None):
                 if gpt4_result is not None:
                     results_gpt4.append(gpt4_result)
                 tokens_ls.append(future.result()[2])
-            except Exception as e:
-                print(f"Error in thread execution: {e}")
+            except Exception:
+                pass
 
     # Convert results to DataFrames
 
