@@ -1148,7 +1148,7 @@ export default function SamplesPage() {
                             <TableCell>
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2">
-                                  <Folder className="w-4 h-4 text-yellow-500" />
+                                  <Folder className="w-4 h-4 text-blue-600" />
                                   <span className="font-medium text-foreground">{folder.folder_name}</span>
                                   <span className="text-xs text-gray-500">
                                     ({folderSamples.length} sample{folderSamples.length !== 1 ? 's' : ''})
@@ -1802,7 +1802,7 @@ export default function SamplesPage() {
                     }}
                     className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-left"
                   >
-                    <Folder className="w-4 h-4 text-yellow-500" />
+                    <Folder className="w-4 h-4 text-blue-600" />
                     <span>{folder.folder_name}</span>
                     {folder.sample_count !== undefined && (
                       <span className="ml-auto text-xs text-gray-500">

@@ -385,7 +385,7 @@ export default function ProjectsTable({
               return (
                 <React.Fragment key={folder.folder_id}>
                   <tr
-                    className={`hover:bg-gray-50 ${dragOverFolder === folder.folder_id ? 'bg-blue-50' : ''}`}
+                    className={`bg-gray-50 hover:bg-accent/50 ${dragOverFolder === folder.folder_id ? 'bg-blue-50' : ''}`}
                     onDragOver={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
@@ -399,7 +399,7 @@ export default function ProjectsTable({
                     }}
                   >
                     <td 
-                      className="px-6 py-3 bg-gray-100"
+                      className="px-6 py-3 bg-gray-50"
                       onDragOver={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -441,7 +441,7 @@ export default function ProjectsTable({
                               }`}
                             />
                           </div>
-                          <Folder className="w-4 h-4 text-gray-600" />
+                          <Folder className="w-4 h-4 text-blue-600" />
                           <span className="font-medium text-gray-900">{folder.folder_name}</span>
                           <span className="text-sm text-gray-500 ml-2">
                             ({folderProjects.length} {folderProjects.length === 1 ? 'project' : 'projects'})
@@ -456,11 +456,11 @@ export default function ProjectsTable({
                         />
                       </div>
                     </td>
-                    <td className="px-6 py-3 bg-gray-100"></td>
-                    <td className="px-6 py-3 bg-gray-100"></td>
-                    <td className="px-6 py-3 bg-gray-100"></td>
-                    <td className="px-6 py-3 bg-gray-100"></td>
-                    <td className="px-6 py-3 bg-gray-100"></td>
+                    <td className="px-6 py-3 bg-gray-50"></td>
+                    <td className="px-6 py-3 bg-gray-50"></td>
+                    <td className="px-6 py-3 bg-gray-50"></td>
+                    <td className="px-6 py-3 bg-gray-50"></td>
+                    <td className="px-6 py-3 bg-gray-50"></td>
                   </tr>
                   {expandedFolders.has(folder.folder_id) && folderProjects.map((project, idx) => 
                     renderProjectRow(project, idx, true, folderProjects.length)
@@ -495,7 +495,7 @@ export default function ProjectsTable({
           onDrop={(e) => handleDrop(e, null)}
         >
           <div className={`flex items-center justify-center gap-2 text-sm border-2 border-dashed rounded-lg py-4 max-w-4xl mx-auto ${dragOverFolder === 'root' ? 'border-blue-400 text-blue-600 bg-blue-100' : 'border-gray-300 text-gray-500 bg-gray-50'}`}>
-            <Folder className="w-4 h-4" />
+            <Folder className="w-4 h-4 text-blue-600" />
             <span>Drop here to remove from folder</span>
           </div>
         </div>,

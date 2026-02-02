@@ -1241,7 +1241,7 @@ export default function DashboardHistory() {
                     }}
                     className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-left"
                   >
-                    <Folder className="w-4 h-4" />
+                    <Folder className="w-4 h-4 text-blue-600" />
                     <span>{folder.folder_name}</span>
                     {folder.project_count !== undefined && (
                       <span className="ml-auto text-xs text-gray-500">

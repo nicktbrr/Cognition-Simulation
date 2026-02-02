@@ -680,12 +680,22 @@ function SimulationPageContent() {
       return;
     }
 
-    // Validation is now handled inline with titleError state
-    // Double-check here just in case
-    if (titleError) {
+    // Validate title is not empty
+    const titleToUse = (processTitle || "").trim();
+    if (!titleToUse) {
+      alert("Please enter a simulation title before running.");
       return;
     }
-    
+
+    // Check for duplicate title right before running (in case state was stale or another sim was created)
+    const isDuplicate = await checkSimulationNameExists(titleToUse, modifyExperimentId || undefined);
+    if (isDuplicate) {
+      setTitleError(`A simulation with the name "${titleToUse}" already exists.`);
+      alert(`A simulation with the name "${titleToUse}" already exists. Please choose a different title.`);
+      return;
+    }
+    setTitleError("");
+
     // If validation passes, immediately disable button and show progress
     // This happens before waiting for the backend (cold start)
     setIsSimulationRunning(true);
