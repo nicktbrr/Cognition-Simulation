@@ -127,7 +127,7 @@ def parse_age_range(age_range_str):
             # No numbers found, return original string
             return age_range_str
     except Exception as e:
-        print(f"Error parsing age range '{age_range_str}': {e}")
+        logger.debug(f"Error parsing age range '{age_range_str}': {e}")
         return age_range_str
 
 
@@ -221,7 +221,6 @@ def run_evaluation(uuid, data, key_g, jwt=None):
                     existing_personas = sorted(existing_personas, key=lambda x: x.get('number', 0))
                 if len(existing_personas) >= PERSONA_POOL_SIZE:
                     random_samples = existing_personas[:num_samples]
-                    print(f"Using existing personas for sample {sample_id} (first {num_samples} of {PERSONA_POOL_SIZE})")
                 else:
                     attributes = data.get('sample')['attributes']
                     persona_pool = generate_random_samples(attributes, num_samples=PERSONA_POOL_SIZE)
@@ -231,9 +230,8 @@ def run_evaluation(uuid, data, key_g, jwt=None):
                     if supabase and persona_pool:
                         try:
                             supabase.table("samples").update({"persona": persona_pool}).eq("id", sample_id).execute()
-                            print(f"Generated {PERSONA_POOL_SIZE} personas for sample {sample_id}, using first {num_samples}")
-                        except Exception as e:
-                            print(f"Error updating personas in database: {e}")
+                        except Exception:
+                            pass
             else:
                 attributes = data.get('sample')['attributes']
                 persona_pool = generate_random_samples(attributes, num_samples=PERSONA_POOL_SIZE)
@@ -243,11 +241,9 @@ def run_evaluation(uuid, data, key_g, jwt=None):
                 if supabase and persona_pool:
                     try:
                         supabase.table("samples").update({"persona": persona_pool}).eq("id", sample_id).execute()
-                        print(f"Generated {PERSONA_POOL_SIZE} personas for sample {sample_id}, using first {num_samples}")
-                    except Exception as e:
-                        print(f"Error updating personas in database: {e}")
+                    except Exception:
+                        pass
         except Exception as e:
-            print(f"Error checking/updating personas: {e}")
             attributes = data.get('sample')['attributes']
             persona_pool = generate_random_samples(attributes, num_samples=PERSONA_POOL_SIZE)
             if isinstance(persona_pool, list):
@@ -286,25 +282,30 @@ def run_evaluation(uuid, data, key_g, jwt=None):
         }).eq("experiment_id", uuid).execute()
         
         # Calculate total token usage for prompts
-        # total_prompt_input_token = sum(token_dict['prompt_tokens'] for token_dict in prompt_tokens)
-        # total_prompt_output_token = sum(token_dict['response_tokens'] for token_dict in prompt_tokens)
-        # total_prompt_total_token = sum(token_dict['total_tokens'] for token_dict in prompt_tokens)
+        total_prompt_input_token = sum(token_dict.get('prompt_tokens', 0) for token_dict in (prompt_tokens or []))
+        total_prompt_output_token = sum(token_dict.get('response_tokens', 0) for token_dict in (prompt_tokens or []))
+        total_prompt_total_token = sum(token_dict.get('total_tokens', 0) for token_dict in (prompt_tokens or []))
 
-        # # Calculate total token usage for evaluation
-        # total_eval_input_token = sum(token_dict['gemini_prompt_tokens'] for token_dict in eval_tokens)
-        # total_eval_output_token = sum(token_dict['gemini_response_tokens'] for token_dict in eval_tokens)
-        # total_eval_total_token = sum(token_dict['gemini_total_tokens'] for token_dict in eval_tokens)
+        # Calculate total token usage for evaluation
+        total_eval_input_token = sum(token_dict.get('gemini_prompt_tokens', 0) for token_dict in (eval_tokens or []))
+        total_eval_output_token = sum(token_dict.get('gemini_response_tokens', 0) for token_dict in (eval_tokens or []))
+        total_eval_total_token = sum(token_dict.get('gemini_total_tokens', 0) for token_dict in (eval_tokens or []))
 
         # Store token usage in Supabase
-        # response_tokens = supabase.table("tokens").insert({
-        #     "id": uuid,
-        #     "prompt_input_token": total_prompt_input_token,
-        #     "prompt_output_token": total_prompt_output_token,
-        #     "prompt_total_token": total_prompt_total_token,
-        #     "eval_input_token": total_eval_input_token,
-        #     "eval_output_token": total_eval_output_token,
-        #     "eval_total_token": total_eval_total_token,
-        # }).execute()
+        total_tokens = total_prompt_total_token + total_eval_total_token
+        supabase.table("tokens").insert({
+            "id": uuid,
+            "experiment_id": uuid,
+            "operation": "simulation",
+            "user_id": data.get("user_id"),
+            "prompt_input_token": total_prompt_input_token,
+            "prompt_output_token": total_prompt_output_token,
+            "prompt_total_token": total_prompt_total_token,
+            "eval_input_token": total_eval_input_token,
+            "eval_output_token": total_eval_output_token,
+            "eval_total_token": total_eval_total_token,
+            "total_tokens": total_tokens,
+        }).execute()
 
         # Upload evaluation results to Supabase storage
         bucket_name = "llm-responses"
@@ -333,7 +334,7 @@ def run_evaluation(uuid, data, key_g, jwt=None):
             "status": "Completed"
         }).eq("experiment_id", uuid).execute()
     except Exception as e:
-        print("error", e)
+        logger.exception("Evaluation failed")
         # Create a new Supabase client for error handling
         supabase = get_supabase_client(jwt)
         supabase.table("experiments").update({
@@ -354,7 +355,7 @@ class Evaluation(Resource):
         try:
             auth_header = request.headers.get('Authorization')
             if not auth_header or not auth_header.startswith("Bearer "):
-                print("[DEBUG] No Authorization header or invalid format")
+                logger.debug("No Authorization header or invalid format")
                 jwt = None
             else:
                 jwt = auth_header.split("Bearer ")[1]
@@ -499,6 +500,40 @@ class GenerateSteps(Resource):
                     )
                 )
                 logger.info(f"[{request_id}] Gemini API call successful")
+
+                # Track token usage for generate_steps
+                try:
+                    if hasattr(gemini_response, 'usage_metadata') and gemini_response.usage_metadata:
+                        prompt_count = getattr(gemini_response.usage_metadata, 'prompt_token_count', 0) or 0
+                        output_count = getattr(gemini_response.usage_metadata, 'candidates_token_count', 0) or 0
+                        total_count = getattr(gemini_response.usage_metadata, 'total_token_count', 0) or 0
+                        auth_header = request.headers.get("Authorization")
+                        jwt = auth_header.split("Bearer ")[1] if auth_header and auth_header.startswith("Bearer ") else None
+                        supabase_client = get_supabase_client(jwt)
+                        user_id = data.get("user_id")
+                        if not user_id and jwt:
+                            try:
+                                user_response = supabase_client.auth.get_user()
+                                if user_response and getattr(user_response, "user", None):
+                                    user_id = user_response.user.id
+                            except Exception:
+                                pass
+                        if user_id is not None:
+                            supabase_client.table("tokens").insert({
+                                "id": str(uuid.uuid4()),
+                                "experiment_id": None,
+                                "operation": "generate_steps",
+                                "user_id": user_id,
+                                "prompt_input_token": prompt_count,
+                                "prompt_output_token": output_count,
+                                "prompt_total_token": total_count,
+                                "eval_input_token": 0,
+                                "eval_output_token": 0,
+                                "eval_total_token": 0,
+                                "total_tokens": total_count,
+                            }).execute()
+                except Exception as token_err:
+                    logger.warning(f"[{request_id}] Failed to store token usage: {token_err}")
             except Exception as api_error:
                 error_msg = str(api_error)
                 error_type = type(api_error).__name__

@@ -128,7 +128,6 @@ def process_row_with_chat(row_idx, df, prompt, key_g, system_prompt, persona):
             # Configure and call the AI model
             genai.configure(api_key=key_g)
 
-            print("llm_prompt", llm_prompt)
             model = genai.GenerativeModel(
                 "gemini-2.0-flash", system_instruction=system_prompt)
 
@@ -148,12 +147,9 @@ def process_row_with_chat(row_idx, df, prompt, key_g, system_prompt, persona):
                 json_response = json.loads(
                     response._result.candidates[0].content.parts[0].text)
                 row_data[col_name] = json_response['response']
-            except Exception as e:
-                print(
-                    f'Error processing row {row_idx}, column {col_name}: {e}')
+            except Exception:
                 row_data[col_name] = "Error processing row ignore in simulation"
         else:
-            print(f"Warning: No matching step found for column {col_name}")
             row_data[col_name] = "No matching instructions found"
     
     # Add persona information to the row data (store the original persona, not the string version)
@@ -199,7 +195,6 @@ def baseline_prompt(prompt, key_g, sample=None):
     # Extract labels from the steps array
     steps = prompt['steps']
 
-    print("steps", steps)
     repeated_steps = {}
     cols = []
     
@@ -229,8 +224,6 @@ def baseline_prompt(prompt, key_g, sample=None):
     # Initialize DataFrame
     df = pd.DataFrame(columns=cols)
 
-    print("df", df)
-
     # Create rows based on iteration count
     for i in range(iterations):
         if seed != "no-seed":
@@ -255,8 +248,8 @@ def baseline_prompt(prompt, key_g, sample=None):
                 row_data, tokens_dict = future.result()
                 results.append(row_data)
                 tokens_ls.append(tokens_dict)
-            except Exception as e:
-                print(f'Error in thread execution: {e}')
+            except Exception:
+                pass
 
     # Convert results to DataFrame
     final_df = pd.DataFrame(results)

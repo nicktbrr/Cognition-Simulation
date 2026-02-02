@@ -109,7 +109,6 @@ def create_sim_matrix(df):
     Returns:
         dict: Dictionary containing JSON-serialized similarity matrices
     """
-    print("Step 1: Precomputing embeddings...")
     num_rows = len(df)
     num_steps = len(df.columns) - 1  # Exclude the first column
     embedding_dim = get_bert_embeddings(preprocess_text("sample")).shape[0]
@@ -123,7 +122,6 @@ def create_sim_matrix(df):
             text = preprocess_text(df.iloc[i, j + 1])  # Skip the first column
             all_embeddings[i, j] = get_bert_embeddings(text)
 
-    print("Step 2: Calculating cosine similarities...")
     # Initialize similarity tensor and stepwise similarity arrays
     similarity_tensor = np.ones((num_steps, num_steps, num_rows))
     stepwise_similarity = [0] * num_steps
@@ -158,7 +156,6 @@ def create_sim_matrix(df):
             else 0
         )
 
-    print("Step 3: Calculating average similarity matrix...")
     # Calculate mean similarity matrix across all trials
     mean_similarity_matrix = np.mean(similarity_tensor, axis=2)
 
