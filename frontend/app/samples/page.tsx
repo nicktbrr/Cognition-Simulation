@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { ChevronDown, Plus, Users, MoreVertical, Trash2, Edit2, Copy, Lock, Folder, FolderPlus, FolderInput, ChevronRight } from "lucide-react";
+import { ChevronDown, Plus, Users, MoreVertical, Trash2, Edit, Edit2, Copy, Lock, Folder, FolderPlus, FolderInput, ChevronRight } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent } from "../../components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
@@ -1547,7 +1547,7 @@ export default function SamplesPage() {
             }}
             className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
           >
-            <Edit2 className="w-4 h-4 mr-3" />
+            <Edit className="w-4 h-4 mr-3" />
             Edit
           </button>
           {/* 3. Copy */}

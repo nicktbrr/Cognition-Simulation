@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { Plus, ChevronDown, ChevronRight, MoreVertical, Edit, Copy, Trash2, Folder, FolderPlus, FolderInput, FileText } from "lucide-react";
+import { Plus, ChevronDown, ChevronRight, MoreVertical, Edit, Edit2, Copy, Trash2, Folder, FolderPlus, FolderInput, FileText } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
@@ -56,8 +56,10 @@ export default function MeasuresPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [measureToDelete, setMeasureToDelete] = useState<string | null>(null);
   const [contentLoaded, setContentLoaded] = useState(false);
+  const [renamingMeasure, setRenamingMeasure] = useState<string | null>(null);
+  const [newMeasureName, setNewMeasureName] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const buttonRef = useRef<HTMLButtonElement>(null);
+  const buttonRefs = useRef<Record<string, HTMLButtonElement>>({});
   const hasInitiallyLoadedRef = useRef(false);
 
   // Folder state
@@ -587,15 +589,19 @@ export default function MeasuresPage() {
   };
 
   const toggleDropdown = (measureId: string, event: React.MouseEvent) => {
+    event.stopPropagation(); // Prevent row expansion when clicking dropdown
+    
     if (openDropdown === measureId) {
       setOpenDropdown(null);
     } else {
-      const button = event.currentTarget as HTMLButtonElement;
-      const rect = button.getBoundingClientRect();
-      setDropdownPosition({
-        top: rect.bottom + 4,
-        right: window.innerWidth - rect.right
-      });
+      const button = buttonRefs.current[measureId] || event.currentTarget as HTMLButtonElement;
+      if (button) {
+        const rect = button.getBoundingClientRect();
+        setDropdownPosition({
+          top: rect.bottom + 4,
+          right: window.innerWidth - rect.right
+        });
+      }
       setOpenDropdown(measureId);
     }
   };
@@ -603,16 +609,84 @@ export default function MeasuresPage() {
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (!openDropdown) return;
+
+      const target = event.target as Node;
+      
+      // Check if click is inside the dropdown
+      if (dropdownRef.current && dropdownRef.current.contains(target)) {
+        return;
+      }
+
+      // Check if click is on any dropdown toggle button
+      const clickedButton = Object.values(buttonRefs.current).find(
+        button => button && button.contains(target)
+      );
+      
+      if (!clickedButton) {
         setOpenDropdown(null);
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
+    if (openDropdown) {
+      // Use click event in bubble phase so button onClick processes first
+      document.addEventListener('click', handleClickOutside);
+    }
+
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('click', handleClickOutside);
     };
-  }, []);
+  }, [openDropdown]);
+
+  const handleRenameMeasure = (measureId: string) => {
+    const measure = measures.find(m => m.id === measureId);
+    if (measure) {
+      setRenamingMeasure(measureId);
+      setNewMeasureName(measure.title);
+      setOpenDropdown(null);
+    }
+  };
+
+  const saveRename = async () => {
+    if (!renamingMeasure || !newMeasureName.trim()) return;
+
+    // Check for duplicate measure name (excluding current measure)
+    if (isMeasureNameTaken(newMeasureName, renamingMeasure)) {
+      alert(`A measure with the name "${newMeasureName.trim()}" already exists. Please choose a different name.`);
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('measures')
+        .update({ title: newMeasureName.trim() })
+        .eq('id', renamingMeasure);
+
+      if (error) {
+        console.error('Error renaming measure:', error);
+        alert('Failed to rename measure. Please try again.');
+        return;
+      }
+
+      // Update the local state
+      setMeasures(prev => prev.map(measure => 
+        measure.id === renamingMeasure 
+          ? { ...measure, title: newMeasureName.trim() }
+          : measure
+      ));
+
+      setRenamingMeasure(null);
+      setNewMeasureName('');
+    } catch (error) {
+      console.error('Error renaming measure:', error);
+      alert('Failed to rename measure. Please try again.');
+    }
+  };
+
+  const cancelRename = () => {
+    setRenamingMeasure(null);
+    setNewMeasureName('');
+  };
 
   const handleEditMeasure = (id: string) => {
     const measureToEdit = measures.find(m => m.id === id);
@@ -942,10 +1016,47 @@ export default function MeasuresPage() {
                               </TableCell>
                               <TableCell>
                                 <div className="flex items-center justify-between ml-4">
-                                  <span className="font-medium text-foreground">{measure.title}</span>
+                                  {renamingMeasure === measure.id ? (
+                                    <div className="flex items-center space-x-2">
+                                      <input
+                                        type="text"
+                                        value={newMeasureName}
+                                        onChange={(e) => setNewMeasureName(e.target.value)}
+                                        className="text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        autoFocus
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter') {
+                                            saveRename();
+                                          } else if (e.key === 'Escape') {
+                                            cancelRename();
+                                          }
+                                        }}
+                                      />
+                                      <button
+                                        onClick={saveRename}
+                                        className="text-green-600 hover:text-green-800 text-xs"
+                                      >
+                                        Save
+                                      </button>
+                                      <button
+                                        onClick={cancelRename}
+                                        className="text-gray-500 hover:text-gray-700 text-xs"
+                                      >
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <span className="font-medium text-foreground">{measure.title}</span>
+                                  )}
                                   <div className="relative flex-shrink-0" ref={openDropdown === measure.id ? dropdownRef : null}>
                                     <Button
-                                      ref={buttonRef}
+                                      ref={(el) => {
+                                        if (el) {
+                                          buttonRefs.current[measure.id] = el;
+                                        } else {
+                                          delete buttonRefs.current[measure.id];
+                                        }
+                                      }}
                                       variant="ghost"
                                       size="sm"
                                       className="h-6 w-6 p-0"
@@ -1013,10 +1124,47 @@ export default function MeasuresPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center justify-between">
-                          <span className="font-medium text-foreground">{measure.title}</span>
+                          {renamingMeasure === measure.id ? (
+                            <div className="flex items-center space-x-2">
+                              <input
+                                type="text"
+                                value={newMeasureName}
+                                onChange={(e) => setNewMeasureName(e.target.value)}
+                                className="text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                autoFocus
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    saveRename();
+                                  } else if (e.key === 'Escape') {
+                                    cancelRename();
+                                  }
+                                }}
+                              />
+                              <button
+                                onClick={saveRename}
+                                className="text-green-600 hover:text-green-800 text-xs"
+                              >
+                                Save
+                              </button>
+                              <button
+                                onClick={cancelRename}
+                                className="text-gray-500 hover:text-gray-700 text-xs"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="font-medium text-foreground">{measure.title}</span>
+                          )}
                           <div className="relative flex-shrink-0" ref={openDropdown === measure.id ? dropdownRef : null}>
                             <Button
-                              ref={buttonRef}
+                              ref={(el) => {
+                                if (el) {
+                                  buttonRefs.current[measure.id] = el;
+                                } else {
+                                  delete buttonRefs.current[measure.id];
+                                }
+                              }}
                               variant="ghost"
                               size="sm"
                               className="h-6 w-6 p-0"
@@ -1080,47 +1228,90 @@ export default function MeasuresPage() {
       {openDropdown && createPortal(
         <div 
           ref={dropdownRef}
-          className="fixed w-48 bg-white border border-gray-200 rounded-lg shadow-xl z-[99999]"
+          className="fixed w-40 bg-white rounded-md shadow-lg border border-gray-200 py-1 z-[99999]"
           style={{
             top: dropdownPosition.top,
             right: dropdownPosition.right
           }}
         >
-          <div className="py-1">
-            <button
-              onClick={() => handleEditMeasure(openDropdown)}
-              className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              <Edit className="h-4 w-4" />
-              Edit
-            </button>
-            <button
-              onClick={() => handleDuplicateMeasure(openDropdown)}
-              className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              <Copy className="h-4 w-4" />
-              Make a copy
-            </button>
-            <button
-              onClick={() => {
-                setMeasureToMove(openDropdown);
-                setShowMoveToFolderModal(true);
-                setOpenDropdown(null);
-              }}
-              className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              <FolderInput className="h-4 w-4" />
-              Move to folder
-            </button>
-            <hr className="my-1 border-gray-100" />
-            <button
-              onClick={() => handleDeleteMeasure(openDropdown)}
-              className="flex items-center gap-3 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
-            >
-              <Trash2 className="h-4 w-4" />
-              Delete
-            </button>
-          </div>
+          {/* 1. Rename */}
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleRenameMeasure(openDropdown);
+            }}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+            }}
+            className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+          >
+            <Edit2 className="w-4 h-4 mr-3" />
+            Rename
+          </button>
+          {/* 2. Edit */}
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleEditMeasure(openDropdown);
+            }}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+            }}
+            className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+          >
+            <Edit className="w-4 h-4 mr-3" />
+            Edit
+          </button>
+          {/* 3. Copy */}
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleDuplicateMeasure(openDropdown);
+            }}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+            }}
+            className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+          >
+            <Copy className="w-4 h-4 mr-3" />
+            Make a copy
+          </button>
+          {/* 4. Move to Folder */}
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setMeasureToMove(openDropdown);
+              setShowMoveToFolderModal(true);
+              setOpenDropdown(null);
+            }}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+            }}
+            className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+          >
+            <FolderInput className="w-4 h-4 mr-3" />
+            Move to folder
+          </button>
+          <hr className="my-1 border-gray-100" />
+          {/* 5. Delete */}
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleDeleteMeasure(openDropdown);
+            }}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+            }}
+            className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+          >
+            <Trash2 className="w-4 h-4 mr-3" />
+            Delete
+          </button>
         </div>,
         document.body
       )}
@@ -1183,7 +1374,7 @@ export default function MeasuresPage() {
             onMouseDown={(e) => e.stopPropagation()}
             className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
           >
-            <Edit className="w-4 h-4 mr-3" />
+            <Edit2 className="w-4 h-4 mr-3" />
             Rename
           </button>
           <hr className="my-1 border-gray-100" />
