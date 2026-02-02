@@ -201,45 +201,58 @@ def run_evaluation(uuid, data, key_g, jwt=None):
         }).eq("experiment_id", uuid).execute()
 
 
-        # Check if persona already exists in the database
+        # Number of sample rows (personas) to use for this run: from request, clamped to 10-50
+        num_samples = data.get('iters', 10)
+        try:
+            num_samples = max(10, min(50, int(num_samples)))
+        except (TypeError, ValueError):
+            num_samples = 10
+
+        # Always maintain 50 unique personas; use only the first num_samples for this run.
+        PERSONA_POOL_SIZE = 50
+
         sample_id = data.get('sample')['id']
         try:
-            # Fetch the current sample from database to check persona
             sample_response = supabase.table("samples").select("persona").eq("id", sample_id).execute()
-            
-            # Check if persona exists and is not null
+
             if sample_response.data and sample_response.data[0].get('persona') is not None:
-                # Persona exists, use it from the database
-                random_samples = sample_response.data[0]['persona']
-                # Sort personas by number field to ensure consistent ordering
-                if isinstance(random_samples, list):
-                    random_samples = sorted(random_samples, key=lambda x: x.get('number', 0))
-                print(f"Using existing personas for sample {sample_id}")
+                existing_personas = sample_response.data[0]['persona']
+                if isinstance(existing_personas, list):
+                    existing_personas = sorted(existing_personas, key=lambda x: x.get('number', 0))
+                if len(existing_personas) >= PERSONA_POOL_SIZE:
+                    random_samples = existing_personas[:num_samples]
+                    print(f"Using existing personas for sample {sample_id} (first {num_samples} of {PERSONA_POOL_SIZE})")
+                else:
+                    attributes = data.get('sample')['attributes']
+                    persona_pool = generate_random_samples(attributes, num_samples=PERSONA_POOL_SIZE)
+                    if isinstance(persona_pool, list):
+                        persona_pool = sorted(persona_pool, key=lambda x: x.get('number', 0))
+                    random_samples = persona_pool[:num_samples]
+                    if supabase and persona_pool:
+                        try:
+                            supabase.table("samples").update({"persona": persona_pool}).eq("id", sample_id).execute()
+                            print(f"Generated {PERSONA_POOL_SIZE} personas for sample {sample_id}, using first {num_samples}")
+                        except Exception as e:
+                            print(f"Error updating personas in database: {e}")
             else:
-                # Persona is null, generate new ones
                 attributes = data.get('sample')['attributes']
-                random_samples = generate_random_samples(attributes, num_samples=10)
-                # Sort personas by number field to ensure consistent ordering
-                if isinstance(random_samples, list):
-                    random_samples = sorted(random_samples, key=lambda x: x.get('number', 0))
-                
-                # Update the database with the new personas
-                if supabase and random_samples:
+                persona_pool = generate_random_samples(attributes, num_samples=PERSONA_POOL_SIZE)
+                if isinstance(persona_pool, list):
+                    persona_pool = sorted(persona_pool, key=lambda x: x.get('number', 0))
+                random_samples = persona_pool[:num_samples]
+                if supabase and persona_pool:
                     try:
-                        supabase.table("samples").update({
-                            "persona": random_samples
-                        }).eq("id", sample_id).execute()
-                        print(f"Generated and updated personas for sample {sample_id}")
+                        supabase.table("samples").update({"persona": persona_pool}).eq("id", sample_id).execute()
+                        print(f"Generated {PERSONA_POOL_SIZE} personas for sample {sample_id}, using first {num_samples}")
                     except Exception as e:
                         print(f"Error updating personas in database: {e}")
         except Exception as e:
             print(f"Error checking/updating personas: {e}")
-            # Fallback: generate new samples if database check fails
             attributes = data.get('sample')['attributes']
-            random_samples = generate_random_samples(attributes, num_samples=10)
-            # Sort personas by number field to ensure consistent ordering
-            if isinstance(random_samples, list):
-                random_samples = sorted(random_samples, key=lambda x: x.get('number', 0))
+            persona_pool = generate_random_samples(attributes, num_samples=PERSONA_POOL_SIZE)
+            if isinstance(persona_pool, list):
+                persona_pool = sorted(persona_pool, key=lambda x: x.get('number', 0))
+            random_samples = persona_pool[:num_samples]
 
         # Generate baseline prompt and get token usage
         sample = data.get('sample')

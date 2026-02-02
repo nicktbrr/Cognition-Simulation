@@ -238,7 +238,7 @@ export default function ProjectDropdown({
                 className="flex items-center justify-between w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
               >
                 <div className="flex items-center gap-3">
-                  <Folder className="h-4 w-4" />
+                  <Folder className="h-4 w-4 text-blue-600" />
                   Move to folder
                 </div>
                 <span className="text-xs text-gray-400">›</span>
@@ -267,7 +267,7 @@ export default function ProjectDropdown({
                         }}
                         className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                       >
-                        <Folder className="h-4 w-4" />
+                        <Folder className="h-4 w-4 text-blue-600" />
                         Remove from folder
                       </button>
                     )}
@@ -285,7 +285,7 @@ export default function ProjectDropdown({
                         }}
                         className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                       >
-                        <Folder className="h-4 w-4" />
+                        <Folder className="h-4 w-4 text-blue-600" />
                         {folder.folder_name}
                       </button>
                     ))}

@@ -473,7 +473,6 @@ export default function MeasuresPage() {
       setMeasures([]);
     } finally {
       setLoadingMeasures(false);
-      setContentLoaded(true);
     }
   };
 
@@ -721,8 +720,11 @@ export default function MeasuresPage() {
     if (user && isAuthenticated && !hasInitiallyLoadedRef.current) {
       hasInitiallyLoadedRef.current = true;
       getUserData(user.user_id);
-      getMeasures(user.user_id);
-      getFolders(user.user_id);
+      // Wait for both measures and folders so table renders with items already in folders (no flash)
+      Promise.all([
+        getMeasures(user.user_id),
+        getFolders(user.user_id)
+      ]).then(() => setContentLoaded(true));
     } else if (!user || !isAuthenticated) {
       // Reset the ref when user logs out
       hasInitiallyLoadedRef.current = false;
@@ -880,7 +882,7 @@ export default function MeasuresPage() {
                           <TableCell>
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
-                                <Folder className="w-4 h-4 text-yellow-500" />
+                                <Folder className="w-4 h-4 text-blue-600" />
                                 <span className="font-medium text-foreground">{folder.folder_name}</span>
                                 <span className="text-xs text-gray-500">
                                   ({folderMeasures.length} measure{folderMeasures.length !== 1 ? 's' : ''})
@@ -1295,7 +1297,7 @@ export default function MeasuresPage() {
                     }}
                     className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-left"
                   >
-                    <Folder className="w-4 h-4 text-yellow-500" />
+                    <Folder className="w-4 h-4 text-blue-600" />
                     <span>{folder.folder_name}</span>
                     {folder.measure_count !== undefined && (
                       <span className="ml-auto text-xs text-gray-500">
