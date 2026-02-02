@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { MoreVertical, Edit, Copy, Trash2, Folder } from "lucide-react";
+import { MoreVertical, Edit, Edit2, Copy, Trash2, Folder } from "lucide-react";
 
 interface Folder {
   folder_id: string;
@@ -186,7 +186,7 @@ export default function ProjectDropdown({
               }}
               className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
             >
-              <Edit className="h-4 w-4" />
+              <Edit2 className="h-4 w-4" />
               Rename
             </button>
             {/* 2. Edit (Modify) */}
