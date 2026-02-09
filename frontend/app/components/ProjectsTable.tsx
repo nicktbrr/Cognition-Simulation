@@ -22,6 +22,7 @@ interface SimulationStep {
   label: string;
   instructions: string;
   temperature: number;
+  measures?: Array<{ id: string; title: string; description: string; range: string }>;
 }
 
 interface Folder {

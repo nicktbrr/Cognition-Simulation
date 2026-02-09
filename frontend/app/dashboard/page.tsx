@@ -34,6 +34,7 @@ interface SimulationStep {
   label: string;
   instructions: string;
   temperature: number;
+  measures?: Array<{ id: string; title: string; description: string; range: string }>;
 }
 
 interface Folder {
@@ -520,7 +521,13 @@ export default function DashboardHistory() {
             experimentData.steps.map((step: any, stepIndex: number) => ({
               label: step.label || `Step ${stepIndex + 1}`,
               instructions: step.instructions || "No instructions provided",
-              temperature: (step.temperature * 100) || 50
+              temperature: (step.temperature !== undefined && step.temperature <= 1 ? step.temperature * 100 : step.temperature) || 50,
+              measures: Array.isArray(step.measures) ? step.measures.map((m: any) => ({
+                id: m.id,
+                title: m.title ?? "",
+                description: m.description ?? "",
+                range: typeof m.range === "string" ? m.range : (m.min != null && m.max != null ? `${m.min} - ${m.max}` : "")
+              })) : undefined
             })) : 
             [
               {

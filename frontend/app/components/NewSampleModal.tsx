@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { X, ChevronDown, ChevronUp, Search } from "lucide-react";
+import { X, ChevronDown, ChevronUp, Search, Pencil } from "lucide-react";
 import { Button } from "./ui/button";
 import otherAttributesData from "../data/attributes/other.json";
 import demographicsAttributesData from "../data/attributes/demographics.json";
@@ -246,18 +246,17 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
 
   if (!isOpen) return null;
 
-  const handleAttributeClick = (attribute: Attribute, event: React.MouseEvent) => {
-    const rect = event.currentTarget.getBoundingClientRect();
+  const openAttributePanelFor = (attribute: Attribute, anchorEl: HTMLElement) => {
+    const rect = anchorEl.getBoundingClientRect();
     const panelWidth = 384; // 24rem (w-96)
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
     const panelPadding = 24; // space from viewport edges
+    const maxPanelHeight = 0.85 * viewportHeight;
 
-    // Use viewport coordinates (panel is inside a fixed overlay)
     let left = rect.right + 8;
     let top = rect.top;
 
-    // If panel would go off the right edge, position it to the left of the element
     if (left + panelWidth > viewportWidth - panelPadding) {
       left = rect.left - panelWidth - 8;
     }
@@ -265,18 +264,17 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
       left = panelPadding;
     }
 
-    // Keep panel bottom within viewport so footer (Select All, Clear All, Add to Sample) is visible
-    const maxPanelHeight = Math.min(0.85 * viewportHeight, viewportHeight - top - panelPadding);
-    if (maxPanelHeight < 200) {
-      // If opening near bottom, shift panel up so it fits
-      top = Math.max(panelPadding, viewportHeight - panelPadding - 0.85 * viewportHeight);
+    // Keep panel fully in view: start high enough that bottom doesn't get cut off
+    const maxTop = viewportHeight - panelPadding - maxPanelHeight;
+    if (top > maxTop) {
+      top = maxTop;
     }
+    top = Math.max(panelPadding, top);
 
-    const position = { top, left, maxHeight: Math.min(0.85 * viewportHeight, viewportHeight - top - panelPadding) };
+    const position = { top, left, maxHeight: Math.min(maxPanelHeight, viewportHeight - top - panelPadding) };
     setPanelPosition(position);
 
     if (attribute.id === 'age') {
-      // Handle age attribute specially with range inputs
       setActiveAttributePanel(attribute);
       const existingSelection = attributeSelections.find(sel => sel.attributeId === attribute.id);
       if (existingSelection && existingSelection.selectedOptions.length >= 2) {
@@ -289,13 +287,17 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
         setTempAgeInput({ min: '5', max: '82' });
       }
     } else if (attribute.options) {
-      // If attribute has options, open the detail panel
       setActiveAttributePanel(attribute);
       setOptionSearchQuery('');
       const existingSelection = attributeSelections.find(sel => sel.attributeId === attribute.id);
       setTempSelectedOptions(existingSelection?.selectedOptions || []);
+    }
+  };
+
+  const handleAttributeClick = (attribute: Attribute, event: React.MouseEvent) => {
+    if (attribute.id === 'age' || attribute.options) {
+      openAttributePanelFor(attribute, event.currentTarget as HTMLElement);
     } else {
-      // If no options, toggle selection directly
       const isSelected = selectedAttributes.some(attr => attr.id === attribute.id);
       if (isSelected) {
         setSelectedAttributes(selectedAttributes.filter(attr => attr.id !== attribute.id));
@@ -657,15 +659,27 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
                             <div className="text-sm font-medium text-gray-900 mb-1">{attribute.category}</div>
                             <div className="text-base font-semibold text-blue-600 truncate">{attribute.label}</div>
                           </div>
-                          <button
-                            onClick={() => {
-                              setSelectedAttributes(prev => prev.filter(attr => attr.id !== attribute.id));
-                              setAttributeSelections(prev => prev.filter(sel => sel.attributeId !== attribute.id));
-                            }}
-                            className="text-gray-400 hover:text-gray-600 flex-shrink-0 ml-2"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
+                          <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                            {(attribute.id === 'age' || (attribute.options && attribute.options.length > 0)) && (
+                              <button
+                                onClick={(e) => openAttributePanelFor(attribute, e.currentTarget as HTMLElement)}
+                                className="text-gray-400 hover:text-blue-600 p-1 rounded"
+                                title="Edit attribute"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                            )}
+                            <button
+                              onClick={() => {
+                                setSelectedAttributes(prev => prev.filter(attr => attr.id !== attribute.id));
+                                setAttributeSelections(prev => prev.filter(sel => sel.attributeId !== attribute.id));
+                              }}
+                              className="text-gray-400 hover:text-gray-600 p-1 rounded"
+                              title="Remove attribute"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                         
                         {selectedOptions.length > 0 && (
