@@ -1307,22 +1307,7 @@ export default function MeasuresPage() {
             <Edit2 className="w-4 h-4 mr-3" />
             Rename
           </button>
-          {/* 2. Edit */}
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleEditMeasure(openDropdown);
-            }}
-            onMouseDown={(e) => {
-              e.stopPropagation();
-            }}
-            className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-          >
-            <Edit className="w-4 h-4 mr-3" />
-            Edit
-          </button>
-          {/* 3. Copy */}
+          {/* 2. Copy & Edit */}
           <button
             onClick={(e) => {
               e.preventDefault();
@@ -1335,7 +1320,7 @@ export default function MeasuresPage() {
             className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
           >
             <Copy className="w-4 h-4 mr-3" />
-            Make a copy
+            Copy & Edit
           </button>
           {/* 4. Move to Folder */}
           <button

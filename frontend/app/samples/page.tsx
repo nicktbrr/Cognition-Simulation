@@ -1617,22 +1617,7 @@ export default function SamplesPage() {
             <Edit2 className="w-4 h-4 mr-3" />
             Rename
           </button>
-          {/* 2. Edit */}
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleEditSample(openDropdown);
-            }}
-            onMouseDown={(e) => {
-              e.stopPropagation();
-            }}
-            className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-          >
-            <Edit className="w-4 h-4 mr-3" />
-            Edit
-          </button>
-          {/* 3. Copy */}
+          {/* 2. Copy & Edit */}
           <button
             onClick={(e) => {
               e.preventDefault();
@@ -1645,7 +1630,7 @@ export default function SamplesPage() {
             className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
           >
             <Copy className="w-4 h-4 mr-3" />
-            Make a copy
+            Copy & Edit
           </button>
           {/* 4. Move to Folder */}
           <button
@@ -1719,7 +1704,7 @@ export default function SamplesPage() {
               </div>
             </div>
             <p className="text-gray-700 mb-6">
-              Samples may be edited up until the first time they are used. You may "Make a copy" of the sample to edit at any point.
+              Samples may be edited up until the first time they are used. You may "Copy & Edit" the sample to edit at any point.
             </p>
             <div className="flex gap-3 justify-end">
               <Button
@@ -1742,7 +1727,7 @@ export default function SamplesPage() {
                 }}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white"
               >
-                Make a copy
+                Copy & Edit
               </Button>
             </div>
           </div>
