@@ -154,6 +154,15 @@ export default function SamplesPage() {
     }
   };
 
+  const handleTableSort = (key: string) => {
+    setSortConfig((prev) => {
+      if (prev?.key === key) {
+        return { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
+      }
+      return { key, direction: 'asc' as const };
+    });
+  };
+
   const SortHeader = ({ column, children }: { column: SortColumn; children: React.ReactNode }) => (
     <TableHead>
       <button
@@ -760,14 +769,6 @@ export default function SamplesPage() {
     ));
   };
 
-  const handleSort = (key: string) => {
-    let direction: 'asc' | 'desc' = 'asc';
-    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
-      direction = 'desc';
-    }
-    setSortConfig({ key, direction });
-  };
-
   const handleDeleteSample = async (sampleId: string) => {
     // Get the sample name before deleting
     const sample = samples.find(s => s.id === sampleId);
@@ -1187,10 +1188,10 @@ export default function SamplesPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-12"></TableHead>
-                      <SortableTableHeader label="Name" sortKey="name" onSort={handleSort} currentSort={sortConfig} />
-                      <SortableTableHeader label="Created Date" sortKey="created_date" onSort={handleSort} currentSort={sortConfig} />
-                      <SortableTableHeader label="Attributes" sortKey="attributes" onSort={handleSort} currentSort={sortConfig} />
-                      <SortableTableHeader label="Status" sortKey="status" onSort={handleSort} currentSort={sortConfig} />
+                      <SortableTableHeader label="Name" sortKey="name" onSort={handleTableSort} currentSort={sortConfig} />
+                      <SortableTableHeader label="Created Date" sortKey="created_date" onSort={handleTableSort} currentSort={sortConfig} />
+                      <SortableTableHeader label="Attributes" sortKey="attributes" onSort={handleTableSort} currentSort={sortConfig} />
+                      <SortableTableHeader label="Status" sortKey="status" onSort={handleTableSort} currentSort={sortConfig} />
                     </TableRow>
                   </TableHeader>
                   <TableBody>

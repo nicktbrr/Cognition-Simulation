@@ -95,6 +95,15 @@ export default function MeasuresPage() {
   // Sorting state
   const [sortConfig, setSortConfig] = useState<{key: string, direction: 'asc' | 'desc'} | null>(null);
 
+  const handleTableSort = (key: string) => {
+    setSortConfig((prev) => {
+      if (prev?.key === key) {
+        return { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
+      }
+      return { key, direction: 'asc' as const };
+    });
+  };
+
   const getUserData = async (userId: string) => {
     const { data, error } = await supabase
       .from("user_emails")
@@ -630,14 +639,6 @@ export default function MeasuresPage() {
     setExpandedRows(newExpandedRows);
   };
 
-  const handleSort = (key: string) => {
-    let direction: 'asc' | 'desc' = 'asc';
-    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
-      direction = 'desc';
-    }
-    setSortConfig({ key, direction });
-  };
-
   const toggleDropdown = (measureId: string, event: React.MouseEvent) => {
     event.stopPropagation(); // Prevent row expansion when clicking dropdown
     
@@ -981,10 +982,10 @@ export default function MeasuresPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-12"></TableHead>
-                    <TableHead>Title</TableHead>
-                    <TableHead>Definition</TableHead>
-                    <TableHead>Range</TableHead>
-                    <TableHead>Status</TableHead>
+                    <SortableTableHeader label="Title" sortKey="name" onSort={handleTableSort} currentSort={sortConfig} />
+                    <SortableTableHeader label="Definition" sortKey="description" onSort={handleTableSort} currentSort={sortConfig} />
+                    <SortableTableHeader label="Range" sortKey="range" onSort={handleTableSort} currentSort={sortConfig} />
+                    <SortableTableHeader label="Status" sortKey="status" onSort={handleTableSort} currentSort={sortConfig} />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1087,6 +1088,10 @@ export default function MeasuresPage() {
                             return multiplier * a.description.localeCompare(b.description);
                           } else if (key === 'range') {
                             return multiplier * a.range.localeCompare(b.range);
+                          } else if (key === 'status') {
+                            const statusA = a.isLocked ? 'Locked' : 'Unlocked';
+                            const statusB = b.isLocked ? 'Locked' : 'Unlocked';
+                            return multiplier * statusA.localeCompare(statusB);
                           }
                           return 0;
                         }).map((measure) => (
@@ -1232,6 +1237,10 @@ export default function MeasuresPage() {
                       return multiplier * a.description.localeCompare(b.description);
                     } else if (key === 'range') {
                       return multiplier * a.range.localeCompare(b.range);
+                    } else if (key === 'status') {
+                      const statusA = a.isLocked ? 'Locked' : 'Unlocked';
+                      const statusB = b.isLocked ? 'Locked' : 'Unlocked';
+                      return multiplier * statusA.localeCompare(statusB);
                     }
                     return 0;
                   }).map((measure) => (
