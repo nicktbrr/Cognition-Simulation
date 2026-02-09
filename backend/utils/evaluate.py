@@ -252,9 +252,16 @@ def dataframe_to_excel(df_response, df_gemini, steps=None):
         df_response_with_id.to_excel(writer, sheet_name='Responses', index=False)
         
         # Add ID column to metrics sheet (1-10, matching persona index)
+        # Unwrap single-element list cells so numbers display without brackets
         if not df_gemini_sorted.empty:
             df_gemini_with_id = df_gemini_sorted.copy()
             df_gemini_with_id.insert(0, 'ID', range(1, len(df_gemini_sorted) + 1))
+            for col in df_gemini_with_id.columns:
+                if col == 'ID':
+                    continue
+                df_gemini_with_id[col] = df_gemini_with_id[col].apply(
+                    lambda x: x[0] if isinstance(x, list) and len(x) > 0 else x
+                )
             df_gemini_with_id.to_excel(writer, sheet_name='Metrics', index=False)
     
     return fn

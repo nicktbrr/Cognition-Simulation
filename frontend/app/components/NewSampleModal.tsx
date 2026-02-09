@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { X, ChevronDown, ChevronUp, Search } from "lucide-react";
+import React, { useState, useEffect, useMemo } from "react";
+import { X, ChevronDown, ChevronUp, Search, Pencil } from "lucide-react";
 import { Button } from "./ui/button";
 import otherAttributesData from "../data/attributes/other.json";
 import demographicsAttributesData from "../data/attributes/demographics.json";
@@ -110,6 +110,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
   const [panelPosition, setPanelPosition] = useState<{ top: number; left: number; maxHeight?: number } | null>(null);
   const [checkedOptions, setCheckedOptions] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [optionSearchQuery, setOptionSearchQuery] = useState<string>('');
   const [nameError, setNameError] = useState<string>('');
   const [categoryExpanded, setCategoryExpanded] = useState<{ [key: string]: boolean }>({
     "Demographics": true,
@@ -126,6 +127,21 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
     "Languages": false,
     "Other": false,
   });
+
+  const ageValidation = useMemo(() => {
+    const minNum = tempAgeInput.min === '' ? NaN : parseInt(tempAgeInput.min, 10);
+    const maxNum = tempAgeInput.max === '' ? NaN : parseInt(tempAgeInput.max, 10);
+    const bothNumbers = !isNaN(minNum) && !isNaN(maxNum);
+    const inRange = bothNumbers && minNum >= 5 && minNum <= 82 && maxNum >= 5 && maxNum <= 82;
+    const validRange = inRange && minNum < maxNum;
+    const errorMessage =
+      !bothNumbers
+        ? 'Enter numbers between 5 and 82 for both minimum and maximum.'
+        : !inRange
+          ? 'Ages must be between 5 and 82.'
+          : 'Minimum age must be less than maximum age.';
+    return { validRange, minNum, maxNum, bothNumbers, inRange, errorMessage };
+  }, [tempAgeInput.min, tempAgeInput.max]);
 
   // Initialize with initialSample data when in edit mode
   useEffect(() => {
@@ -230,18 +246,17 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
 
   if (!isOpen) return null;
 
-  const handleAttributeClick = (attribute: Attribute, event: React.MouseEvent) => {
-    const rect = event.currentTarget.getBoundingClientRect();
+  const openAttributePanelFor = (attribute: Attribute, anchorEl: HTMLElement) => {
+    const rect = anchorEl.getBoundingClientRect();
     const panelWidth = 384; // 24rem (w-96)
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
     const panelPadding = 24; // space from viewport edges
+    const maxPanelHeight = 0.85 * viewportHeight;
 
-    // Use viewport coordinates (panel is inside a fixed overlay)
     let left = rect.right + 8;
     let top = rect.top;
 
-    // If panel would go off the right edge, position it to the left of the element
     if (left + panelWidth > viewportWidth - panelPadding) {
       left = rect.left - panelWidth - 8;
     }
@@ -249,18 +264,17 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
       left = panelPadding;
     }
 
-    // Keep panel bottom within viewport so footer (Select All, Clear All, Add to Sample) is visible
-    const maxPanelHeight = Math.min(0.85 * viewportHeight, viewportHeight - top - panelPadding);
-    if (maxPanelHeight < 200) {
-      // If opening near bottom, shift panel up so it fits
-      top = Math.max(panelPadding, viewportHeight - panelPadding - 0.85 * viewportHeight);
+    // Keep panel fully in view: start high enough that bottom doesn't get cut off
+    const maxTop = viewportHeight - panelPadding - maxPanelHeight;
+    if (top > maxTop) {
+      top = maxTop;
     }
+    top = Math.max(panelPadding, top);
 
-    const position = { top, left, maxHeight: Math.min(0.85 * viewportHeight, viewportHeight - top - panelPadding) };
+    const position = { top, left, maxHeight: Math.min(maxPanelHeight, viewportHeight - top - panelPadding) };
     setPanelPosition(position);
 
     if (attribute.id === 'age') {
-      // Handle age attribute specially with range inputs
       setActiveAttributePanel(attribute);
       const existingSelection = attributeSelections.find(sel => sel.attributeId === attribute.id);
       if (existingSelection && existingSelection.selectedOptions.length >= 2) {
@@ -273,12 +287,17 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
         setTempAgeInput({ min: '5', max: '82' });
       }
     } else if (attribute.options) {
-      // If attribute has options, open the detail panel
       setActiveAttributePanel(attribute);
+      setOptionSearchQuery('');
       const existingSelection = attributeSelections.find(sel => sel.attributeId === attribute.id);
       setTempSelectedOptions(existingSelection?.selectedOptions || []);
+    }
+  };
+
+  const handleAttributeClick = (attribute: Attribute, event: React.MouseEvent) => {
+    if (attribute.id === 'age' || attribute.options) {
+      openAttributePanelFor(attribute, event.currentTarget as HTMLElement);
     } else {
-      // If no options, toggle selection directly
       const isSelected = selectedAttributes.some(attr => attr.id === attribute.id);
       if (isSelected) {
         setSelectedAttributes(selectedAttributes.filter(attr => attr.id !== attribute.id));
@@ -316,10 +335,18 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
   const handleAddToSelection = () => {
     if (activeAttributePanel) {
       if (activeAttributePanel.id === 'age') {
-        // Handle age range selection
+        const minNum = tempAgeInput.min === '' ? NaN : parseInt(tempAgeInput.min, 10);
+        const maxNum = tempAgeInput.max === '' ? NaN : parseInt(tempAgeInput.max, 10);
+        const valid =
+          !isNaN(minNum) && !isNaN(maxNum) &&
+          minNum >= 5 && minNum <= 82 && maxNum >= 5 && maxNum <= 82 &&
+          minNum < maxNum;
+        if (!valid) return;
+        const minAge = Math.min(minNum, maxNum);
+        const maxAge = Math.max(minNum, maxNum);
         const newSelection: AttributeSelection = {
           attributeId: activeAttributePanel.id,
-          selectedOptions: [tempAgeRange.min.toString(), tempAgeRange.max.toString()]
+          selectedOptions: [minAge.toString(), maxAge.toString()]
         };
 
         setAttributeSelections(prev => {
@@ -370,6 +397,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
 
   const handleCloseAttributePanel = () => {
     setActiveAttributePanel(null);
+    setOptionSearchQuery('');
     setTempSelectedOptions([]);
     setTempAgeRange({ min: 5, max: 82 });
     setTempAgeInput({ min: '5', max: '82' });
@@ -526,7 +554,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search for characteristics/attributes..."
+                placeholder="Search attributes or their options..."
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
@@ -538,11 +566,13 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
             <div className="flex-1 overflow-y-auto border-b border-gray-200" style={{ minHeight: 0 }}>
               <div className="p-6">
                 {allCategories.map((category) => {
-                  // Filter attributes based on search query
-                  const filteredAttributes = searchQuery.trim()
+                  // Filter attributes based on search query (label, category, or any option label)
+                  const q = searchQuery.trim().toLowerCase();
+                  const filteredAttributes = q
                     ? category.attributes.filter(attr =>
-                        attr.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                        attr.category.toLowerCase().includes(searchQuery.toLowerCase())
+                        attr.label.toLowerCase().includes(q) ||
+                        attr.category.toLowerCase().includes(q) ||
+                        (attr.options?.some(opt => opt.label.toLowerCase().includes(q)) ?? false)
                       )
                     : category.attributes;
 
@@ -592,14 +622,16 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
                   );
                 })}
                 {searchQuery.trim() && allCategories.every(category => {
+                  const q = searchQuery.trim().toLowerCase();
                   const filtered = category.attributes.filter(attr =>
-                    attr.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    attr.category.toLowerCase().includes(searchQuery.toLowerCase())
+                    attr.label.toLowerCase().includes(q) ||
+                    attr.category.toLowerCase().includes(q) ||
+                    (attr.options?.some(opt => opt.label.toLowerCase().includes(q)) ?? false)
                   );
                   return filtered.length === 0;
                 }) && (
                   <div className="text-center text-gray-500 py-8">
-                    <p className="text-sm">No attributes found matching "{searchQuery}"</p>
+                    <p className="text-sm">No attributes or options found matching "{searchQuery}"</p>
                   </div>
                 )}
               </div>
@@ -627,15 +659,27 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
                             <div className="text-sm font-medium text-gray-900 mb-1">{attribute.category}</div>
                             <div className="text-base font-semibold text-blue-600 truncate">{attribute.label}</div>
                           </div>
-                          <button
-                            onClick={() => {
-                              setSelectedAttributes(prev => prev.filter(attr => attr.id !== attribute.id));
-                              setAttributeSelections(prev => prev.filter(sel => sel.attributeId !== attribute.id));
-                            }}
-                            className="text-gray-400 hover:text-gray-600 flex-shrink-0 ml-2"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
+                          <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                            {(attribute.id === 'age' || (attribute.options && attribute.options.length > 0)) && (
+                              <button
+                                onClick={(e) => openAttributePanelFor(attribute, e.currentTarget as HTMLElement)}
+                                className="text-gray-400 hover:text-blue-600 p-1 rounded"
+                                title="Edit attribute"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                            )}
+                            <button
+                              onClick={() => {
+                                setSelectedAttributes(prev => prev.filter(attr => attr.id !== attribute.id));
+                                setAttributeSelections(prev => prev.filter(sel => sel.attributeId !== attribute.id));
+                              }}
+                              className="text-gray-400 hover:text-gray-600 p-1 rounded"
+                              title="Remove attribute"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                         
                         {selectedOptions.length > 0 && (
@@ -737,7 +781,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
             </div>
 
             {/* Options List / Age Range Inputs - scrollable so footer always stays visible */}
-            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 pb-4">
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 pb-4 flex flex-col">
               {activeAttributePanel.id === 'age' ? (
                 <div className="space-y-4">
                   <div className="text-sm text-gray-600 mb-4">
@@ -750,21 +794,17 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
                       </label>
                       <input
                         type="text"
+                        inputMode="numeric"
                         placeholder="5"
                         value={tempAgeInput.min}
                         onChange={(e) => {
-                          const inputValue = e.target.value;
+                          const raw = e.target.value;
+                          const inputValue = raw.replace(/\D/g, '');
                           setTempAgeInput(prev => ({ ...prev, min: inputValue }));
-                          
-                          // Update the numeric range for validation
-                          const numValue = parseInt(inputValue);
+                          const numValue = inputValue === '' ? NaN : parseInt(inputValue, 10);
                           if (!isNaN(numValue)) {
                             const validValue = Math.max(5, Math.min(82, numValue));
-                            setTempAgeRange(prev => ({ 
-                              ...prev, 
-                              min: validValue,
-                              max: Math.max(validValue, prev.max)
-                            }));
+                            setTempAgeRange(prev => ({ ...prev, min: validValue }));
                           }
                         }}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -776,48 +816,73 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
                       </label>
                       <input
                         type="text"
+                        inputMode="numeric"
                         placeholder="82"
                         value={tempAgeInput.max}
                         onChange={(e) => {
-                          const inputValue = e.target.value;
+                          const raw = e.target.value;
+                          const inputValue = raw.replace(/\D/g, '');
                           setTempAgeInput(prev => ({ ...prev, max: inputValue }));
-                          
-                          // Update the numeric range for validation
-                          const numValue = parseInt(inputValue);
+                          const numValue = inputValue === '' ? NaN : parseInt(inputValue, 10);
                           if (!isNaN(numValue)) {
                             const validValue = Math.max(5, Math.min(82, numValue));
-                            setTempAgeRange(prev => ({ 
-                              ...prev, 
-                              max: validValue,
-                              min: Math.min(validValue, prev.min)
-                            }));
+                            setTempAgeRange(prev => ({ ...prev, max: validValue }));
                           }
                         }}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                     </div>
-                    <div className="text-sm text-gray-500">
-                      Selected range: {tempAgeRange.min} - {tempAgeRange.max} years old
-                    </div>
+                    {activeAttributePanel.id === 'age' && ageValidation && (
+                      ageValidation.validRange ? (
+                        <div className="text-sm text-gray-500 px-3 py-2 rounded-md border border-gray-200 bg-gray-50">
+                          Selected range: {ageValidation.minNum} - {ageValidation.maxNum} years old
+                        </div>
+                      ) : (
+                        <div className="text-sm text-red-600 px-3 py-2 rounded-md border-2 border-red-400 bg-red-50">
+                          {ageValidation.errorMessage}
+                        </div>
+                      )
+                    )}
                   </div>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  {activeAttributePanel.options?.map((option) => (
-                    <label
-                      key={option.id}
-                      className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-2 rounded"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={tempSelectedOptions.includes(option.id)}
-                        onChange={() => handleOptionToggle(option.id)}
-                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                      />
-                      <span className="text-sm text-gray-900">{option.label}</span>
-                    </label>
-                  ))}
-                </div>
+                <>
+                  {activeAttributePanel.options && activeAttributePanel.options.length > 20 && (
+                    <div className="flex-shrink-0 mb-3">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input
+                          type="text"
+                          placeholder="Search options..."
+                          value={optionSearchQuery}
+                          onChange={(e) => setOptionSearchQuery(e.target.value)}
+                          className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+                    </div>
+                  )}
+                  <div className="space-y-2 min-h-0">
+                    {(optionSearchQuery.trim()
+                      ? activeAttributePanel.options?.filter((opt) =>
+                          opt.label.toLowerCase().includes(optionSearchQuery.trim().toLowerCase())
+                        ) ?? []
+                      : activeAttributePanel.options ?? []
+                    ).map((option) => (
+                      <label
+                        key={option.id}
+                        className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-2 rounded"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={tempSelectedOptions.includes(option.id)}
+                          onChange={() => handleOptionToggle(option.id)}
+                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-900">{option.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </>
               )}
             </div>
 
@@ -826,7 +891,8 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
               {activeAttributePanel.id === 'age' ? (
                 <Button
                   onClick={handleAddToSelection}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                  disabled={!ageValidation.validRange}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   + Add Age Range to Sample
                 </Button>
