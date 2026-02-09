@@ -593,10 +593,13 @@ class GenerateSteps(Resource):
                     "message": "Invalid response format: expected a JSON object"
                 }), 500
             
-            # Extract introduction if present
+            # Extract introduction and title if present
             generated_introduction = steps_data.get('introduction', '')
+            generated_title = (steps_data.get('title') or '').strip()
             if generated_introduction:
                 logger.info(f"[{request_id}] Generated introduction found (length: {len(generated_introduction)} characters)")
+            if generated_title:
+                logger.info(f"[{request_id}] Generated title found: {generated_title}")
             
             # Validate and normalize step structure - check for "description" vs "instructions"
             step_keys = [k for k in steps_data.keys() if k.startswith('step')]
@@ -647,10 +650,12 @@ class GenerateSteps(Resource):
                     "message": "No valid steps generated. Please ensure your prompt describes actual tasks, not just an introduction."
                 }), 500
             
-            # Build output dict with steps and introduction
+            # Build output dict with steps, introduction, and optional title
             output_dict = filtered_steps.copy()
             if generated_introduction:
                 output_dict['introduction'] = generated_introduction
+            if generated_title:
+                output_dict['title'] = generated_title
             
             logger.info(f"[{request_id}] Response validated and normalized successfully. {len(filtered_steps)} step(s) after filtering out introduction steps.")
             if generated_introduction:

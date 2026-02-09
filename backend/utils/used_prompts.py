@@ -42,6 +42,7 @@ If an introduction is provided in the context, you MUST also generate an improve
 
 Generate the output in JSON format with the following EXACT structure (use "instructions" not "description" for steps):
 {
+  "title": "Short study title, 3-8 words (REQUIRED when no study title was provided in the context; omit or leave empty if the user already provided a study title)",
   "introduction": "generated introduction text (only include this field if an introduction was provided in the context)",
   "step01": {
     "title": "step title (one or two words)",
@@ -67,7 +68,8 @@ VALIDATION: Before returning your response, verify that:
 - No step has a title related to introduction, welcome, overview, or context
 - All steps are actual tasks/activities that participants will perform
 - If an introduction was provided in context, you have included an "introduction" field with an improved version
-- If no introduction was provided, you have included an "introduction" field with a newly generated introduction"""
+- If no introduction was provided, you have included an "introduction" field with a newly generated introduction
+- If no study title was provided in the context, you have included a "title" field with a concise study title (3-8 words) that describes the study"""
 
 
 # System prompt for baseline prompt generation (from utils/prompts.py - baseline_prompt)
@@ -202,6 +204,10 @@ def get_generate_steps_user_prompt(user_prompt: str, title: str = '', introducti
         prompt += ":\n\n"
     
     prompt += f"User Input: {user_prompt}"
+    
+    # When no title provided, ask the model to generate one
+    if not title or not title.strip():
+        prompt += "\n\nNo study title was provided. You MUST include a \"title\" field in your JSON with a short, descriptive study title (3-8 words) based on the user input."
     
     # Add instruction about introduction generation
     if introduction and introduction.strip():

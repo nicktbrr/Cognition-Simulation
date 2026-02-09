@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useRef, useCallback, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Save, Download, HelpCircle, Sparkles, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "../utils/supabase";
@@ -45,18 +45,46 @@ interface Measure {
   desiredValues: DesiredValue[];
 }
 
+// Helper: should we restore simulation fields from localStorage? (only when not modify/new and on client)
+function readSimulationFromStorage(): boolean {
+  if (typeof window === 'undefined') return false;
+  const params = new URLSearchParams(window.location.search);
+  return !params.get('modify') && params.get('new') !== 'true';
+}
+
 function SimulationPageContent() {
   const searchParams = useSearchParams();
   const modifyExperimentId = searchParams.get('modify');
   const isNewSimulation = searchParams.get('new') === 'true';
   const { user, isLoading, isAuthenticated } = useAuth();
   const [userData, setUserData] = useState<UserData | null>(null);
-  const [processDescription, setProcessDescription] = useState("");
-  const [processTitle, setProcessTitle] = useState("");
-  const [studyIntroduction, setStudyIntroduction] = useState("");
-  const [selectedSample, setSelectedSample] = useState("");
-  const [sampleSizeInput, setSampleSizeInput] = useState<string>("10");
-  const [sampleSize, setSampleSize] = useState<number>(10);
+  const [processDescription, setProcessDescription] = useState(() =>
+    readSimulationFromStorage() ? (localStorage.getItem('simulation-description') ?? '') : ''
+  );
+  const [processTitle, setProcessTitle] = useState(() =>
+    readSimulationFromStorage() ? (localStorage.getItem('simulation-title') ?? '') : ''
+  );
+  const [studyIntroduction, setStudyIntroduction] = useState(() =>
+    readSimulationFromStorage() ? (localStorage.getItem('simulation-introduction') ?? '') : ''
+  );
+  const [selectedSample, setSelectedSample] = useState(() =>
+    readSimulationFromStorage() ? (localStorage.getItem('simulation-sample') ?? '') : ''
+  );
+  const [sampleSizeInput, setSampleSizeInput] = useState<string>(() => {
+    if (!readSimulationFromStorage()) return '10';
+    const saved = localStorage.getItem('simulation-sample-size');
+    if (saved === null) return '10';
+    const num = parseInt(saved, 10);
+    const clamped = Number.isNaN(num) ? 10 : Math.min(50, Math.max(10, num));
+    return String(clamped);
+  });
+  const [sampleSize, setSampleSize] = useState<number>(() => {
+    if (!readSimulationFromStorage()) return 10;
+    const saved = localStorage.getItem('simulation-sample-size');
+    if (saved === null) return 10;
+    const num = parseInt(saved, 10);
+    return Number.isNaN(num) ? 10 : Math.min(50, Math.max(10, num));
+  });
   const [sampleSizeError, setSampleSizeError] = useState<string>("");
   const [isSampleSizeFocused, setIsSampleSizeFocused] = useState(false);
   const [flowNodes, setFlowNodes] = useState<Node[]>([]);
@@ -76,7 +104,9 @@ function SimulationPageContent() {
   const [showIntroductionModal, setShowIntroductionModal] = useState(false);
   const [generatedIntroduction, setGeneratedIntroduction] = useState<string>("");
   const [titleError, setTitleError] = useState<string>("");
+  const [showSubmittedModal, setShowSubmittedModal] = useState(false);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const router = useRouter();
   const reactFlowRef = useRef<ReactFlowRef>(null);
   const hasInitiallyLoadedRef = useRef(false);
   const loadedModifyExperimentIdRef = useRef<string | null>(null);
@@ -285,16 +315,22 @@ function SimulationPageContent() {
             }
           }
 
-          // Optionally set the title from study context if available
-          if (stepsData.study_context_and_instructions?.context && !processTitle) {
-            // Extract a title from the context or use it as-is
-            const context = stepsData.study_context_and_instructions.context;
-            // Try to use first sentence or first 50 characters
-            const suggestedTitle = context.split('.')[0].trim().substring(0, 50);
-            if (suggestedTitle) {
-              setProcessTitle(suggestedTitle);
+          // When title box is empty, use generated title from backend or fallback from context
+          if (!processTitle || !processTitle.trim()) {
+            const generatedTitle = (stepsData.title || '').trim();
+            if (generatedTitle) {
+              setProcessTitle(generatedTitle);
+            } else if (stepsData.study_context_and_instructions?.context) {
+              const context = stepsData.study_context_and_instructions.context;
+              const suggestedTitle = context.split('.')[0].trim().substring(0, 50);
+              if (suggestedTitle) {
+                setProcessTitle(suggestedTitle);
+              }
             }
           }
+
+          // Clear the study description text box after successful generation
+          setProcessDescription("");
 
           alert(`Successfully generated ${convertedSteps.length} step(s)!`);
         } else {
@@ -364,46 +400,39 @@ function SimulationPageContent() {
 
   const handleSaveDraft = async () => {
     try {
-      // Get the user from auth
+      // Get the user from auth (only requirement for saving a draft)
       if (!user || !isAuthenticated) {
         alert("Please log in to save drafts.");
         return;
       }
 
-      // Get the selected sample details
+      // Drafts can be incomplete: no sample, no steps, or empty title is allowed.
       const selectedSampleDetails = getSelectedSampleDetails();
-      if (!selectedSampleDetails) {
-        alert("Please select a sample before saving the draft.");
-        return;
-      }
-
-      // Validation is now handled inline with titleError state
-      // Double-check here just in case
-      if (titleError) {
-        return;
-      }
 
       // Convert React Flow nodes to the expected format
       const orderedSteps = convertFlowNodesToSteps(flowNodes, flowEdges);
 
-      // Construct the JSON payload for the draft
-      const experimentData = {
+      // Build draft payload; sample is optional (include only if selected)
+      const experimentData: Record<string, unknown> = {
         seed: "no-seed",
         steps: orderedSteps,
         iters: Math.min(50, Math.max(10, sampleSize)),
         temperature: 0.5,
         user_id: user.user_id,
-        title: processTitle || "Untitled Simulation",
+        title: (processTitle || "").trim() || "Untitled Simulation",
+        description: processDescription || "",
         study_introduction: studyIntroduction || "",
-        sample: {
+      };
+      if (selectedSampleDetails) {
+        experimentData.sample = {
           id: selectedSampleDetails.id,
           name: selectedSampleDetails.name,
           user_id: selectedSampleDetails.user_id,
           created_at: selectedSampleDetails.created_at,
           attributes: selectedSampleDetails.attributes,
           persona: selectedSampleDetails.persona
-        }
-      };
+        };
+      }
 
       let data, error;
 
@@ -418,12 +447,12 @@ function SimulationPageContent() {
           .single();
 
         if (existingExperiment && existingExperiment.status === "Draft") {
-          // Update existing draft
+          // Update existing draft (experiments table has no updated_at column)
           const result = await supabase
             .from("experiments")
             .update({
               experiment_data: experimentData,
-              updated_at: new Date().toISOString()
+              sample_name: selectedSampleDetails?.name ?? "",
             })
             .eq("experiment_id", modifyExperimentId)
             .eq("user_id", user.user_id)
@@ -442,6 +471,7 @@ function SimulationPageContent() {
               user_id: user.user_id,
               experiment_data: experimentData,
               status: "Draft",
+              sample_name: selectedSampleDetails?.name ?? "",
               created_at: new Date().toISOString()
             })
             .select()
@@ -460,6 +490,7 @@ function SimulationPageContent() {
             user_id: user.user_id,
             experiment_data: experimentData,
             status: "Draft",
+            sample_name: selectedSampleDetails?.name ?? "",
             created_at: new Date().toISOString()
           })
           .select()
@@ -501,8 +532,10 @@ function SimulationPageContent() {
     // Clear localStorage
     localStorage.removeItem('simulation-flow');
     localStorage.removeItem('simulation-title');
+    localStorage.removeItem('simulation-description');
     localStorage.removeItem('simulation-introduction');
     localStorage.removeItem('simulation-sample');
+    localStorage.removeItem('simulation-sample-size');
     localStorage.removeItem('last-loaded-modify-experiment-id');
     
     // Reset the modify experiment ref
@@ -714,123 +747,106 @@ function SimulationPageContent() {
     }
     setTitleError("");
 
-    // If validation passes, immediately disable button and show progress
-    // This happens before waiting for the backend (cold start)
+    // Optimistic update: show running state and popup immediately (backend may be cold on Cloud Run)
+    const uuid = crypto.randomUUID();
+
+    // Get the user from local storage
+    let parsedUser = null;
+    const storedUser = localStorage.getItem("supabaseUser");
+    if (storedUser) {
+      try {
+        parsedUser = JSON.parse(storedUser);
+      } catch (e) {
+        console.error("Error parsing user:", e);
+      }
+    }
+
+    if (!parsedUser?.id) {
+      alert("User session missing. Please refresh and try again.");
+      return;
+    }
+
+    const selectedSampleDetails = getSelectedSampleDetails();
+    if (!selectedSampleDetails) {
+      alert("Selected sample not found. Please refresh and try again.");
+      return;
+    }
+
+    const orderedSteps = convertFlowNodesToSteps(flowNodes, flowEdges);
+    const jsonData = {
+      seed: "no-seed",
+      steps: orderedSteps,
+      iters: Math.min(50, Math.max(10, sampleSize)),
+      temperature: 0.5,
+      user_id: parsedUser?.id,
+      title: processTitle || "Simulation Flow",
+      study_introduction: studyIntroduction || "",
+      sample: {
+        id: selectedSampleDetails.id,
+        name: selectedSampleDetails.name,
+        user_id: selectedSampleDetails.user_id,
+        created_at: selectedSampleDetails.created_at,
+        attributes: selectedSampleDetails.attributes,
+        persona: selectedSampleDetails.persona
+      }
+    };
+
+    // Set state and localStorage immediately so dashboard can show the simulation right away
     setIsSimulationRunning(true);
     setSimulationProgress(0);
-    
-    try {
-      // Get the user from local storage
-      let parsedUser = null;
-      const storedUser = localStorage.getItem("supabaseUser");
-      if (storedUser) {
-        try {
-          parsedUser = JSON.parse(storedUser);
-        } catch (e) {
-          console.error("Error parsing user:", e);
+    setSimulationTaskId(uuid);
+    localStorage.setItem('simulation-task-id', uuid);
+    const pendingInfo = {
+      taskId: uuid,
+      title: titleToUse,
+      sample_name: selectedSampleDetails.name,
+      created_at: new Date().toISOString()
+    };
+    localStorage.setItem('simulation-pending', JSON.stringify(pendingInfo));
+
+    // Show popup immediately so user can go straight to dashboard
+    setShowSubmittedModal(true);
+
+    // Fire backend request in background (do not block; server may need to warm up)
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const accessToken = session?.access_token;
+        if (!accessToken) {
+          throw new Error("No Supabase access token found");
         }
-      }
-      
-      // Get the user's Supabase access token
-      const { data: { session } } = await supabase.auth.getSession();
-      const accessToken = session?.access_token;
-      if (!accessToken) {
-        throw new Error("No Supabase access token found");
-      }
-      
-      // Get the selected sample details
-      const selectedSampleDetails = getSelectedSampleDetails();
-      if (!selectedSampleDetails) {
-        throw new Error("Selected sample not found. Please refresh and try again.");
-      }
-      
-      // Convert React Flow nodes to the expected format
-      const orderedSteps = convertFlowNodesToSteps(flowNodes, flowEdges);
-      
-      // Construct the JSON payload for the simulation
-      const jsonData = {
-        seed: "no-seed",
-        steps: orderedSteps,
-        iters: Math.min(50, Math.max(10, sampleSize)),
-        temperature: 0.5,
-        user_id: parsedUser.id,
-        title: processTitle || "Simulation Flow",
-        study_introduction: studyIntroduction || "",
-        sample: {
-          id: selectedSampleDetails.id,
-          name: selectedSampleDetails.name,
-          user_id: selectedSampleDetails.user_id,
-          created_at: selectedSampleDetails.created_at,
-          attributes: selectedSampleDetails.attributes,
-          persona: selectedSampleDetails.persona
+
+        const prod = process.env.NEXT_PUBLIC_DEV || "production";
+        const url =
+          prod === "development"
+            ? "http://127.0.0.1:5000/api/evaluate"
+            : "https://cognition-backend-81313456654.us-west1.run.app/api/evaluate";
+
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ id: uuid, data: jsonData }),
+        });
+
+        const result = await response.json();
+
+        if (result.status !== "started") {
+          throw new Error(result.message || "Simulation failed to start");
         }
-      };
-
-      // If in modify mode, compare with original experiment data
-      // If identical, it will be treated as a replication (grouped in same row)
-      // If different, it will appear as a new row
-      if (modifyExperimentId && originalExperimentDataRef.current) {
-        const isIdentical = areExperimentsIdentical(originalExperimentDataRef.current, jsonData);
-        // The grouping logic in the dashboard will automatically group this with the original
-        // since it will have the same config key (title, sample.id, steps)
+        // Success: state and localStorage already set; nothing else to do
+      } catch (error) {
+        setIsSimulationRunning(false);
+        setSimulationProgress(null);
+        setSimulationTaskId(null);
+        setShowSubmittedModal(false);
+        localStorage.removeItem('simulation-task-id');
+        localStorage.removeItem('simulation-pending');
+        alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
-      
-      // Define backend URL based on environment
-      const prod = process.env.NEXT_PUBLIC_DEV || "production";
-      const url =
-        prod === "development"
-          ? "http://127.0.0.1:5000/api/evaluate"
-          : "https://cognition-backend-81313456654.us-west1.run.app/api/evaluate";
-      
-      // Generate UUID for the simulation
-      const uuid = crypto.randomUUID();
-
-      // TODO: Add this for production
-      
-      // Send the simulation request to the backend API
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({ id: uuid, data: jsonData }),
-      });
-
-      // TODO: Remove this for production
-      // const response = {
-      //   status: "started",
-      //   task_id: uuid,
-      //   message: "Simulation submitted successfully",
-      // }
-
-      // const result = response;
-
-      // TODO: Add this for production
-      
-      const result = await response.json();
-      
-      if (result.status === "started") {
-        const taskId = result.task_id;
-        
-        // Save task_id to localStorage
-        localStorage.setItem('simulation-task-id', taskId);
-        
-        // Set task ID for polling (progress and running state already set above)
-        setSimulationTaskId(taskId);
-        
-        // Don't show alert, let the button show progress instead
-      } else {
-        throw new Error(result.message || 'Simulation failed to start');
-      }
-      
-    } catch (error) {
-      // Reset state on error so user can try again
-      setIsSimulationRunning(false);
-      setSimulationProgress(null);
-      setSimulationTaskId(null);
-      alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
+    })();
   };
 
   const handleFlowDataChange = (nodes: Node[], edges: Edge[]) => {
@@ -886,6 +902,7 @@ function SimulationPageContent() {
           setSimulationTaskId(null);
           setSimulationProgress(null);
           localStorage.removeItem('simulation-task-id');
+          localStorage.removeItem('simulation-pending');
           
           // Show completion message
           if (isFailed) {
@@ -1044,6 +1061,7 @@ function SimulationPageContent() {
       setSimulationTaskId(null);
       setSimulationProgress(null);
       localStorage.removeItem('simulation-task-id');
+      localStorage.removeItem('simulation-pending');
 
       const { data, error } = await supabase
         .from("experiments")
@@ -1057,16 +1075,41 @@ function SimulationPageContent() {
         return;
       }
 
-      const experimentData = data.experiment_data;
-      
+      let experimentData = data.experiment_data;
+      if (typeof experimentData === "string") {
+        try {
+          experimentData = JSON.parse(experimentData);
+        } catch {
+          experimentData = {};
+        }
+      }
+      if (!experimentData || typeof experimentData !== "object") {
+        experimentData = {};
+      }
+
       // Store original experiment data for comparison when submitting
       originalExperimentDataRef.current = JSON.parse(JSON.stringify(experimentData));
-      
+
       // Prepopulate form fields
       setProcessTitle(experimentData.title || "");
+      setProcessDescription(experimentData.description || experimentData.process_description || "");
       setStudyIntroduction(experimentData.study_introduction || experimentData.introduction || "");
-      setSelectedSample(experimentData.sample?.id || "");
-      const itersNum = typeof experimentData.iters === "number" ? Math.min(50, Math.max(10, experimentData.iters)) : 10;
+
+      // Import sample: prefer experiment_data.sample.id, else resolve by sample name from row or payload
+      let sampleId = experimentData.sample?.id || experimentData.sample_id || "";
+      if (!sampleId && (data.sample_name || experimentData.sample?.name)) {
+        const name = (data.sample_name || experimentData.sample?.name) as string;
+        const match = samples.find((s) => s.name === name);
+        if (match) sampleId = match.id;
+      }
+      setSelectedSample(sampleId);
+
+      // Import sample size (iters) with fallbacks and clamp 10–50
+      const rawIters = experimentData.iters ?? experimentData.sample_size ?? (data as any).sample_size;
+      const itersNum =
+        typeof rawIters === "number" && !Number.isNaN(rawIters)
+          ? Math.min(50, Math.max(10, rawIters))
+          : 10;
       setSampleSizeInput(String(itersNum));
       setSampleSize(itersNum);
       setSampleSizeError("");
@@ -1107,115 +1150,107 @@ function SimulationPageContent() {
     }
   }, [user?.user_id, isAuthenticated]);
 
-  // Clear draft if starting a new simulation
+  // Clear form and flow when starting a new simulation (cache is only cleared on Clear All)
   useEffect(() => {
     if (isNewSimulation && !modifyExperimentId) {
-      // Clear form fields
       setProcessDescription("");
       setProcessTitle("");
       setStudyIntroduction("");
       setSelectedSample("");
-      
-      // Clear React Flow
       if (reactFlowRef.current) {
         reactFlowRef.current.clearFlow();
       }
-      
-      // Clear localStorage
-      localStorage.removeItem('simulation-flow');
-      localStorage.removeItem('simulation-title');
-      localStorage.removeItem('simulation-introduction');
-      localStorage.removeItem('simulation-sample');
-      localStorage.removeItem('last-loaded-modify-experiment-id');
-      
-      // Reset the modify experiment ref
       loadedModifyExperimentIdRef.current = null;
-      
-      // Remove the 'new' parameter from URL without reloading
       const url = new URL(window.location.href);
       url.searchParams.delete('new');
       window.history.replaceState({}, '', url.toString());
     }
   }, [isNewSimulation, modifyExperimentId]);
 
-  // Load process title from localStorage on mount (only if not in modify mode and not new simulation)
+  // Load title, description, introduction, and sample size from localStorage on mount (only if not in modify mode and not new simulation)
   useEffect(() => {
     if (!modifyExperimentId && !isNewSimulation) {
       const savedTitle = localStorage.getItem('simulation-title');
       if (savedTitle) {
         setProcessTitle(savedTitle);
       }
+      const savedDescription = localStorage.getItem('simulation-description');
+      if (savedDescription !== null) {
+        setProcessDescription(savedDescription);
+      }
       const savedIntroduction = localStorage.getItem('simulation-introduction');
-      if (savedIntroduction) {
+      if (savedIntroduction !== null) {
         setStudyIntroduction(savedIntroduction);
+      }
+      const savedSampleSize = localStorage.getItem('simulation-sample-size');
+      if (savedSampleSize !== null) {
+        const num = parseInt(savedSampleSize, 10);
+        const clamped = Number.isNaN(num) ? 10 : Math.min(50, Math.max(10, num));
+        setSampleSizeInput(String(clamped));
+        setSampleSize(clamped);
+        setSampleSizeError("");
       }
     }
   }, [modifyExperimentId, isNewSimulation]);
 
-  // Save process title to localStorage whenever it changes
+  // Save to localStorage when we have values; never remove here so refresh doesn't wipe cache
+  // (clear only on "new simulation" or "clear all")
   useEffect(() => {
     if (processTitle) {
       localStorage.setItem('simulation-title', processTitle);
-    } else {
-      localStorage.removeItem('simulation-title');
     }
   }, [processTitle]);
 
-  // Save study introduction to localStorage whenever it changes
   useEffect(() => {
     if (studyIntroduction) {
       localStorage.setItem('simulation-introduction', studyIntroduction);
-    } else {
-      localStorage.removeItem('simulation-introduction');
     }
   }, [studyIntroduction]);
 
-  // Load selected sample from localStorage on mount (only if not in modify mode and not new simulation)
+  useEffect(() => {
+    if (processDescription) {
+      localStorage.setItem('simulation-description', processDescription);
+    }
+  }, [processDescription]);
+
+  useEffect(() => {
+    if (sampleSize >= 10 && sampleSize <= 50) {
+      localStorage.setItem('simulation-sample-size', String(sampleSize));
+    }
+  }, [sampleSize]);
+
+  // When samples load, validate selectedSample (from lazy init or localStorage) and clear if invalid
   useEffect(() => {
     if (!modifyExperimentId && !isNewSimulation && samples.length > 0) {
       const savedSample = localStorage.getItem('simulation-sample');
       if (savedSample) {
-        // Verify the saved sample still exists in the samples list
         const sampleExists = samples.some(sample => sample.id === savedSample);
         if (sampleExists) {
           setSelectedSample(savedSample);
         } else {
-          // Remove invalid sample from localStorage
           localStorage.removeItem('simulation-sample');
+          setSelectedSample('');
         }
       }
     }
   }, [modifyExperimentId, isNewSimulation, samples.length]);
 
-  // Save selected sample to localStorage whenever it changes
+  // Save selected sample to localStorage when set; never remove here so refresh doesn't wipe cache
   useEffect(() => {
     if (selectedSample) {
       localStorage.setItem('simulation-sample', selectedSample);
-    } else {
-      localStorage.removeItem('simulation-sample');
     }
   }, [selectedSample]);
 
-  // Load experiment data when in modify mode (only once per experiment ID)
+  // Load experiment data when in modify mode (only once per experiment ID per session)
+  // Use in-memory ref only so that a full page refresh re-loads from Supabase and restores title/description
   useEffect(() => {
     if (modifyExperimentId && user && isAuthenticated && samples.length > 0 && measures.length > 0 && !isLoadingExperiment) {
-      // Check if we've already loaded this experiment (stored in localStorage)
-      // This prevents reloading on page refresh when user has made changes
-      const lastLoadedExperimentId = localStorage.getItem('last-loaded-modify-experiment-id');
-      
-      // Only load if this is a different experiment ID than we've already loaded
-      // or if we haven't loaded any experiment yet
-      if (lastLoadedExperimentId !== modifyExperimentId) {
-        // Store the experiment ID we're about to load
-        localStorage.setItem('last-loaded-modify-experiment-id', modifyExperimentId);
+      if (loadedModifyExperimentIdRef.current !== modifyExperimentId) {
         loadedModifyExperimentIdRef.current = modifyExperimentId;
         loadExperimentForModification(modifyExperimentId);
-      } else {
-        // We've already loaded this experiment, just set the ref
-        loadedModifyExperimentIdRef.current = modifyExperimentId;
       }
     } else if (!modifyExperimentId) {
-      // Reset the ref and localStorage when not in modify mode
       loadedModifyExperimentIdRef.current = null;
       originalExperimentDataRef.current = null;
       localStorage.removeItem('last-loaded-modify-experiment-id');
@@ -1285,6 +1320,7 @@ function SimulationPageContent() {
       >
         <div className="flex items-center gap-3">
           <Button 
+            type="button"
             onClick={handleSaveDraft}
             variant="outline"
             className="flex items-center gap-2"
@@ -1293,6 +1329,7 @@ function SimulationPageContent() {
             Save Draft
           </Button>
           <Button 
+            type="button"
             onClick={handleSubmitSimulation}
             disabled={
               isSimulationRunning ||
@@ -1620,6 +1657,32 @@ function SimulationPageContent() {
         newIntroduction={generatedIntroduction}
         onSelect={handleIntroductionSelect}
       />
+
+      {/* Submitted modal: show immediately so user can go straight to dashboard (backend may be warming up) */}
+      {showSubmittedModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-sm w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Simulation submitted</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Your simulation is in the queue. The server may be warming up—you can go to the Dashboard now to see it and track progress.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setShowSubmittedModal(false)}>
+                Stay
+              </Button>
+              <Button
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                onClick={() => {
+                  setShowSubmittedModal(false);
+                  router.push("/dashboard");
+                }}
+              >
+                Go to Dashboard
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }

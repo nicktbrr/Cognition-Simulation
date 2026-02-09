@@ -120,12 +120,13 @@ export default function DashboardHistory() {
       .from("user_emails")
       .select("user_email, user_id, pic_url")
       .eq("user_id", userId)
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error("Error fetching user data:", error);
+      setUserData(null);
     } else {
-      setUserData(data);
+      setUserData(data ?? null);
     }
   };
 
@@ -592,8 +593,38 @@ export default function DashboardHistory() {
         const dateB = new Date(b.created_at || 0).getTime();
         return dateB - dateA;
       });
-     
-      setProjects(formattedProjects);
+
+      // Prepend pending simulation from localStorage so it appears right away (before backend has written to Supabase)
+      let projectsToSet = formattedProjects;
+      if (typeof window !== "undefined") {
+        try {
+          const pendingRaw = localStorage.getItem("simulation-pending");
+          const pending = pendingRaw ? JSON.parse(pendingRaw) as { taskId: string; title: string; sample_name: string; created_at: string } : null;
+          if (pending) {
+            const alreadyInList = formattedProjects.some((p) => p.experiment_id === pending.taskId);
+            if (alreadyInList) {
+              localStorage.removeItem("simulation-pending");
+            } else {
+              const placeholder: Project = {
+                name: pending.title,
+                sample_name: pending.sample_name,
+                status: "Running",
+                progress: 0,
+                created_at: pending.created_at,
+                id: pending.taskId,
+                experiment_id: pending.taskId,
+                downloads: [],
+                steps: [{ label: "—", instructions: "Waiting for server…", temperature: 50 }],
+              };
+              projectsToSet = [placeholder, ...formattedProjects];
+            }
+          }
+        } catch (_) {
+          // ignore invalid or missing pending
+        }
+      }
+
+      setProjects(projectsToSet);
     } catch (error) {
       console.error("Error processing projects data:", error);
       setProjects([]);
@@ -898,6 +929,20 @@ export default function DashboardHistory() {
       setContentLoaded(false);
     }
   }, [user?.user_id, isAuthenticated]); // Use user?.user_id instead of user object
+
+  // When a simulation was just submitted (pending in localStorage), refetch projects periodically so we replace placeholder with real row once backend has written
+  useEffect(() => {
+    if (!user || !isAuthenticated || typeof window === "undefined") return;
+    const pendingRaw = localStorage.getItem("simulation-pending");
+    if (!pendingRaw) return;
+    const interval = setInterval(() => {
+      if (!localStorage.getItem("simulation-pending")) {
+        return;
+      }
+      getProjects(user.user_id);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [user?.user_id, isAuthenticated]);
 
   // Poll for progress on running simulations
   useEffect(() => {

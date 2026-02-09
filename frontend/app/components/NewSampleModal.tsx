@@ -110,6 +110,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
   const [panelPosition, setPanelPosition] = useState<{ top: number; left: number; maxHeight?: number } | null>(null);
   const [checkedOptions, setCheckedOptions] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [optionSearchQuery, setOptionSearchQuery] = useState<string>('');
   const [nameError, setNameError] = useState<string>('');
   const [categoryExpanded, setCategoryExpanded] = useState<{ [key: string]: boolean }>({
     "Demographics": true,
@@ -275,6 +276,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
     } else if (attribute.options) {
       // If attribute has options, open the detail panel
       setActiveAttributePanel(attribute);
+      setOptionSearchQuery('');
       const existingSelection = attributeSelections.find(sel => sel.attributeId === attribute.id);
       setTempSelectedOptions(existingSelection?.selectedOptions || []);
     } else {
@@ -370,6 +372,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
 
   const handleCloseAttributePanel = () => {
     setActiveAttributePanel(null);
+    setOptionSearchQuery('');
     setTempSelectedOptions([]);
     setTempAgeRange({ min: 5, max: 82 });
     setTempAgeInput({ min: '5', max: '82' });
@@ -526,7 +529,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search for characteristics/attributes..."
+                placeholder="Search attributes or their options..."
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
@@ -538,11 +541,13 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
             <div className="flex-1 overflow-y-auto border-b border-gray-200" style={{ minHeight: 0 }}>
               <div className="p-6">
                 {allCategories.map((category) => {
-                  // Filter attributes based on search query
-                  const filteredAttributes = searchQuery.trim()
+                  // Filter attributes based on search query (label, category, or any option label)
+                  const q = searchQuery.trim().toLowerCase();
+                  const filteredAttributes = q
                     ? category.attributes.filter(attr =>
-                        attr.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                        attr.category.toLowerCase().includes(searchQuery.toLowerCase())
+                        attr.label.toLowerCase().includes(q) ||
+                        attr.category.toLowerCase().includes(q) ||
+                        (attr.options?.some(opt => opt.label.toLowerCase().includes(q)) ?? false)
                       )
                     : category.attributes;
 
@@ -592,14 +597,16 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
                   );
                 })}
                 {searchQuery.trim() && allCategories.every(category => {
+                  const q = searchQuery.trim().toLowerCase();
                   const filtered = category.attributes.filter(attr =>
-                    attr.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    attr.category.toLowerCase().includes(searchQuery.toLowerCase())
+                    attr.label.toLowerCase().includes(q) ||
+                    attr.category.toLowerCase().includes(q) ||
+                    (attr.options?.some(opt => opt.label.toLowerCase().includes(q)) ?? false)
                   );
                   return filtered.length === 0;
                 }) && (
                   <div className="text-center text-gray-500 py-8">
-                    <p className="text-sm">No attributes found matching "{searchQuery}"</p>
+                    <p className="text-sm">No attributes or options found matching "{searchQuery}"</p>
                   </div>
                 )}
               </div>
@@ -737,7 +744,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
             </div>
 
             {/* Options List / Age Range Inputs - scrollable so footer always stays visible */}
-            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 pb-4">
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 pb-4 flex flex-col">
               {activeAttributePanel.id === 'age' ? (
                 <div className="space-y-4">
                   <div className="text-sm text-gray-600 mb-4">
@@ -802,22 +809,43 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
                   </div>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  {activeAttributePanel.options?.map((option) => (
-                    <label
-                      key={option.id}
-                      className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-2 rounded"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={tempSelectedOptions.includes(option.id)}
-                        onChange={() => handleOptionToggle(option.id)}
-                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                      />
-                      <span className="text-sm text-gray-900">{option.label}</span>
-                    </label>
-                  ))}
-                </div>
+                <>
+                  {activeAttributePanel.options && activeAttributePanel.options.length > 20 && (
+                    <div className="flex-shrink-0 mb-3">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input
+                          type="text"
+                          placeholder="Search options..."
+                          value={optionSearchQuery}
+                          onChange={(e) => setOptionSearchQuery(e.target.value)}
+                          className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+                    </div>
+                  )}
+                  <div className="space-y-2 min-h-0">
+                    {(optionSearchQuery.trim()
+                      ? activeAttributePanel.options?.filter((opt) =>
+                          opt.label.toLowerCase().includes(optionSearchQuery.trim().toLowerCase())
+                        ) ?? []
+                      : activeAttributePanel.options ?? []
+                    ).map((option) => (
+                      <label
+                        key={option.id}
+                        className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-2 rounded"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={tempSelectedOptions.includes(option.id)}
+                          onChange={() => handleOptionToggle(option.id)}
+                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-900">{option.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </>
               )}
             </div>
 

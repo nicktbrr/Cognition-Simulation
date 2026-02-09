@@ -47,16 +47,35 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
   });
   const [desiredValues, setDesiredValues] = useState<DesiredValue[]>([]);
   const [titleError, setTitleError] = useState<string>('');
+  const [anchorLimitError, setAnchorLimitError] = useState<string>('');
+  const [minMaxError, setMinMaxError] = useState<string>('');
+
+  const wholeNumberOnlyRegex = /^-?\d*$/;
+  const handleMinMaxChange = (
+    field: 'minValue' | 'maxValue',
+    raw: string
+  ) => {
+    if (wholeNumberOnlyRegex.test(raw)) {
+      setFormData((prev) => ({ ...prev, [field]: raw }));
+      setMinMaxError('');
+      return;
+    }
+    const validPart = (raw.match(/^-?\d*/) || [''])[0];
+    setFormData((prev) => ({ ...prev, [field]: validPart }));
+    setMinMaxError('Only whole numbers are allowed (no decimals or other characters).');
+  };
 
   // Populate form when editing measure changes
   useEffect(() => {
     if (editingMeasure) {
       const [min, max] = editingMeasure.range.split(' - ').map(val => val.trim());
+      const minNum = parseFloat(min);
+      const maxNum = parseFloat(max);
       setFormData({
         title: editingMeasure.title,
         description: editingMeasure.description,
-        minValue: min,
-        maxValue: max
+        minValue: Number.isNaN(minNum) ? min : String(Math.round(minNum)),
+        maxValue: Number.isNaN(maxNum) ? max : String(Math.round(maxNum))
       });
       setDesiredValues(
         editingMeasure.desiredValues.map(dv => ({
@@ -75,6 +94,8 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
       setDesiredValues([]);
     }
     setTitleError(''); // Reset error when modal opens/changes
+    setAnchorLimitError('');
+    setMinMaxError('');
   }, [editingMeasure, isOpen]);
 
   // Handle title change with validation
@@ -94,7 +115,17 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
     }
   };
 
+  // Max anchor points = number of discrete values between min and max (inclusive)
+  const minNum = formData.minValue !== "" ? parseFloat(formData.minValue) : NaN;
+  const maxNum = formData.maxValue !== "" ? parseFloat(formData.maxValue) : NaN;
+  const maxAnchorPoints =
+    !Number.isNaN(minNum) && !Number.isNaN(maxNum) && maxNum >= minNum
+      ? Math.max(0, Math.floor(maxNum) - Math.ceil(minNum) + 1)
+      : null;
+
   const addDesiredValue = () => {
+    const limit = maxAnchorPoints ?? Infinity;
+    if (desiredValues.length >= limit) return;
     setDesiredValues([...desiredValues, { value: "", label: "" }]);
   };
 
@@ -111,7 +142,8 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+    setAnchorLimitError('');
+
     // Basic validation
     if (!formData.title.trim() || !formData.description.trim() || !formData.minValue || !formData.maxValue) {
       return;
@@ -122,10 +154,28 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
       .filter(dv => dv.value.trim() && dv.label.trim())
       .map(dv => ({ value: parseFloat(dv.value), label: dv.label }));
 
+    const minNum = parseFloat(formData.minValue);
+    const maxNum = parseFloat(formData.maxValue);
+    const submitMaxAnchors =
+      !Number.isNaN(minNum) && !Number.isNaN(maxNum) && maxNum >= minNum
+        ? Math.max(0, Math.floor(maxNum) - Math.ceil(minNum) + 1)
+        : null;
+    if (
+      submitMaxAnchors != null &&
+      processedDesiredValues.length > submitMaxAnchors
+    ) {
+      setAnchorLimitError(
+        `Anchor points cannot exceed ${submitMaxAnchors} (one per discrete value from ${Math.ceil(minNum)} to ${Math.floor(maxNum)}).`
+      );
+      return;
+    }
+
+    const minInt = Math.round(parseFloat(formData.minValue));
+    const maxInt = Math.round(parseFloat(formData.maxValue));
     const measureData = {
       title: formData.title,
       description: formData.description,
-      range: `${formData.minValue} - ${formData.maxValue}`,
+      range: `${minInt} - ${maxInt}`,
       desiredValues: processedDesiredValues
     };
 
@@ -157,6 +207,8 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
     });
     setDesiredValues([]);
     setTitleError('');
+    setAnchorLimitError('');
+    setMinMaxError('');
     onClose();
   };
 
@@ -208,12 +260,17 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
                 Min Value
               </label>
               <Input
-                type="number"
+                type="text"
+                inputMode="numeric"
                 placeholder="e.g., 0"
                 value={formData.minValue}
-                onChange={(e) => setFormData({...formData, minValue: e.target.value})}
+                onChange={(e) => handleMinMaxChange('minValue', e.target.value)}
                 required
-                className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-20 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-opacity-20 focus-visible:ring-offset-0"
+                className={`w-full border-2 rounded-lg px-4 py-3 focus:ring-2 focus:ring-opacity-20 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-opacity-20 focus-visible:ring-offset-0 ${
+                  minMaxError
+                    ? 'border-red-500 focus:border-red-500 focus:ring-red-500 focus-visible:ring-red-500'
+                    : 'border-gray-200 focus:border-blue-500 focus:ring-blue-500 focus-visible:ring-blue-500'
+                }`}
               />
             </div>
             <div>
@@ -221,15 +278,23 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
                 Max Value
               </label>
               <Input
-                type="number"
-                placeholder="e.g., 100"
+                type="text"
+                inputMode="numeric"
+                placeholder="e.g., 10"
                 value={formData.maxValue}
-                onChange={(e) => setFormData({...formData, maxValue: e.target.value})}
+                onChange={(e) => handleMinMaxChange('maxValue', e.target.value)}
                 required
-                className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-20 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-opacity-20 focus-visible:ring-offset-0"
+                className={`w-full border-2 rounded-lg px-4 py-3 focus:ring-2 focus:ring-opacity-20 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-opacity-20 focus-visible:ring-offset-0 ${
+                  minMaxError
+                    ? 'border-red-500 focus:border-red-500 focus:ring-red-500 focus-visible:ring-red-500'
+                    : 'border-gray-200 focus:border-blue-500 focus:ring-blue-500 focus-visible:ring-blue-500'
+                }`}
               />
             </div>
           </div>
+          {minMaxError && (
+            <p className="text-sm text-red-600 -mt-4">{minMaxError}</p>
+          )}
 
           {/* Anchor Points */}
           <div>
@@ -237,6 +302,11 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
               <div className="flex items-center gap-2">
                 <label className="text-sm font-semibold text-gray-900">
                   Anchor Points
+                  {maxAnchorPoints != null && (
+                    <span className="text-gray-500 font-normal ml-1">
+                      (max {maxAnchorPoints})
+                    </span>
+                  )}
                 </label>
                 <TooltipProvider>
                   <Tooltip>
@@ -244,7 +314,7 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
                       <HelpCircle className="h-4 w-4 text-gray-400 cursor-help" />
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>Labels for a specific value on a rating scale</p>
+                      <p>Labels for a specific value on a rating scale. Limited to one per discrete value between min and max.</p>
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
@@ -253,6 +323,7 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
                 type="button"
                 variant="ghost"
                 onClick={addDesiredValue}
+                disabled={maxAnchorPoints != null && desiredValues.length >= maxAnchorPoints}
                 className="text-sm font-medium flex items-center gap-1"
               >
                 <Plus className="h-4 w-4" />
@@ -260,6 +331,9 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
               </Button>
             </div>
             
+            {anchorLimitError && (
+              <p className="text-sm text-red-600 mb-2">{anchorLimitError}</p>
+            )}
             {desiredValues.length > 0 && (
               <div className="space-y-3">
                 {desiredValues.map((desired, index) => (
@@ -321,7 +395,7 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
             <Button
               type="submit"
               className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2"
-              disabled={!!titleError}
+              disabled={!!titleError || !!minMaxError}
             >
               {editingMeasure ? "Update Measure" : "Add Measure"}
             </Button>

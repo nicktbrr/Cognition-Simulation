@@ -90,12 +90,13 @@ export default function MeasuresPage() {
       .from("user_emails")
       .select("user_email, user_id, pic_url")
       .eq("user_id", userId)
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error("Error fetching user data:", error);
+      setUserData(null);
     } else {
-      setUserData(data);
+      setUserData(data ?? null);
     }
   };
 
