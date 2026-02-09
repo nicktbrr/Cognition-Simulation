@@ -14,6 +14,7 @@ import AppLayout from "../components/layout/AppLayout";
 import SubHeader from "../components/layout/SubHeader";
 import NewSampleModal from "../components/NewSampleModal";
 import Spinner from "../components/ui/spinner";
+import SortableTableHeader from "../components/ui/SortableTableHeader";
 
 interface UserData {
   user_email: string;
@@ -104,6 +105,9 @@ export default function SamplesPage() {
   // Drag and drop state
   const [draggedSample, setDraggedSample] = useState<string | null>(null);
   const [dragOverFolder, setDragOverFolder] = useState<string | null | 'root'>(null);
+  
+  // Sorting state
+  const [sortConfig, setSortConfig] = useState<{key: string, direction: 'asc' | 'desc'} | null>(null);
 
   const getUserData = async (userId: string) => {
     const { data, error } = await supabase
@@ -691,7 +695,19 @@ export default function SamplesPage() {
     ));
   };
 
+  const handleSort = (key: string) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
   const handleDeleteSample = async (sampleId: string) => {
+    // Get the sample name before deleting
+    const sample = samples.find(s => s.id === sampleId);
+    const sampleName = sample?.name || "Sample";
+    
     if (!confirm('Are you sure you want to delete this sample? This action cannot be undone.')) {
       return;
     }
@@ -711,6 +727,7 @@ export default function SamplesPage() {
       // Remove the sample from the local state
       setSamples(prev => prev.filter(sample => sample.id !== sampleId));
       setOpenDropdown(null); // Close the dropdown
+      alert(`"${sampleName}" has been deleted successfully!`);
     } catch (error) {
       console.error('Error deleting sample:', error);
       alert('Failed to delete sample. Please try again.');
@@ -1104,15 +1121,27 @@ export default function SamplesPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-12"></TableHead>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Created Date</TableHead>
-                      <TableHead>Attributes</TableHead>
-                      <TableHead>Status</TableHead>
+                      <SortableTableHeader label="Name" sortKey="name" onSort={handleSort} currentSort={sortConfig} />
+                      <SortableTableHeader label="Created Date" sortKey="created_date" onSort={handleSort} currentSort={sortConfig} />
+                      <SortableTableHeader label="Attributes" sortKey="attributes" onSort={handleSort} currentSort={sortConfig} />
+                      <SortableTableHeader label="Status" sortKey="status" onSort={handleSort} currentSort={sortConfig} />
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {/* Render folders first */}
-                    {folders.map((folder) => {
+                    {/* Render folders first - sorted based on sortConfig */}
+                    {[...folders].sort((a, b) => {
+                      if (!sortConfig) {
+                        return a.folder_name.localeCompare(b.folder_name);
+                      }
+                      const { key, direction } = sortConfig;
+                      if (key === 'name') {
+                        return direction === 'asc'
+                          ? a.folder_name.localeCompare(b.folder_name)
+                          : b.folder_name.localeCompare(a.folder_name);
+                      }
+                      // For other columns, folders don't have values, so keep alphabetical
+                      return a.folder_name.localeCompare(b.folder_name);
+                    }).map((folder) => {
                       const folderSamples = samples.filter(s => s.folder_id === folder.folder_id);
                       const isExpanded = expandedFolders.has(folder.folder_id);
                       
@@ -1186,8 +1215,29 @@ export default function SamplesPage() {
                             </TableCell>
                           </TableRow>
                           
-                          {/* Samples inside the folder (when expanded) */}
-                          {isExpanded && folderSamples.map((sample) => (
+                          {/* Samples inside the folder (when expanded) - sorted based on sortConfig */}
+                          {isExpanded && [...folderSamples].sort((a, b) => {
+                            if (!sortConfig) return 0;
+                            const { key, direction } = sortConfig;
+                            const multiplier = direction === 'asc' ? 1 : -1;
+                            
+                            if (key === 'name') {
+                              return multiplier * a.name.localeCompare(b.name);
+                            } else if (key === 'created_date') {
+                              const dateA = new Date(a.created_at).getTime();
+                              const dateB = new Date(b.created_at).getTime();
+                              return multiplier * (dateA - dateB);
+                            } else if (key === 'attributes') {
+                              const countA = Array.isArray(a.attributes) ? a.attributes.length : 0;
+                              const countB = Array.isArray(b.attributes) ? b.attributes.length : 0;
+                              return multiplier * (countA - countB);
+                            } else if (key === 'status') {
+                              const statusA = a.isLocked ? 'Locked' : 'Unlocked';
+                              const statusB = b.isLocked ? 'Locked' : 'Unlocked';
+                              return multiplier * statusA.localeCompare(statusB);
+                            }
+                            return 0;
+                          }).map((sample) => (
                             <React.Fragment key={sample.id}>
                               <TableRow 
                                 className={`group hover:bg-accent/50 transition-fast cursor-grab ${draggedSample === sample.id ? 'opacity-50' : ''}`}
@@ -1338,8 +1388,29 @@ export default function SamplesPage() {
                       );
                     })}
                     
-                    {/* Render samples not in any folder */}
-                    {samples.filter(s => !s.folder_id).map((sample) => (
+                    {/* Render samples not in any folder - sorted based on sortConfig */}
+                    {[...samples.filter(s => !s.folder_id)].sort((a, b) => {
+                      if (!sortConfig) return 0;
+                      const { key, direction } = sortConfig;
+                      const multiplier = direction === 'asc' ? 1 : -1;
+                      
+                      if (key === 'name') {
+                        return multiplier * a.name.localeCompare(b.name);
+                      } else if (key === 'created_date') {
+                        const dateA = new Date(a.created_at).getTime();
+                        const dateB = new Date(b.created_at).getTime();
+                        return multiplier * (dateA - dateB);
+                      } else if (key === 'attributes') {
+                        const countA = Array.isArray(a.attributes) ? a.attributes.length : 0;
+                        const countB = Array.isArray(b.attributes) ? b.attributes.length : 0;
+                        return multiplier * (countA - countB);
+                      } else if (key === 'status') {
+                        const statusA = a.isLocked ? 'Locked' : 'Unlocked';
+                        const statusB = b.isLocked ? 'Locked' : 'Unlocked';
+                        return multiplier * statusA.localeCompare(statusB);
+                      }
+                      return 0;
+                    }).map((sample) => (
                       <React.Fragment key={sample.id}>
                         <TableRow 
                           className={`group hover:bg-accent/50 transition-fast cursor-grab ${draggedSample === sample.id ? 'opacity-50' : ''}`}

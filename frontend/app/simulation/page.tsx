@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useRef, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import { createPortal } from "react-dom";
 import { Save, Download, HelpCircle, Sparkles, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "../utils/supabase";
@@ -76,6 +77,7 @@ function SimulationPageContent() {
   const [showIntroductionModal, setShowIntroductionModal] = useState(false);
   const [generatedIntroduction, setGeneratedIntroduction] = useState<string>("");
   const [titleError, setTitleError] = useState<string>("");
+  const [showNoMeasuresConfirm, setShowNoMeasuresConfirm] = useState(false);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const reactFlowRef = useRef<ReactFlowRef>(null);
   const hasInitiallyLoadedRef = useRef(false);
@@ -686,6 +688,25 @@ function SimulationPageContent() {
       alert("Please select a sample before submitting the simulation.");
       return;
     }
+
+    // Check if any measures are selected across all nodes
+    const hasMeasures = flowNodes.some((node: Node) => {
+      const selectedMeasures = (node.data?.selectedMeasures as string[]) || [];
+      return selectedMeasures.length > 0;
+    });
+
+    // If no measures are selected, show confirmation modal
+    if (!hasMeasures) {
+      setShowNoMeasuresConfirm(true);
+      return;
+    }
+
+    // Proceed with submission if measures are selected or user confirmed
+    await proceedWithSubmission();
+  };
+
+  const proceedWithSubmission = async () => {
+    setShowNoMeasuresConfirm(false);
 
     // Validate sample size (10-50) – use current input when focused, else committed value
     const rawSize = isSampleSizeFocused ? parseInt(sampleSizeInput.trim(), 10) : sampleSize;

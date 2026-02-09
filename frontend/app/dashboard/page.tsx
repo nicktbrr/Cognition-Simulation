@@ -783,6 +783,10 @@ export default function DashboardHistory() {
 
   const confirmDelete = async () => {
     if (projectToDelete && user) {
+      // Get the project name before deleting
+      const project = projects.find(p => p.experiment_id === projectToDelete || p.id === projectToDelete);
+      const projectName = project?.name || "Simulation";
+      
       try {
         const { error } = await supabase
           .from("experiments")
@@ -795,7 +799,7 @@ export default function DashboardHistory() {
         } else {
           // Refresh projects after successful deletion
           await getProjects(user.user_id);
-          alert("Project deleted successfully!");
+          alert(`"${projectName}" has been deleted successfully!`);
         }
       } catch (error) {
         console.error("Error in delete operation:", error);
@@ -1210,7 +1214,7 @@ export default function DashboardHistory() {
                     <span>{folder.folder_name}</span>
                     {folder.project_count !== undefined && (
                       <span className="ml-auto text-xs text-gray-500">
-                        ({folder.project_count} {folder.project_count === 1 ? 'project' : 'projects'})
+                        ({folder.project_count} {folder.project_count === 1 ? 'simulation' : 'simulations'})
                       </span>
                     )}
                   </button>

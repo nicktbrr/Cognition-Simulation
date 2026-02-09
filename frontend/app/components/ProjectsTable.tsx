@@ -422,10 +422,16 @@ export default function ProjectsTable({
   // Get root projects
   const rootProjects = projectsByFolder.get(null) || [];
   
-  // Sort folders alphabetically by name
-  const sortedFolders = [...folders].sort((a, b) => 
-    a.folder_name.localeCompare(b.folder_name)
-  );
+  // Sort folders - respect sortConfig when sorting by name
+  const sortedFolders = [...folders].sort((a, b) => {
+    if (sortConfig && sortConfig.key === 'name') {
+      return sortConfig.direction === 'asc'
+        ? a.folder_name.localeCompare(b.folder_name)
+        : b.folder_name.localeCompare(a.folder_name);
+    }
+    // Default: alphabetical by name
+    return a.folder_name.localeCompare(b.folder_name);
+  });
   
   // Check if we have any projects at all
   const hasAnyProjects = projects.length > 0;
@@ -514,7 +520,7 @@ export default function ProjectsTable({
                           <Folder className="w-4 h-4 text-blue-600" />
                           <span className="font-medium text-gray-900">{folder.folder_name}</span>
                           <span className="text-sm text-gray-500 ml-2">
-                            ({folderProjects.length} {folderProjects.length === 1 ? 'project' : 'projects'})
+                            ({folderProjects.length} {folderProjects.length === 1 ? 'simulation' : 'simulations'})
                           </span>
                         </button>
                         <FolderDropdown
