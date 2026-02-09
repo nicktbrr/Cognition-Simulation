@@ -15,6 +15,7 @@ import AppLayout from "../components/layout/AppLayout";
 import SubHeader from "../components/layout/SubHeader";
 import AddMeasureModal from "../components/AddMeasureModal";
 import Spinner from "../components/ui/spinner";
+import SortableTableHeader from "../components/ui/SortableTableHeader";
 
 interface UserData {
   user_email: string;
@@ -79,6 +80,8 @@ export default function MeasuresPage() {
   const [showDeleteFolderConfirm, setShowDeleteFolderConfirm] = useState(false);
   const [folderToDelete, setFolderToDelete] = useState<{ id: string; name: string } | null>(null);
   const [isDeletingFolder, setIsDeletingFolder] = useState(false);
+  const [showDeleteSuccess, setShowDeleteSuccess] = useState(false);
+  const [deletedItemName, setDeletedItemName] = useState<string>("");
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [folderDropdownOpen, setFolderDropdownOpen] = useState<string | null>(null);
   const [folderDropdownPosition, setFolderDropdownPosition] = useState({ top: 0, right: 0 });
@@ -88,6 +91,9 @@ export default function MeasuresPage() {
   // Drag and drop state
   const [draggedMeasure, setDraggedMeasure] = useState<string | null>(null);
   const [dragOverFolder, setDragOverFolder] = useState<string | null | 'root'>(null);
+  
+  // Sorting state
+  const [sortConfig, setSortConfig] = useState<{key: string, direction: 'asc' | 'desc'} | null>(null);
 
   const getUserData = async (userId: string) => {
     const { data, error } = await supabase
@@ -624,6 +630,14 @@ export default function MeasuresPage() {
     setExpandedRows(newExpandedRows);
   };
 
+  const handleSort = (key: string) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
   const toggleDropdown = (measureId: string, event: React.MouseEvent) => {
     event.stopPropagation(); // Prevent row expansion when clicking dropdown
     
@@ -815,6 +829,10 @@ export default function MeasuresPage() {
   const confirmDelete = async () => {
     if (!measureToDelete) return;
 
+    // Get the measure name before deleting
+    const measure = measures.find(m => m.id === measureToDelete);
+    const measureName = measure?.title || "Measure";
+
     try {
       const { error } = await supabase
         .from("measures")
@@ -830,6 +848,8 @@ export default function MeasuresPage() {
       setMeasures(measures.filter(m => m.id !== measureToDelete));
       setShowDeleteConfirm(false);
       setMeasureToDelete(null);
+      setDeletedItemName(measureName);
+      setShowDeleteSuccess(true);
     } catch (error) {
       console.error("Error in confirmDelete:", error);
     }
@@ -968,8 +988,20 @@ export default function MeasuresPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {/* Render folders first */}
-                  {folders.map((folder) => {
+                  {/* Render folders first - sorted based on sortConfig */}
+                  {[...folders].sort((a, b) => {
+                    if (!sortConfig) {
+                      return a.folder_name.localeCompare(b.folder_name);
+                    }
+                    const { key, direction } = sortConfig;
+                    if (key === 'name') {
+                      return direction === 'asc'
+                        ? a.folder_name.localeCompare(b.folder_name)
+                        : b.folder_name.localeCompare(a.folder_name);
+                    }
+                    // For other columns, folders don't have values, so keep alphabetical
+                    return a.folder_name.localeCompare(b.folder_name);
+                  }).map((folder) => {
                     const folderMeasures = measures.filter(m => m.folder_id === folder.folder_id);
                     const isExpanded = expandedFolders.has(folder.folder_id);
                     
@@ -1043,8 +1075,21 @@ export default function MeasuresPage() {
                           </TableCell>
                         </TableRow>
                         
-                        {/* Measures inside the folder (when expanded) */}
-                        {isExpanded && folderMeasures.map((measure) => (
+                        {/* Measures inside the folder (when expanded) - sorted based on sortConfig */}
+                        {isExpanded && [...folderMeasures].sort((a, b) => {
+                          if (!sortConfig) return 0;
+                          const { key, direction } = sortConfig;
+                          const multiplier = direction === 'asc' ? 1 : -1;
+                          
+                          if (key === 'name') {
+                            return multiplier * a.title.localeCompare(b.title);
+                          } else if (key === 'description') {
+                            return multiplier * a.description.localeCompare(b.description);
+                          } else if (key === 'range') {
+                            return multiplier * a.range.localeCompare(b.range);
+                          }
+                          return 0;
+                        }).map((measure) => (
                           <React.Fragment key={measure.id}>
                             <TableRow 
                               className={`group hover:bg-accent/50 transition-fast cursor-grab ${draggedMeasure === measure.id ? 'opacity-50' : ''}`}
@@ -1175,8 +1220,21 @@ export default function MeasuresPage() {
                     );
                   })}
                   
-                  {/* Render measures not in any folder */}
-                  {measures.filter(m => !m.folder_id).map((measure) => (
+                  {/* Render measures not in any folder - sorted based on sortConfig */}
+                  {[...measures.filter(m => !m.folder_id)].sort((a, b) => {
+                    if (!sortConfig) return 0;
+                    const { key, direction } = sortConfig;
+                    const multiplier = direction === 'asc' ? 1 : -1;
+                    
+                    if (key === 'name') {
+                      return multiplier * a.title.localeCompare(b.title);
+                    } else if (key === 'description') {
+                      return multiplier * a.description.localeCompare(b.description);
+                    } else if (key === 'range') {
+                      return multiplier * a.range.localeCompare(b.range);
+                    }
+                    return 0;
+                  }).map((measure) => (
                   <React.Fragment key={measure.id}>
                     <TableRow 
                       className={`group hover:bg-accent/50 transition-fast cursor-grab ${draggedMeasure === measure.id ? 'opacity-50' : ''}`}
@@ -1347,22 +1405,7 @@ export default function MeasuresPage() {
             <Edit2 className="w-4 h-4 mr-3" />
             Rename
           </button>
-          {/* 2. Edit */}
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleEditMeasure(openDropdown);
-            }}
-            onMouseDown={(e) => {
-              e.stopPropagation();
-            }}
-            className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-          >
-            <Edit className="w-4 h-4 mr-3" />
-            Edit
-          </button>
-          {/* 3. Copy */}
+          {/* 2. Copy & Edit */}
           <button
             onClick={(e) => {
               e.preventDefault();
@@ -1375,7 +1418,7 @@ export default function MeasuresPage() {
             className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
           >
             <Copy className="w-4 h-4 mr-3" />
-            Make a copy
+            Copy & Edit
           </button>
           {/* 4. Move to Folder */}
           <button
@@ -1764,6 +1807,36 @@ export default function MeasuresPage() {
           <div className={`flex items-center justify-center gap-2 text-sm border-2 border-dashed rounded-lg py-4 max-w-4xl mx-auto ${dragOverFolder === 'root' ? 'border-blue-400 text-blue-600 bg-blue-100' : 'border-gray-300 text-gray-500 bg-gray-50'}`}>
             <FileText className="w-4 h-4" />
             <span>Drop here to remove from folder</span>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Delete Success Popup */}
+      {showDeleteSuccess && createPortal(
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[99999]">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Success</h3>
+              </div>
+            </div>
+            <p className="text-gray-700 mb-6">
+              "{deletedItemName}" has been deleted successfully!
+            </p>
+            <div className="flex justify-end">
+              <Button
+                onClick={() => setShowDeleteSuccess(false)}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                OK
+              </Button>
+            </div>
           </div>
         </div>,
         document.body

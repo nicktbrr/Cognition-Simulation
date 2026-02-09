@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { MoreVertical, Edit, Edit2, Copy, Trash2, Folder } from "lucide-react";
+import { MoreVertical, Edit, Edit2, Copy, Trash2, Folder, FolderInput } from "lucide-react";
 
 interface Folder {
   folder_id: string;
@@ -189,23 +189,7 @@ export default function ProjectDropdown({
               <Edit2 className="h-4 w-4" />
               Rename
             </button>
-            {/* 2. Edit (Modify) */}
-            <button 
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onModify?.();
-                onToggle(); // Close the dropdown
-              }}
-              onMouseDown={(e) => {
-                e.stopPropagation();
-              }}
-              className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              <Edit className="h-4 w-4" />
-              Edit
-            </button>
-            {/* 3. Move to folder */}
+            {/* 2. Move to folder */}
             <div className="relative">
               <button 
                 ref={moveToFolderButtonRef}
@@ -238,7 +222,7 @@ export default function ProjectDropdown({
                 className="flex items-center justify-between w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
               >
                 <div className="flex items-center gap-3">
-                  <Folder className="h-4 w-4 text-blue-600" />
+                  <FolderInput className="w-4 h-4" />
                   Move to folder
                 </div>
                 <span className="text-xs text-gray-400">›</span>
@@ -294,7 +278,7 @@ export default function ProjectDropdown({
                 document.body
               )}
             </div>
-            {/* 4. Replicate */}
+            {/* 3. Copy & Edit */}
             <button 
               onClick={(e) => {
                 e.preventDefault();
@@ -305,10 +289,10 @@ export default function ProjectDropdown({
               onMouseDown={(e) => {
                 e.stopPropagation();
               }}
-              className="flex items-center gap-3 w-full px-4 py-2 text-sm font-semibold text-blue-600 hover:bg-blue-50 transition-colors"
+              className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
             >
               <Copy className="h-4 w-4" />
-              Replicate
+              Copy & Edit
             </button>
             <hr className="my-1 border-gray-100" />
             {/* 5. Delete */}

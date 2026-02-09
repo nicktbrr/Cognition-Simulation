@@ -15,6 +15,7 @@ import AppLayout from "../components/layout/AppLayout";
 import SubHeader from "../components/layout/SubHeader";
 import NewSampleModal from "../components/NewSampleModal";
 import Spinner from "../components/ui/spinner";
+import SortableTableHeader from "../components/ui/SortableTableHeader";
 
 interface UserData {
   user_email: string;
@@ -96,7 +97,17 @@ export default function SamplesPage() {
   const [showDeleteFolderConfirm, setShowDeleteFolderConfirm] = useState(false);
   const [folderToDelete, setFolderToDelete] = useState<{ id: string; name: string } | null>(null);
   const [isDeletingFolder, setIsDeletingFolder] = useState(false);
+  const [showDeleteSuccess, setShowDeleteSuccess] = useState(false);
+  const [deletedItemName, setDeletedItemName] = useState<string>("");
+  const [showErrorPopup, setShowErrorPopup] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string>("");
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+
+  // Helper function to show error popup
+  const showError = (message: string) => {
+    setErrorMessage(message);
+    setShowErrorPopup(true);
+  };
   const [folderDropdownOpen, setFolderDropdownOpen] = useState<string | null>(null);
   const [folderDropdownPosition, setFolderDropdownPosition] = useState({ top: 0, right: 0 });
   const folderButtonRefs = useRef<Record<string, HTMLButtonElement>>({});
@@ -105,6 +116,9 @@ export default function SamplesPage() {
   // Drag and drop state
   const [draggedSample, setDraggedSample] = useState<string | null>(null);
   const [dragOverFolder, setDragOverFolder] = useState<string | null | 'root'>(null);
+  
+  // Sorting state
+  const [sortConfig, setSortConfig] = useState<{key: string, direction: 'asc' | 'desc'} | null>(null);
 
   // Table sort: 'name' | 'date' | 'attributes', direction asc/desc
   type SortColumn = 'name' | 'date' | 'attributes';
@@ -241,7 +255,7 @@ export default function SamplesPage() {
 
     // Check for duplicate folder name
     if (isFolderNameTaken(newFolderName)) {
-      alert(`A folder with the name "${newFolderName.trim()}" already exists. Please choose a different name.`);
+      showError(`A folder with the name "${newFolderName.trim()}" already exists. Please choose a different name.`);
       return;
     }
 
@@ -259,7 +273,7 @@ export default function SamplesPage() {
 
       if (error) {
         console.error("Error creating folder:", error);
-        alert("Error creating folder. Please try again.");
+        showError("Error creating folder. Please try again.");
         return;
       }
 
@@ -271,7 +285,7 @@ export default function SamplesPage() {
       setNewFolderName("");
     } catch (error) {
       console.error("Error in folder creation:", error);
-      alert("Error creating folder. Please try again.");
+      showError("Error creating folder. Please try again.");
     } finally {
       setIsCreatingFolder(false);
     }
@@ -291,7 +305,7 @@ export default function SamplesPage() {
 
     // Check for duplicate folder name (excluding current folder)
     if (isFolderNameTaken(newFolderRename, folderToRename.id)) {
-      alert(`A folder with the name "${newFolderRename.trim()}" already exists. Please choose a different name.`);
+      showError(`A folder with the name "${newFolderRename.trim()}" already exists. Please choose a different name.`);
       return;
     }
 
@@ -304,7 +318,7 @@ export default function SamplesPage() {
 
       if (error) {
         console.error("Error renaming folder:", error);
-        alert("Error renaming folder. Please try again.");
+        showError("Error renaming folder. Please try again.");
         return;
       }
 
@@ -317,7 +331,7 @@ export default function SamplesPage() {
       setNewFolderRename("");
     } catch (error) {
       console.error("Error in folder rename operation:", error);
-      alert("Error renaming folder. Please try again.");
+      showError("Error renaming folder. Please try again.");
     }
   };
 
@@ -352,7 +366,7 @@ export default function SamplesPage() {
 
       if (fetchError) {
         console.error("Error fetching samples in folder:", fetchError);
-        alert("Error fetching samples in folder. Please try again.");
+        showError("Error fetching samples in folder. Please try again.");
         setIsDeletingFolder(false);
         return;
       }
@@ -368,7 +382,7 @@ export default function SamplesPage() {
 
         if (deleteSamplesError) {
           console.error("Error deleting samples in folder:", deleteSamplesError);
-          alert("Error deleting samples in folder. Please try again.");
+          showError("Error deleting samples in folder. Please try again.");
           setIsDeletingFolder(false);
           return;
         }
@@ -383,7 +397,7 @@ export default function SamplesPage() {
 
       if (deleteFolderError) {
         console.error("Error deleting folder:", deleteFolderError);
-        alert("Error deleting folder. Please try again.");
+        showError("Error deleting folder. Please try again.");
         setIsDeletingFolder(false);
         return;
       }
@@ -404,7 +418,7 @@ export default function SamplesPage() {
       setFolderToDelete(null);
     } catch (error) {
       console.error("Error in folder delete operation:", error);
-      alert(`Error deleting folder: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`);
+      showError(`Error deleting folder: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`);
     } finally {
       setIsDeletingFolder(false);
     }
@@ -424,7 +438,7 @@ export default function SamplesPage() {
       const sample = samples.find(s => s.id === sampleId);
       if (!sample) {
         console.error("Sample not found");
-        alert("Error: Sample not found. Please try again.");
+        showError("Error: Sample not found. Please try again.");
         return;
       }
 
@@ -439,7 +453,7 @@ export default function SamplesPage() {
 
       if (updateError) {
         console.error("Error moving sample to folder:", updateError);
-        alert(`Error moving sample to folder: ${updateError.message}. Please try again.`);
+        showError(`Error moving sample to folder: ${updateError.message}. Please try again.`);
         return;
       }
 
@@ -479,7 +493,7 @@ export default function SamplesPage() {
       setSampleToMove(null);
     } catch (error) {
       console.error("Error in move to folder operation:", error);
-      alert(`Error moving sample to folder: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`);
+      showError(`Error moving sample to folder: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`);
     }
   };
 
@@ -746,7 +760,19 @@ export default function SamplesPage() {
     ));
   };
 
+  const handleSort = (key: string) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
   const handleDeleteSample = async (sampleId: string) => {
+    // Get the sample name before deleting
+    const sample = samples.find(s => s.id === sampleId);
+    const sampleName = sample?.name || "Sample";
+    
     if (!confirm('Are you sure you want to delete this sample? This action cannot be undone.')) {
       return;
     }
@@ -759,16 +785,18 @@ export default function SamplesPage() {
 
       if (error) {
         console.error('Error deleting sample:', error);
-        alert('Failed to delete sample. Please try again.');
+        showError('Failed to delete sample. Please try again.');
         return;
       }
 
       // Remove the sample from the local state
       setSamples(prev => prev.filter(sample => sample.id !== sampleId));
       setOpenDropdown(null); // Close the dropdown
+      setDeletedItemName(sampleName);
+      setShowDeleteSuccess(true);
     } catch (error) {
       console.error('Error deleting sample:', error);
-      alert('Failed to delete sample. Please try again.');
+      showError('Failed to delete sample. Please try again.');
     }
   };
 
@@ -846,7 +874,7 @@ export default function SamplesPage() {
       setOpenDropdown(null);
     } catch (error) {
       console.error('Error duplicating sample:', error);
-      alert('Failed to duplicate sample. Please try again.');
+      showError('Failed to duplicate sample. Please try again.');
     }
   };
 
@@ -891,7 +919,7 @@ export default function SamplesPage() {
 
       if (error) {
         console.error('Error updating sample:', error);
-        alert('Failed to update sample. Please try again.');
+        showError('Failed to update sample. Please try again.');
         return;
       }
 
@@ -903,7 +931,7 @@ export default function SamplesPage() {
       ));
     } catch (error) {
       console.error('Error updating sample:', error);
-      alert('Failed to update sample. Please try again.');
+      showError('Failed to update sample. Please try again.');
     }
   };
 
@@ -912,7 +940,7 @@ export default function SamplesPage() {
 
     // Check for duplicate sample name (excluding current sample)
     if (isSampleNameTaken(newSampleName, renamingSample)) {
-      alert(`A sample with the name "${newSampleName.trim()}" already exists. Please choose a different name.`);
+      showError(`A sample with the name "${newSampleName.trim()}" already exists. Please choose a different name.`);
       return;
     }
 
@@ -924,7 +952,7 @@ export default function SamplesPage() {
 
       if (error) {
         console.error('Error renaming sample:', error);
-        alert('Failed to rename sample. Please try again.');
+        showError('Failed to rename sample. Please try again.');
         return;
       }
 
@@ -939,7 +967,7 @@ export default function SamplesPage() {
       setNewSampleName('');
     } catch (error) {
       console.error('Error renaming sample:', error);
-      alert('Failed to rename sample. Please try again.');
+      showError('Failed to rename sample. Please try again.');
     }
   };
 
@@ -1067,7 +1095,7 @@ export default function SamplesPage() {
 
       if (error) {
         console.error('Error updating sample:', error);
-        alert('Failed to update sample. Please try again.');
+        showError('Failed to update sample. Please try again.');
         return;
       }
 
@@ -1087,7 +1115,7 @@ export default function SamplesPage() {
       setEditingSample(null);
     } catch (error) {
       console.error("Error updating sample:", error);
-      alert('Failed to update sample. Please try again.');
+      showError('Failed to update sample. Please try again.');
     }
   };
 
@@ -1159,16 +1187,28 @@ export default function SamplesPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-12"></TableHead>
-                      <SortHeader column="name">Name</SortHeader>
-                      <SortHeader column="date">Created Date</SortHeader>
-                      <SortHeader column="attributes">Attributes</SortHeader>
-                      <TableHead>Status</TableHead>
+                      <SortableTableHeader label="Name" sortKey="name" onSort={handleSort} currentSort={sortConfig} />
+                      <SortableTableHeader label="Created Date" sortKey="created_date" onSort={handleSort} currentSort={sortConfig} />
+                      <SortableTableHeader label="Attributes" sortKey="attributes" onSort={handleSort} currentSort={sortConfig} />
+                      <SortableTableHeader label="Status" sortKey="status" onSort={handleSort} currentSort={sortConfig} />
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {/* Render folders first */}
-                    {folders.map((folder) => {
-                      const folderSamples = sortedSamples.filter(s => s.folder_id === folder.folder_id);
+                    {/* Render folders first - sorted based on sortConfig */}
+                    {[...folders].sort((a, b) => {
+                      if (!sortConfig) {
+                        return a.folder_name.localeCompare(b.folder_name);
+                      }
+                      const { key, direction } = sortConfig;
+                      if (key === 'name') {
+                        return direction === 'asc'
+                          ? a.folder_name.localeCompare(b.folder_name)
+                          : b.folder_name.localeCompare(a.folder_name);
+                      }
+                      // For other columns, folders don't have values, so keep alphabetical
+                      return a.folder_name.localeCompare(b.folder_name);
+                    }).map((folder) => {
+                      const folderSamples = samples.filter(s => s.folder_id === folder.folder_id);
                       const isExpanded = expandedFolders.has(folder.folder_id);
                       
                       return (
@@ -1241,8 +1281,29 @@ export default function SamplesPage() {
                             </TableCell>
                           </TableRow>
                           
-                          {/* Samples inside the folder (when expanded) */}
-                          {isExpanded && folderSamples.map((sample) => (
+                          {/* Samples inside the folder (when expanded) - sorted based on sortConfig */}
+                          {isExpanded && [...folderSamples].sort((a, b) => {
+                            if (!sortConfig) return 0;
+                            const { key, direction } = sortConfig;
+                            const multiplier = direction === 'asc' ? 1 : -1;
+                            
+                            if (key === 'name') {
+                              return multiplier * a.name.localeCompare(b.name);
+                            } else if (key === 'created_date') {
+                              const dateA = new Date(a.created_at).getTime();
+                              const dateB = new Date(b.created_at).getTime();
+                              return multiplier * (dateA - dateB);
+                            } else if (key === 'attributes') {
+                              const countA = Array.isArray(a.attributes) ? a.attributes.length : 0;
+                              const countB = Array.isArray(b.attributes) ? b.attributes.length : 0;
+                              return multiplier * (countA - countB);
+                            } else if (key === 'status') {
+                              const statusA = a.isLocked ? 'Locked' : 'Unlocked';
+                              const statusB = b.isLocked ? 'Locked' : 'Unlocked';
+                              return multiplier * statusA.localeCompare(statusB);
+                            }
+                            return 0;
+                          }).map((sample) => (
                             <React.Fragment key={sample.id}>
                               <TableRow 
                                 className={`group hover:bg-accent/50 transition-fast cursor-grab ${draggedSample === sample.id ? 'opacity-50' : ''}`}
@@ -1404,8 +1465,29 @@ export default function SamplesPage() {
                       );
                     })}
                     
-                    {/* Render samples not in any folder */}
-                    {sortedSamples.filter(s => !s.folder_id).map((sample) => (
+                    {/* Render samples not in any folder - sorted based on sortConfig */}
+                    {[...samples.filter(s => !s.folder_id)].sort((a, b) => {
+                      if (!sortConfig) return 0;
+                      const { key, direction } = sortConfig;
+                      const multiplier = direction === 'asc' ? 1 : -1;
+                      
+                      if (key === 'name') {
+                        return multiplier * a.name.localeCompare(b.name);
+                      } else if (key === 'created_date') {
+                        const dateA = new Date(a.created_at).getTime();
+                        const dateB = new Date(b.created_at).getTime();
+                        return multiplier * (dateA - dateB);
+                      } else if (key === 'attributes') {
+                        const countA = Array.isArray(a.attributes) ? a.attributes.length : 0;
+                        const countB = Array.isArray(b.attributes) ? b.attributes.length : 0;
+                        return multiplier * (countA - countB);
+                      } else if (key === 'status') {
+                        const statusA = a.isLocked ? 'Locked' : 'Unlocked';
+                        const statusB = b.isLocked ? 'Locked' : 'Unlocked';
+                        return multiplier * statusA.localeCompare(statusB);
+                      }
+                      return 0;
+                    }).map((sample) => (
                       <React.Fragment key={sample.id}>
                         <TableRow 
                           className={`group hover:bg-accent/50 transition-fast cursor-grab ${draggedSample === sample.id ? 'opacity-50' : ''}`}
@@ -1612,22 +1694,7 @@ export default function SamplesPage() {
             <Edit2 className="w-4 h-4 mr-3" />
             Rename
           </button>
-          {/* 2. Edit */}
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleEditSample(openDropdown);
-            }}
-            onMouseDown={(e) => {
-              e.stopPropagation();
-            }}
-            className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-          >
-            <Edit className="w-4 h-4 mr-3" />
-            Edit
-          </button>
-          {/* 3. Copy */}
+          {/* 2. Copy & Edit */}
           <button
             onClick={(e) => {
               e.preventDefault();
@@ -1640,7 +1707,7 @@ export default function SamplesPage() {
             className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
           >
             <Copy className="w-4 h-4 mr-3" />
-            Make a copy
+            Copy & Edit
           </button>
           {/* 4. Move to Folder */}
           <button
@@ -1714,7 +1781,7 @@ export default function SamplesPage() {
               </div>
             </div>
             <p className="text-gray-700 mb-6">
-              Samples may be edited up until the first time they are used. You may "Make a copy" of the sample to edit at any point.
+              Samples may be edited up until the first time they are used. You may "Copy & Edit" the sample to edit at any point.
             </p>
             <div className="flex gap-3 justify-end">
               <Button
@@ -1737,7 +1804,7 @@ export default function SamplesPage() {
                 }}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white"
               >
-                Make a copy
+                Copy & Edit
               </Button>
             </div>
           </div>
@@ -1997,6 +2064,66 @@ export default function SamplesPage() {
                 ) : (
                   "Delete Folder"
                 )}
+              </Button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Delete Success Popup */}
+      {showDeleteSuccess && createPortal(
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[99999]">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Success</h3>
+              </div>
+            </div>
+            <p className="text-gray-700 mb-6">
+              "{deletedItemName}" has been deleted successfully!
+            </p>
+            <div className="flex justify-end">
+              <Button
+                onClick={() => setShowDeleteSuccess(false)}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                OK
+              </Button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Error Popup */}
+      {showErrorPopup && createPortal(
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[99999]">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Error</h3>
+              </div>
+            </div>
+            <p className="text-gray-700 mb-6">
+              {errorMessage}
+            </p>
+            <div className="flex justify-end">
+              <Button
+                onClick={() => setShowErrorPopup(false)}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                OK
               </Button>
             </div>
           </div>

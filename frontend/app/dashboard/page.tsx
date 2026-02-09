@@ -95,6 +95,8 @@ export default function DashboardHistory() {
   const [showDeleteFolderConfirm, setShowDeleteFolderConfirm] = useState(false);
   const [folderToDelete, setFolderToDelete] = useState<{ id: string; name: string } | null>(null);
   const [isDeletingFolder, setIsDeletingFolder] = useState(false);
+  const [showDeleteSuccess, setShowDeleteSuccess] = useState(false);
+  const [deletedItemName, setDeletedItemName] = useState<string>("");
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const hasInitiallyLoadedRef = useRef(false); // Add this ref to track initial load
 
@@ -821,6 +823,10 @@ export default function DashboardHistory() {
 
   const confirmDelete = async () => {
     if (projectToDelete && user) {
+      // Get the project name before deleting
+      const project = projects.find(p => p.experiment_id === projectToDelete || p.id === projectToDelete);
+      const projectName = project?.name || "Simulation";
+      
       try {
         const { error } = await supabase
           .from("experiments")
@@ -833,7 +839,8 @@ export default function DashboardHistory() {
         } else {
           // Refresh projects after successful deletion
           await getProjects(user.user_id);
-          alert("Project deleted successfully!");
+          setDeletedItemName(projectName);
+          setShowDeleteSuccess(true);
         }
       } catch (error) {
         console.error("Error in delete operation:", error);
@@ -1267,7 +1274,7 @@ export default function DashboardHistory() {
                     <span>{folder.folder_name}</span>
                     {folder.project_count !== undefined && (
                       <span className="ml-auto text-xs text-gray-500">
-                        ({folder.project_count} {folder.project_count === 1 ? 'project' : 'projects'})
+                        ({folder.project_count} {folder.project_count === 1 ? 'simulation' : 'simulations'})
                       </span>
                     )}
                   </button>
@@ -1376,6 +1383,36 @@ export default function DashboardHistory() {
                 ) : (
                   "Delete Folder"
                 )}
+              </Button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Delete Success Popup */}
+      {showDeleteSuccess && createPortal(
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[99999]">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Success</h3>
+              </div>
+            </div>
+            <p className="text-gray-700 mb-6">
+              "{deletedItemName}" has been deleted successfully!
+            </p>
+            <div className="flex justify-end">
+              <Button
+                onClick={() => setShowDeleteSuccess(false)}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                OK
               </Button>
             </div>
           </div>

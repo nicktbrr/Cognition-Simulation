@@ -1,7 +1,9 @@
 "use client";
 
 import React, { useEffect, useState, useRef, useCallback, Suspense } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
 import { Save, Download, HelpCircle, Sparkles, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "../utils/supabase";
@@ -104,6 +106,7 @@ function SimulationPageContent() {
   const [showIntroductionModal, setShowIntroductionModal] = useState(false);
   const [generatedIntroduction, setGeneratedIntroduction] = useState<string>("");
   const [titleError, setTitleError] = useState<string>("");
+  const [showNoMeasuresConfirm, setShowNoMeasuresConfirm] = useState(false);
   const [showSubmittedModal, setShowSubmittedModal] = useState(false);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
@@ -731,6 +734,25 @@ function SimulationPageContent() {
       alert("Please select a sample before submitting the simulation.");
       return;
     }
+
+    // Check if any measures are selected across all nodes
+    const hasMeasures = flowNodes.some((node: Node) => {
+      const selectedMeasures = (node.data?.selectedMeasures as string[]) || [];
+      return selectedMeasures.length > 0;
+    });
+
+    // If no measures are selected, show confirmation modal
+    if (!hasMeasures) {
+      setShowNoMeasuresConfirm(true);
+      return;
+    }
+
+    // Proceed with submission if measures are selected or user confirmed
+    await proceedWithSubmission();
+  };
+
+  const proceedWithSubmission = async () => {
+    setShowNoMeasuresConfirm(false);
 
     // Validate sample size (10-50) – use current input when focused, else committed value
     const rawSize = isSampleSizeFocused ? parseInt(sampleSizeInput.trim(), 10) : sampleSize;
@@ -1657,6 +1679,41 @@ function SimulationPageContent() {
           </>
         )}
       </div>
+
+      {/* No Measures Confirmation Modal */}
+      {showNoMeasuresConfirm && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[99999]">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center">
+                <Info className="w-5 h-5 text-yellow-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">No Measures Selected</h3>
+              </div>
+            </div>
+            <p className="text-gray-700 mb-6">
+              It looks like you haven't chosen any measures for your simulation. Would you still like to continue?
+            </p>
+            <div className="flex gap-3 justify-end">
+              <Button
+                onClick={() => setShowNoMeasuresConfirm(false)}
+                variant="outline"
+                className="px-4 py-2"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={proceedWithSubmission}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                Continue
+              </Button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* Introduction Selection Modal */}
       <IntroductionSelectionModal
