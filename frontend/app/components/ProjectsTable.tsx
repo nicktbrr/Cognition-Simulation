@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, Fragment } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Folder } from "lucide-react";
 import StatusBadge from "./ui/StatusBadge";
@@ -254,7 +254,7 @@ export default function ProjectsTable({
     // Use experiment_id if available, otherwise fall back to id
     const projectId = project.experiment_id || project.id;
     return (
-      <React.Fragment key={project.id || index}>
+      <Fragment key={project.id || index}>
         <tr 
           className={`${isInFolder ? 'bg-gray-50 hover:bg-gray-100' : 'hover:bg-gray-50'} ${draggedProject === projectId ? 'opacity-50' : ''}`}
           draggable={true}
@@ -269,153 +269,296 @@ export default function ProjectsTable({
             e.preventDefault();
           }}
         >
-          <td className={`px-6 py-4 ${isInFolder ? 'pl-12' : ''}`}>
-            <div className="flex items-center justify-between">
-              {renamingProjectId && (project.id === renamingProjectId || project.experiment_id === renamingProjectId) ? (
-                <>
-                  <button
-                    onClick={(e) => {
-                      if (draggedProject) {
-                        e.preventDefault();
-                        return;
-                      }
-                      toggleRowExpansion(project.id!);
-                    }}
-                    onMouseDown={(e) => {
-                      if (!draggedProject) e.stopPropagation();
-                    }}
-                    className="flex items-center gap-2 text-left"
-                  >
-                    <div
-                      className="w-8 h-8 flex items-center justify-center"
-                      style={{ borderRadius: 'calc(var(--radius) - 2px)' }}
-                    >
-                      <ChevronDown
-                        className={`w-4 h-4 transition-transform ${
-                          expandedRows.has(project.id!) ? '' : '-rotate-90'
-                        }`}
+          <td className="px-6 py-4">
+            {isInFolder ? (
+              <div className="ml-4">
+                <div className="flex items-center justify-between">
+                  {renamingProjectId && (project.id === renamingProjectId || project.experiment_id === renamingProjectId) ? (
+                    <>
+                      <button
+                        onClick={(e) => {
+                          if (draggedProject) {
+                            e.preventDefault();
+                            return;
+                          }
+                          toggleRowExpansion(project.id!);
+                        }}
+                        onMouseDown={(e) => {
+                          if (!draggedProject) e.stopPropagation();
+                        }}
+                        className="flex items-center gap-2 text-left"
+                      >
+                        <div
+                          className="w-8 h-8 flex items-center justify-center"
+                          style={{ borderRadius: 'calc(var(--radius) - 2px)' }}
+                        >
+                          <ChevronDown
+                            className={`w-4 h-4 transition-transform ${
+                              expandedRows.has(project.id!) ? '' : '-rotate-90'
+                            }`}
+                          />
+                        </div>
+                      </button>
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <input
+                          type="text"
+                          value={renameValue}
+                          onChange={(e) => onRenameValueChange?.(e.target.value)}
+                          className="text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-0 flex-1"
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              onSaveRename?.();
+                            } else if (e.key === 'Escape') {
+                              onCancelRename?.();
+                            }
+                          }}
+                        />
+                        <button
+                          onClick={onSaveRename}
+                          className="text-green-600 hover:text-green-800 text-xs font-medium flex-shrink-0"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={onCancelRename}
+                          className="text-gray-500 hover:text-gray-700 text-xs font-medium flex-shrink-0"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <button 
+                        onClick={(e) => {
+                          if (draggedProject) {
+                            e.preventDefault();
+                            return;
+                          }
+                          toggleRowExpansion(project.id!);
+                        }}
+                        onMouseDown={(e) => {
+                          if (!draggedProject) {
+                            e.stopPropagation();
+                          }
+                        }}
+                        className="flex items-center gap-2 text-left"
+                      >
+                        <div 
+                          className="w-8 h-8 flex items-center justify-center"
+                          style={{
+                            borderRadius: 'calc(var(--radius) - 2px)'
+                          }}
+                        >
+                          <ChevronDown 
+                            className={`w-4 h-4 transition-transform ${
+                              expandedRows.has(project.id!) ? '' : '-rotate-90'
+                            }`}
+                          />
+                        </div>
+                        <span className="font-medium text-gray-900">{project.name}</span>
+                      </button>
+                      <ProjectDropdown
+                        isOpen={projectDropdowns.has(project.id!)}
+                        onToggle={() => toggleProjectDropdown(project.id!)}
+                        position={projectIndex >= projects.length - 2 ? 'top' : 'bottom'}
+                        onRename={() => {
+                          onRename(project.id!, project.name);
+                          toggleProjectDropdown(project.id!);
+                        }}
+                        onReplicate={() => onReplicate?.(project.id!)}
+                        onModify={() => onModify?.(project.id!)}
+                        onDelete={() => onDelete?.(project.id!)}
+                        onMoveToFolder={(folderId) => {
+                          if (projectId && onDropToFolder) {
+                            onDropToFolder(projectId, folderId);
+                          }
+                        }}
+                        folders={folders}
+                        currentFolderId={project.folder_id}
                       />
+                    </>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between">
+                {renamingProjectId && (project.id === renamingProjectId || project.experiment_id === renamingProjectId) ? (
+                  <>
+                    <button
+                      onClick={(e) => {
+                        if (draggedProject) {
+                          e.preventDefault();
+                          return;
+                        }
+                        toggleRowExpansion(project.id!);
+                      }}
+                      onMouseDown={(e) => {
+                        if (!draggedProject) e.stopPropagation();
+                      }}
+                      className="flex items-center gap-2 text-left"
+                    >
+                      <div
+                        className="w-8 h-8 flex items-center justify-center"
+                        style={{ borderRadius: 'calc(var(--radius) - 2px)' }}
+                      >
+                        <ChevronDown
+                          className={`w-4 h-4 transition-transform ${
+                            expandedRows.has(project.id!) ? '' : '-rotate-90'
+                          }`}
+                        />
+                      </div>
+                    </button>
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <input
+                        type="text"
+                        value={renameValue}
+                        onChange={(e) => onRenameValueChange?.(e.target.value)}
+                        className="text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-0 flex-1"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            onSaveRename?.();
+                          } else if (e.key === 'Escape') {
+                            onCancelRename?.();
+                          }
+                        }}
+                      />
+                      <button
+                        onClick={onSaveRename}
+                        className="text-green-600 hover:text-green-800 text-xs font-medium flex-shrink-0"
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={onCancelRename}
+                        className="text-gray-500 hover:text-gray-700 text-xs font-medium flex-shrink-0"
+                      >
+                        Cancel
+                      </button>
                     </div>
-                  </button>
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <input
-                      type="text"
-                      value={renameValue}
-                      onChange={(e) => onRenameValueChange?.(e.target.value)}
-                      className="text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-0 flex-1"
-                      autoFocus
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          onSaveRename?.();
-                        } else if (e.key === 'Escape') {
-                          onCancelRename?.();
+                  </>
+                ) : (
+                  <>
+                    <button 
+                      onClick={(e) => {
+                        if (draggedProject) {
+                          e.preventDefault();
+                          return;
+                        }
+                        toggleRowExpansion(project.id!);
+                      }}
+                      onMouseDown={(e) => {
+                        if (!draggedProject) {
+                          e.stopPropagation();
                         }
                       }}
+                      className="flex items-center gap-2 text-left"
+                    >
+                      <div 
+                        className="w-8 h-8 flex items-center justify-center"
+                        style={{
+                          borderRadius: 'calc(var(--radius) - 2px)'
+                        }}
+                      >
+                        <ChevronDown 
+                          className={`w-4 h-4 transition-transform ${
+                            expandedRows.has(project.id!) ? '' : '-rotate-90'
+                          }`}
+                        />
+                      </div>
+                      <span className="font-medium text-gray-900">{project.name}</span>
+                    </button>
+                    <ProjectDropdown
+                      isOpen={projectDropdowns.has(project.id!)}
+                      onToggle={() => toggleProjectDropdown(project.id!)}
+                      position={projectIndex >= projects.length - 2 ? 'top' : 'bottom'}
+                      onRename={() => {
+                        onRename(project.id!, project.name);
+                        toggleProjectDropdown(project.id!);
+                      }}
+                      onReplicate={() => onReplicate?.(project.id!)}
+                      onModify={() => onModify?.(project.id!)}
+                      onDelete={() => onDelete?.(project.id!)}
+                      onMoveToFolder={(folderId) => {
+                        if (projectId && onDropToFolder) {
+                          onDropToFolder(projectId, folderId);
+                        }
+                      }}
+                      folders={folders}
+                      currentFolderId={project.folder_id}
                     />
-                    <button
-                      onClick={onSaveRename}
-                      className="text-green-600 hover:text-green-800 text-xs font-medium flex-shrink-0"
-                    >
-                      Save
-                    </button>
-                    <button
-                      onClick={onCancelRename}
-                      className="text-gray-500 hover:text-gray-700 text-xs font-medium flex-shrink-0"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <button 
-                onClick={(e) => {
-                  // Don't trigger expand when dragging
-                  if (draggedProject) {
-                    e.preventDefault();
-                    return;
-                  }
-                  toggleRowExpansion(project.id!);
-                }}
-                onMouseDown={(e) => {
-                  // Allow drag to start even if button is pressed
-                  if (!draggedProject) {
-                    e.stopPropagation();
-                  }
-                }}
-                className="flex items-center gap-2 text-left"
-              >
-                <div 
-                  className="w-8 h-8 flex items-center justify-center"
-                  style={{
-                    borderRadius: 'calc(var(--radius) - 2px)'
-                  }}
-                >
-                  <ChevronDown 
-                    className={`w-4 h-4 transition-transform ${
-                      expandedRows.has(project.id!) ? '' : '-rotate-90'
-                    }`}
-                  />
+                  </>
+                )}
+              </div>
+            )}
+          </td>
+          <td className="px-6 py-4">
+            {isInFolder ? (
+              <div className="ml-4">
+                <StatusBadge status={project.status} progress={project.progress} />
+              </div>
+            ) : (
+              <StatusBadge status={project.status} progress={project.progress} />
+            )}
+          </td>
+          <td className="px-6 py-4 text-sm text-gray-900">
+            {isInFolder ? (
+              <div className="ml-4">
+                {project.sample_size ?? 10}
+              </div>
+            ) : (
+              project.sample_size ?? 10
+            )}
+          </td>
+          <td className="px-6 py-4 text-sm text-gray-900">
+            {isInFolder ? (
+              <div className="ml-4">
+                {project.sample_name}
+              </div>
+            ) : (
+              project.sample_name
+            )}
+          </td>
+          <td className="px-6 py-4">
+            {isInFolder ? (
+              <div className="ml-4">
+                <div className="space-y-1">
+                  {project.downloads.slice(0, 3).map((download, idx) => (
+                    <DownloadButton 
+                      key={download.id}
+                      date={download.date}
+                      onClick={() => onDownload(download.url || '', download.filename || project.name)}
+                    />
+                  ))}
                 </div>
-                <span className="font-medium text-gray-900">{project.name}</span>
-              </button>
-              
-              <ProjectDropdown
-                isOpen={projectDropdowns.has(project.id!)}
-                onToggle={() => toggleProjectDropdown(project.id!)}
-                position={projectIndex >= projects.length - 2 ? 'top' : 'bottom'}
-                onRename={() => {
-                      onRename(project.id!, project.name);
-                      toggleProjectDropdown(project.id!);
-                    }}
-                onReplicate={() => onReplicate?.(project.id!)}
-                onModify={() => onModify?.(project.id!)}
-                onDelete={() => onDelete?.(project.id!)}
-                onMoveToFolder={(folderId) => {
-                  if (projectId && onDropToFolder) {
-                    onDropToFolder(projectId, folderId);
-                  }
-                }}
-                folders={folders}
-                currentFolderId={project.folder_id}
-              />
-                </>
-              )}
-            </div>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {project.downloads.slice(0, 3).map((download, idx) => (
+                  <DownloadButton 
+                    key={download.id}
+                    date={download.date}
+                    onClick={() => onDownload(download.url || '', download.filename || project.name)}
+                  />
+                ))}
+              </div>
+            )}
           </td>
-          <td className={`px-6 py-4 ${isInFolder ? 'pl-12' : ''}`}>
-            <StatusBadge status={project.status} progress={project.progress} />
-          </td>
-          <td className={`px-6 py-4 text-sm text-gray-900 ${isInFolder ? 'pl-12' : ''}`}>
-            {project.sample_size ?? 10}
-          </td>
-          <td className={`px-6 py-4 text-sm text-gray-900 ${isInFolder ? 'pl-12' : ''}`}>
-            {project.sample_name}
-          </td>
-          <td className={`px-6 py-4 ${isInFolder ? 'pl-12' : ''}`}>
-            <div className="space-y-1">
-              {project.downloads.slice(0, 3).map((download, idx) => (
-                <DownloadButton 
-                  key={download.id}
-                  date={download.date}
-                  onClick={() => onDownload(download.url || '', download.filename || project.name)}
-                />
-              ))}
-            </div>
-          </td>
-          <td className={`px-6 py-4 ${isInFolder ? 'pl-12' : ''}`}></td>
+          <td className="px-6 py-4"></td>
         </tr>
         
         {expandedRows.has(project.id!) && (
           <tr>
-            <td colSpan={6} className={`px-6 py-4 bg-gray-50 ${isInFolder ? 'pl-12' : ''}`}>
+            <td colSpan={6} className="px-6 py-4 bg-gray-50">
               <div className="flex gap-6" style={{marginLeft: isInFolder ? '64px' : '40px'}}>
                 <SimulationSteps steps={project.steps} />
               </div>
             </td>
           </tr>
         )}
-      </React.Fragment>
+      </Fragment>
     );
   };
 
@@ -459,7 +602,7 @@ export default function ProjectsTable({
               // Always show folders, even if empty
 
               return (
-                <React.Fragment key={folder.folder_id}>
+                <Fragment key={folder.folder_id}>
                   <tr
                     className={`bg-gray-50 hover:bg-accent/50 ${dragOverFolder === folder.folder_id ? 'bg-blue-50' : ''}`}
                     onDragOver={(e) => {
@@ -510,7 +653,7 @@ export default function ProjectsTable({
                             }
                           }}
                         >
-                          <div className="w-6 h-6 flex items-center justify-center">
+                          <div className="w-4 h-4 flex items-center justify-center">
                             <ChevronDown 
                               className={`w-4 h-4 transition-transform ${
                                 expandedFolders.has(folder.folder_id) ? '' : '-rotate-90'
@@ -541,7 +684,7 @@ export default function ProjectsTable({
                   {expandedFolders.has(folder.folder_id) && folderProjects.map((project, idx) => 
                     renderProjectRow(project, idx, true, folderProjects.length)
                   )}
-                </React.Fragment>
+                </Fragment>
               );
             })}
             

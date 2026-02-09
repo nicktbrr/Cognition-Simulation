@@ -96,7 +96,17 @@ export default function SamplesPage() {
   const [showDeleteFolderConfirm, setShowDeleteFolderConfirm] = useState(false);
   const [folderToDelete, setFolderToDelete] = useState<{ id: string; name: string } | null>(null);
   const [isDeletingFolder, setIsDeletingFolder] = useState(false);
+  const [showDeleteSuccess, setShowDeleteSuccess] = useState(false);
+  const [deletedItemName, setDeletedItemName] = useState<string>("");
+  const [showErrorPopup, setShowErrorPopup] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string>("");
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+
+  // Helper function to show error popup
+  const showError = (message: string) => {
+    setErrorMessage(message);
+    setShowErrorPopup(true);
+  };
   const [folderDropdownOpen, setFolderDropdownOpen] = useState<string | null>(null);
   const [folderDropdownPosition, setFolderDropdownPosition] = useState({ top: 0, right: 0 });
   const folderButtonRefs = useRef<Record<string, HTMLButtonElement>>({});
@@ -190,7 +200,7 @@ export default function SamplesPage() {
 
     // Check for duplicate folder name
     if (isFolderNameTaken(newFolderName)) {
-      alert(`A folder with the name "${newFolderName.trim()}" already exists. Please choose a different name.`);
+      showError(`A folder with the name "${newFolderName.trim()}" already exists. Please choose a different name.`);
       return;
     }
 
@@ -208,7 +218,7 @@ export default function SamplesPage() {
 
       if (error) {
         console.error("Error creating folder:", error);
-        alert("Error creating folder. Please try again.");
+        showError("Error creating folder. Please try again.");
         return;
       }
 
@@ -220,7 +230,7 @@ export default function SamplesPage() {
       setNewFolderName("");
     } catch (error) {
       console.error("Error in folder creation:", error);
-      alert("Error creating folder. Please try again.");
+      showError("Error creating folder. Please try again.");
     } finally {
       setIsCreatingFolder(false);
     }
@@ -240,7 +250,7 @@ export default function SamplesPage() {
 
     // Check for duplicate folder name (excluding current folder)
     if (isFolderNameTaken(newFolderRename, folderToRename.id)) {
-      alert(`A folder with the name "${newFolderRename.trim()}" already exists. Please choose a different name.`);
+      showError(`A folder with the name "${newFolderRename.trim()}" already exists. Please choose a different name.`);
       return;
     }
 
@@ -253,7 +263,7 @@ export default function SamplesPage() {
 
       if (error) {
         console.error("Error renaming folder:", error);
-        alert("Error renaming folder. Please try again.");
+        showError("Error renaming folder. Please try again.");
         return;
       }
 
@@ -266,7 +276,7 @@ export default function SamplesPage() {
       setNewFolderRename("");
     } catch (error) {
       console.error("Error in folder rename operation:", error);
-      alert("Error renaming folder. Please try again.");
+      showError("Error renaming folder. Please try again.");
     }
   };
 
@@ -301,7 +311,7 @@ export default function SamplesPage() {
 
       if (fetchError) {
         console.error("Error fetching samples in folder:", fetchError);
-        alert("Error fetching samples in folder. Please try again.");
+        showError("Error fetching samples in folder. Please try again.");
         setIsDeletingFolder(false);
         return;
       }
@@ -317,7 +327,7 @@ export default function SamplesPage() {
 
         if (deleteSamplesError) {
           console.error("Error deleting samples in folder:", deleteSamplesError);
-          alert("Error deleting samples in folder. Please try again.");
+          showError("Error deleting samples in folder. Please try again.");
           setIsDeletingFolder(false);
           return;
         }
@@ -332,7 +342,7 @@ export default function SamplesPage() {
 
       if (deleteFolderError) {
         console.error("Error deleting folder:", deleteFolderError);
-        alert("Error deleting folder. Please try again.");
+        showError("Error deleting folder. Please try again.");
         setIsDeletingFolder(false);
         return;
       }
@@ -353,7 +363,7 @@ export default function SamplesPage() {
       setFolderToDelete(null);
     } catch (error) {
       console.error("Error in folder delete operation:", error);
-      alert(`Error deleting folder: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`);
+      showError(`Error deleting folder: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`);
     } finally {
       setIsDeletingFolder(false);
     }
@@ -373,7 +383,7 @@ export default function SamplesPage() {
       const sample = samples.find(s => s.id === sampleId);
       if (!sample) {
         console.error("Sample not found");
-        alert("Error: Sample not found. Please try again.");
+        showError("Error: Sample not found. Please try again.");
         return;
       }
 
@@ -388,7 +398,7 @@ export default function SamplesPage() {
 
       if (updateError) {
         console.error("Error moving sample to folder:", updateError);
-        alert(`Error moving sample to folder: ${updateError.message}. Please try again.`);
+        showError(`Error moving sample to folder: ${updateError.message}. Please try again.`);
         return;
       }
 
@@ -428,7 +438,7 @@ export default function SamplesPage() {
       setSampleToMove(null);
     } catch (error) {
       console.error("Error in move to folder operation:", error);
-      alert(`Error moving sample to folder: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`);
+      showError(`Error moving sample to folder: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`);
     }
   };
 
@@ -720,17 +730,18 @@ export default function SamplesPage() {
 
       if (error) {
         console.error('Error deleting sample:', error);
-        alert('Failed to delete sample. Please try again.');
+        showError('Failed to delete sample. Please try again.');
         return;
       }
 
       // Remove the sample from the local state
       setSamples(prev => prev.filter(sample => sample.id !== sampleId));
       setOpenDropdown(null); // Close the dropdown
-      alert(`"${sampleName}" has been deleted successfully!`);
+      setDeletedItemName(sampleName);
+      setShowDeleteSuccess(true);
     } catch (error) {
       console.error('Error deleting sample:', error);
-      alert('Failed to delete sample. Please try again.');
+      showError('Failed to delete sample. Please try again.');
     }
   };
 
@@ -808,7 +819,7 @@ export default function SamplesPage() {
       setOpenDropdown(null);
     } catch (error) {
       console.error('Error duplicating sample:', error);
-      alert('Failed to duplicate sample. Please try again.');
+      showError('Failed to duplicate sample. Please try again.');
     }
   };
 
@@ -853,7 +864,7 @@ export default function SamplesPage() {
 
       if (error) {
         console.error('Error updating sample:', error);
-        alert('Failed to update sample. Please try again.');
+        showError('Failed to update sample. Please try again.');
         return;
       }
 
@@ -865,7 +876,7 @@ export default function SamplesPage() {
       ));
     } catch (error) {
       console.error('Error updating sample:', error);
-      alert('Failed to update sample. Please try again.');
+      showError('Failed to update sample. Please try again.');
     }
   };
 
@@ -874,7 +885,7 @@ export default function SamplesPage() {
 
     // Check for duplicate sample name (excluding current sample)
     if (isSampleNameTaken(newSampleName, renamingSample)) {
-      alert(`A sample with the name "${newSampleName.trim()}" already exists. Please choose a different name.`);
+      showError(`A sample with the name "${newSampleName.trim()}" already exists. Please choose a different name.`);
       return;
     }
 
@@ -886,7 +897,7 @@ export default function SamplesPage() {
 
       if (error) {
         console.error('Error renaming sample:', error);
-        alert('Failed to rename sample. Please try again.');
+        showError('Failed to rename sample. Please try again.');
         return;
       }
 
@@ -901,7 +912,7 @@ export default function SamplesPage() {
       setNewSampleName('');
     } catch (error) {
       console.error('Error renaming sample:', error);
-      alert('Failed to rename sample. Please try again.');
+      showError('Failed to rename sample. Please try again.');
     }
   };
 
@@ -1029,7 +1040,7 @@ export default function SamplesPage() {
 
       if (error) {
         console.error('Error updating sample:', error);
-        alert('Failed to update sample. Please try again.');
+        showError('Failed to update sample. Please try again.');
         return;
       }
 
@@ -1049,7 +1060,7 @@ export default function SamplesPage() {
       setEditingSample(null);
     } catch (error) {
       console.error("Error updating sample:", error);
-      alert('Failed to update sample. Please try again.');
+      showError('Failed to update sample. Please try again.');
     }
   };
 
@@ -1991,6 +2002,66 @@ export default function SamplesPage() {
                 ) : (
                   "Delete Folder"
                 )}
+              </Button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Delete Success Popup */}
+      {showDeleteSuccess && createPortal(
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[99999]">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Success</h3>
+              </div>
+            </div>
+            <p className="text-gray-700 mb-6">
+              "{deletedItemName}" has been deleted successfully!
+            </p>
+            <div className="flex justify-end">
+              <Button
+                onClick={() => setShowDeleteSuccess(false)}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                OK
+              </Button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Error Popup */}
+      {showErrorPopup && createPortal(
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[99999]">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Error</h3>
+              </div>
+            </div>
+            <p className="text-gray-700 mb-6">
+              {errorMessage}
+            </p>
+            <div className="flex justify-end">
+              <Button
+                onClick={() => setShowErrorPopup(false)}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                OK
               </Button>
             </div>
           </div>
