@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { X, ChevronDown, ChevronUp, Search } from "lucide-react";
 import { Button } from "./ui/button";
 import otherAttributesData from "../data/attributes/other.json";
@@ -127,6 +127,21 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
     "Languages": false,
     "Other": false,
   });
+
+  const ageValidation = useMemo(() => {
+    const minNum = tempAgeInput.min === '' ? NaN : parseInt(tempAgeInput.min, 10);
+    const maxNum = tempAgeInput.max === '' ? NaN : parseInt(tempAgeInput.max, 10);
+    const bothNumbers = !isNaN(minNum) && !isNaN(maxNum);
+    const inRange = bothNumbers && minNum >= 5 && minNum <= 82 && maxNum >= 5 && maxNum <= 82;
+    const validRange = inRange && minNum < maxNum;
+    const errorMessage =
+      !bothNumbers
+        ? 'Enter numbers between 5 and 82 for both minimum and maximum.'
+        : !inRange
+          ? 'Ages must be between 5 and 82.'
+          : 'Minimum age must be less than maximum age.';
+    return { validRange, minNum, maxNum, bothNumbers, inRange, errorMessage };
+  }, [tempAgeInput.min, tempAgeInput.max]);
 
   // Initialize with initialSample data when in edit mode
   useEffect(() => {
@@ -318,10 +333,18 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
   const handleAddToSelection = () => {
     if (activeAttributePanel) {
       if (activeAttributePanel.id === 'age') {
-        // Handle age range selection
+        const minNum = tempAgeInput.min === '' ? NaN : parseInt(tempAgeInput.min, 10);
+        const maxNum = tempAgeInput.max === '' ? NaN : parseInt(tempAgeInput.max, 10);
+        const valid =
+          !isNaN(minNum) && !isNaN(maxNum) &&
+          minNum >= 5 && minNum <= 82 && maxNum >= 5 && maxNum <= 82 &&
+          minNum < maxNum;
+        if (!valid) return;
+        const minAge = Math.min(minNum, maxNum);
+        const maxAge = Math.max(minNum, maxNum);
         const newSelection: AttributeSelection = {
           attributeId: activeAttributePanel.id,
-          selectedOptions: [tempAgeRange.min.toString(), tempAgeRange.max.toString()]
+          selectedOptions: [minAge.toString(), maxAge.toString()]
         };
 
         setAttributeSelections(prev => {
@@ -757,21 +780,17 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
                       </label>
                       <input
                         type="text"
+                        inputMode="numeric"
                         placeholder="5"
                         value={tempAgeInput.min}
                         onChange={(e) => {
-                          const inputValue = e.target.value;
+                          const raw = e.target.value;
+                          const inputValue = raw.replace(/\D/g, '');
                           setTempAgeInput(prev => ({ ...prev, min: inputValue }));
-                          
-                          // Update the numeric range for validation
-                          const numValue = parseInt(inputValue);
+                          const numValue = inputValue === '' ? NaN : parseInt(inputValue, 10);
                           if (!isNaN(numValue)) {
                             const validValue = Math.max(5, Math.min(82, numValue));
-                            setTempAgeRange(prev => ({ 
-                              ...prev, 
-                              min: validValue,
-                              max: Math.max(validValue, prev.max)
-                            }));
+                            setTempAgeRange(prev => ({ ...prev, min: validValue }));
                           }
                         }}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -783,29 +802,33 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
                       </label>
                       <input
                         type="text"
+                        inputMode="numeric"
                         placeholder="82"
                         value={tempAgeInput.max}
                         onChange={(e) => {
-                          const inputValue = e.target.value;
+                          const raw = e.target.value;
+                          const inputValue = raw.replace(/\D/g, '');
                           setTempAgeInput(prev => ({ ...prev, max: inputValue }));
-                          
-                          // Update the numeric range for validation
-                          const numValue = parseInt(inputValue);
+                          const numValue = inputValue === '' ? NaN : parseInt(inputValue, 10);
                           if (!isNaN(numValue)) {
                             const validValue = Math.max(5, Math.min(82, numValue));
-                            setTempAgeRange(prev => ({ 
-                              ...prev, 
-                              max: validValue,
-                              min: Math.min(validValue, prev.min)
-                            }));
+                            setTempAgeRange(prev => ({ ...prev, max: validValue }));
                           }
                         }}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                     </div>
-                    <div className="text-sm text-gray-500">
-                      Selected range: {tempAgeRange.min} - {tempAgeRange.max} years old
-                    </div>
+                    {activeAttributePanel.id === 'age' && ageValidation && (
+                      ageValidation.validRange ? (
+                        <div className="text-sm text-gray-500 px-3 py-2 rounded-md border border-gray-200 bg-gray-50">
+                          Selected range: {ageValidation.minNum} - {ageValidation.maxNum} years old
+                        </div>
+                      ) : (
+                        <div className="text-sm text-red-600 px-3 py-2 rounded-md border-2 border-red-400 bg-red-50">
+                          {ageValidation.errorMessage}
+                        </div>
+                      )
+                    )}
                   </div>
                 </div>
               ) : (
@@ -854,7 +877,8 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
               {activeAttributePanel.id === 'age' ? (
                 <Button
                   onClick={handleAddToSelection}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                  disabled={!ageValidation.validRange}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   + Add Age Range to Sample
                 </Button>
