@@ -406,6 +406,18 @@ function SimulationPageContent() {
         return;
       }
 
+      const titleToSave = (processTitle || "").trim() || "Untitled Simulation";
+
+      // Enforce unique simulation name (case-insensitive); exclude current experiment when updating
+      const excludeId = modifyExperimentId || undefined;
+      const nameExists = await checkSimulationNameExists(titleToSave, excludeId);
+      if (nameExists) {
+        setTitleError(`A simulation with the name "${titleToSave}" already exists. Please choose a different name.`);
+        alert(`A simulation with the name "${titleToSave}" already exists. Please choose a different name.`);
+        return;
+      }
+      setTitleError("");
+
       // Drafts can be incomplete: no sample, no steps, or empty title is allowed.
       const selectedSampleDetails = getSelectedSampleDetails();
 
@@ -419,7 +431,7 @@ function SimulationPageContent() {
         iters: Math.min(50, Math.max(10, sampleSize)),
         temperature: 0.5,
         user_id: user.user_id,
-        title: (processTitle || "").trim() || "Untitled Simulation",
+        title: titleToSave,
         description: processDescription || "",
         study_introduction: studyIntroduction || "",
       };

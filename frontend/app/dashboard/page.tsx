@@ -887,6 +887,7 @@ export default function DashboardHistory() {
             progress: shouldStopPolling ? undefined : progressPercent
           };
           // When simulation just completed and has a download URL, add it in-place so we don't need getProjects
+          // Dedupe by id/url so we never add the same download twice if polling fires again before state updates
           if (shouldStopPolling && progressData.url) {
             const expData = progressData.experiment_data || {};
             const newDownload: Download = {
@@ -896,11 +897,15 @@ export default function DashboardHistory() {
               filename: expData.title || expData.simulation_name || `simulation_${progressData.id}`,
               created_at: progressData.created_at
             };
-            const combined = [...(project.downloads || []), newDownload].sort((a, b) => {
-              const tA = new Date(a.created_at || a.date).getTime();
-              const tB = new Date(b.created_at || b.date).getTime();
-              return tB - tA;
-            });
+            const existing = project.downloads || [];
+            const alreadyAdded = existing.some(d => d.id === newDownload.id || d.url === newDownload.url);
+            const combined = alreadyAdded
+              ? existing
+              : [...existing, newDownload].sort((a, b) => {
+                  const tA = new Date(a.created_at || a.date).getTime();
+                  const tB = new Date(b.created_at || b.date).getTime();
+                  return tB - tA;
+                });
             updated.downloads = combined;
           }
           return updated;

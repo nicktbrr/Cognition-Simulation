@@ -383,16 +383,16 @@ export default function ProjectsTable({
               )}
             </div>
           </td>
-          <td className={`px-6 py-4 ${isInFolder ? 'pl-12' : ''}`}>
+          <td className="px-6 py-4">
             <StatusBadge status={project.status} progress={project.progress} />
           </td>
-          <td className={`px-6 py-4 text-sm text-gray-900 ${isInFolder ? 'pl-12' : ''}`}>
+          <td className="px-6 py-4 text-sm text-gray-900">
             {project.sample_size ?? 10}
           </td>
-          <td className={`px-6 py-4 text-sm text-gray-900 ${isInFolder ? 'pl-12' : ''}`}>
+          <td className="px-6 py-4 text-sm text-gray-900">
             {project.sample_name}
           </td>
-          <td className={`px-6 py-4 ${isInFolder ? 'pl-12' : ''}`}>
+          <td className="px-6 py-4">
             <div className="space-y-1">
               {project.downloads.slice(0, 3).map((download, idx) => (
                 <DownloadButton 
@@ -403,7 +403,7 @@ export default function ProjectsTable({
               ))}
             </div>
           </td>
-          <td className={`px-6 py-4 ${isInFolder ? 'pl-12' : ''}`}></td>
+          <td className="px-6 py-4"></td>
         </tr>
         
         {expandedRows.has(project.id!) && (

@@ -7,6 +7,7 @@ import { ChevronDown, ChevronUp, Plus, Users, MoreVertical, Trash2, Edit, Edit2,
 import { Button } from "../../components/ui/button";
 import { Card, CardContent } from "../../components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../../components/ui/tooltip";
 import { supabase } from "../utils/supabase";
 import { useAuth } from "../hooks/useAuth";
 import AuthLoading from "../components/auth-loading";
@@ -1325,15 +1326,26 @@ export default function SamplesPage() {
                                   <span className="text-sm">{Array.isArray(sample.attributes) ? sample.attributes.length : 0} attribute{Array.isArray(sample.attributes) && sample.attributes.length !== 1 ? 's' : ''}</span>
                                 </TableCell>
                                 <TableCell>
-                                  {sample.isLocked ? (
-                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                      Locked
-                                    </span>
-                                  ) : (
-                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                      Unlocked
-                                    </span>
-                                  )}
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        {sample.isLocked ? (
+                                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 cursor-help">
+                                            Locked
+                                          </span>
+                                        ) : (
+                                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 cursor-help">
+                                            Unlocked
+                                          </span>
+                                        )}
+                                      </TooltipTrigger>
+                                      <TooltipContent side="top" className="max-w-xs">
+                                        {sample.isLocked
+                                          ? "Has been used in a simulation and cannot be edited."
+                                          : "Has not been used in a simulation and can be edited."}
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
                                 </TableCell>
                               </TableRow>
                               {sample.expanded && (
@@ -1475,15 +1487,26 @@ export default function SamplesPage() {
                             <span className="text-sm">{Array.isArray(sample.attributes) ? sample.attributes.length : 0} attribute{Array.isArray(sample.attributes) && sample.attributes.length !== 1 ? 's' : ''}</span>
                           </TableCell>
                           <TableCell>
-                            {sample.isLocked ? (
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                Locked
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                Unlocked
-                              </span>
-                            )}
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  {sample.isLocked ? (
+                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 cursor-help">
+                                      Locked
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 cursor-help">
+                                      Unlocked
+                                    </span>
+                                  )}
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="max-w-xs">
+                                  {sample.isLocked
+                                    ? "Has been used in a simulation and cannot be edited."
+                                    : "Has not been used in a simulation and can be edited."}
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                           </TableCell>
                         </TableRow>
                         {sample.expanded && (
