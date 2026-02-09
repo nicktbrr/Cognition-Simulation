@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { ChevronDown, Plus, Users, MoreVertical, Trash2, Edit, Edit2, Copy, Lock, Folder, FolderPlus, FolderInput, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronUp, Plus, Users, MoreVertical, Trash2, Edit, Edit2, Copy, Lock, Folder, FolderPlus, FolderInput, ChevronRight } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent } from "../../components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../../components/ui/tooltip";
 import { supabase } from "../utils/supabase";
 import { useAuth } from "../hooks/useAuth";
 import AuthLoading from "../components/auth-loading";
@@ -119,17 +120,71 @@ export default function SamplesPage() {
   // Sorting state
   const [sortConfig, setSortConfig] = useState<{key: string, direction: 'asc' | 'desc'} | null>(null);
 
+  // Table sort: 'name' | 'date' | 'attributes', direction asc/desc
+  type SortColumn = 'name' | 'date' | 'attributes';
+  const [sortColumn, setSortColumn] = useState<SortColumn | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+  const sortedSamples = useMemo(() => {
+    if (!sortColumn) return samples;
+    const sorted = [...samples].sort((a, b) => {
+      let cmp = 0;
+      if (sortColumn === 'name') {
+        cmp = (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' });
+      } else if (sortColumn === 'date') {
+        const da = new Date(a.created_at).getTime();
+        const db = new Date(b.created_at).getTime();
+        cmp = da - db;
+      } else if (sortColumn === 'attributes') {
+        const na = Array.isArray(a.attributes) ? a.attributes.length : 0;
+        const nb = Array.isArray(b.attributes) ? b.attributes.length : 0;
+        cmp = na - nb;
+      }
+      return sortDirection === 'asc' ? cmp : -cmp;
+    });
+    return sorted;
+  }, [samples, sortColumn, sortDirection]);
+
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
+  const SortHeader = ({ column, children }: { column: SortColumn; children: React.ReactNode }) => (
+    <TableHead>
+      <button
+        type="button"
+        onClick={() => handleSort(column)}
+        className="flex items-center gap-1 font-medium hover:text-blue-600 transition-colors text-left w-full"
+      >
+        {children}
+        {sortColumn === column ? (
+          sortDirection === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
+        ) : (
+          <span className="w-4 h-4 inline-block opacity-30">
+            <ChevronDown className="w-4 h-4" />
+          </span>
+        )}
+      </button>
+    </TableHead>
+  );
+
   const getUserData = async (userId: string) => {
     const { data, error } = await supabase
       .from("user_emails")
       .select("user_email, user_id, pic_url")
       .eq("user_id", userId)
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error("Error fetching user data:", error);
+      setUserData(null);
     } else {
-      setUserData(data);
+      setUserData(data ?? null);
     }
   };
 
@@ -1332,15 +1387,26 @@ export default function SamplesPage() {
                                   <span className="text-sm">{Array.isArray(sample.attributes) ? sample.attributes.length : 0} attribute{Array.isArray(sample.attributes) && sample.attributes.length !== 1 ? 's' : ''}</span>
                                 </TableCell>
                                 <TableCell>
-                                  {sample.isLocked ? (
-                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                      Locked
-                                    </span>
-                                  ) : (
-                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                      Unlocked
-                                    </span>
-                                  )}
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        {sample.isLocked ? (
+                                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 cursor-help">
+                                            Locked
+                                          </span>
+                                        ) : (
+                                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 cursor-help">
+                                            Unlocked
+                                          </span>
+                                        )}
+                                      </TooltipTrigger>
+                                      <TooltipContent side="top" className="max-w-xs">
+                                        {sample.isLocked
+                                          ? "Has been used in a simulation and cannot be edited."
+                                          : "Has not been used in a simulation and can be edited."}
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
                                 </TableCell>
                               </TableRow>
                               {sample.expanded && (
@@ -1503,15 +1569,26 @@ export default function SamplesPage() {
                             <span className="text-sm">{Array.isArray(sample.attributes) ? sample.attributes.length : 0} attribute{Array.isArray(sample.attributes) && sample.attributes.length !== 1 ? 's' : ''}</span>
                           </TableCell>
                           <TableCell>
-                            {sample.isLocked ? (
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                Locked
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                Unlocked
-                              </span>
-                            )}
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  {sample.isLocked ? (
+                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 cursor-help">
+                                      Locked
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 cursor-help">
+                                      Unlocked
+                                    </span>
+                                  )}
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="max-w-xs">
+                                  {sample.isLocked
+                                    ? "Has been used in a simulation and cannot be edited."
+                                    : "Has not been used in a simulation and can be edited."}
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                           </TableCell>
                         </TableRow>
                         {sample.expanded && (

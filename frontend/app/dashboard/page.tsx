@@ -34,6 +34,7 @@ interface SimulationStep {
   label: string;
   instructions: string;
   temperature: number;
+  measures?: Array<{ id: string; title: string; description: string; range: string }>;
 }
 
 interface Folder {
@@ -122,12 +123,13 @@ export default function DashboardHistory() {
       .from("user_emails")
       .select("user_email, user_id, pic_url")
       .eq("user_id", userId)
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error("Error fetching user data:", error);
+      setUserData(null);
     } else {
-      setUserData(data);
+      setUserData(data ?? null);
     }
   };
 
@@ -521,7 +523,13 @@ export default function DashboardHistory() {
             experimentData.steps.map((step: any, stepIndex: number) => ({
               label: step.label || `Step ${stepIndex + 1}`,
               instructions: step.instructions || "No instructions provided",
-              temperature: (step.temperature * 100) || 50
+              temperature: (step.temperature !== undefined && step.temperature <= 1 ? step.temperature * 100 : step.temperature) || 50,
+              measures: Array.isArray(step.measures) ? step.measures.map((m: any) => ({
+                id: m.id,
+                title: m.title ?? "",
+                description: m.description ?? "",
+                range: typeof m.range === "string" ? m.range : (m.min != null && m.max != null ? `${m.min} - ${m.max}` : "")
+              })) : undefined
             })) : 
             [
               {
@@ -594,8 +602,38 @@ export default function DashboardHistory() {
         const dateB = new Date(b.created_at || 0).getTime();
         return dateB - dateA;
       });
-     
-      setProjects(formattedProjects);
+
+      // Prepend pending simulation from localStorage so it appears right away (before backend has written to Supabase)
+      let projectsToSet = formattedProjects;
+      if (typeof window !== "undefined") {
+        try {
+          const pendingRaw = localStorage.getItem("simulation-pending");
+          const pending = pendingRaw ? JSON.parse(pendingRaw) as { taskId: string; title: string; sample_name: string; created_at: string } : null;
+          if (pending) {
+            const alreadyInList = formattedProjects.some((p) => p.experiment_id === pending.taskId);
+            if (alreadyInList) {
+              localStorage.removeItem("simulation-pending");
+            } else {
+              const placeholder: Project = {
+                name: pending.title,
+                sample_name: pending.sample_name,
+                status: "Running",
+                progress: 0,
+                created_at: pending.created_at,
+                id: pending.taskId,
+                experiment_id: pending.taskId,
+                downloads: [],
+                steps: [{ label: "—", instructions: "Waiting for server…", temperature: 50 }],
+              };
+              projectsToSet = [placeholder, ...formattedProjects];
+            }
+          }
+        } catch (_) {
+          // ignore invalid or missing pending
+        }
+      }
+
+      setProjects(projectsToSet);
     } catch (error) {
       console.error("Error processing projects data:", error);
       setProjects([]);
@@ -863,6 +901,7 @@ export default function DashboardHistory() {
             progress: shouldStopPolling ? undefined : progressPercent
           };
           // When simulation just completed and has a download URL, add it in-place so we don't need getProjects
+          // Dedupe by id/url so we never add the same download twice if polling fires again before state updates
           if (shouldStopPolling && progressData.url) {
             const expData = progressData.experiment_data || {};
             const newDownload: Download = {
@@ -872,11 +911,15 @@ export default function DashboardHistory() {
               filename: expData.title || expData.simulation_name || `simulation_${progressData.id}`,
               created_at: progressData.created_at
             };
-            const combined = [...(project.downloads || []), newDownload].sort((a, b) => {
-              const tA = new Date(a.created_at || a.date).getTime();
-              const tB = new Date(b.created_at || b.date).getTime();
-              return tB - tA;
-            });
+            const existing = project.downloads || [];
+            const alreadyAdded = existing.some(d => d.id === newDownload.id || d.url === newDownload.url);
+            const combined = alreadyAdded
+              ? existing
+              : [...existing, newDownload].sort((a, b) => {
+                  const tA = new Date(a.created_at || a.date).getTime();
+                  const tB = new Date(b.created_at || b.date).getTime();
+                  return tB - tA;
+                });
             updated.downloads = combined;
           }
           return updated;
@@ -905,6 +948,20 @@ export default function DashboardHistory() {
       setContentLoaded(false);
     }
   }, [user?.user_id, isAuthenticated]); // Use user?.user_id instead of user object
+
+  // When a simulation was just submitted (pending in localStorage), refetch projects periodically so we replace placeholder with real row once backend has written
+  useEffect(() => {
+    if (!user || !isAuthenticated || typeof window === "undefined") return;
+    const pendingRaw = localStorage.getItem("simulation-pending");
+    if (!pendingRaw) return;
+    const interval = setInterval(() => {
+      if (!localStorage.getItem("simulation-pending")) {
+        return;
+      }
+      getProjects(user.user_id);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [user?.user_id, isAuthenticated]);
 
   // Poll for progress on running simulations
   useEffect(() => {

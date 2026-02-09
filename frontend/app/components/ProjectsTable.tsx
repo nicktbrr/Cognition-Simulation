@@ -22,6 +22,7 @@ interface SimulationStep {
   label: string;
   instructions: string;
   temperature: number;
+  measures?: Array<{ id: string; title: string; description: string; range: string }>;
 }
 
 interface Folder {
@@ -495,56 +496,24 @@ export default function ProjectsTable({
             )}
           </td>
           <td className="px-6 py-4">
-            {isInFolder ? (
-              <div className="ml-4">
-                <StatusBadge status={project.status} progress={project.progress} />
-              </div>
-            ) : (
-              <StatusBadge status={project.status} progress={project.progress} />
-            )}
+            <StatusBadge status={project.status} progress={project.progress} />
           </td>
           <td className="px-6 py-4 text-sm text-gray-900">
-            {isInFolder ? (
-              <div className="ml-4">
-                {project.sample_size ?? 10}
-              </div>
-            ) : (
-              project.sample_size ?? 10
-            )}
+            {project.sample_size ?? 10}
           </td>
           <td className="px-6 py-4 text-sm text-gray-900">
-            {isInFolder ? (
-              <div className="ml-4">
-                {project.sample_name}
-              </div>
-            ) : (
-              project.sample_name
-            )}
+            {project.sample_name}
           </td>
           <td className="px-6 py-4">
-            {isInFolder ? (
-              <div className="ml-4">
-                <div className="space-y-1">
-                  {project.downloads.slice(0, 3).map((download, idx) => (
-                    <DownloadButton 
-                      key={download.id}
-                      date={download.date}
-                      onClick={() => onDownload(download.url || '', download.filename || project.name)}
-                    />
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-1">
-                {project.downloads.slice(0, 3).map((download, idx) => (
-                  <DownloadButton 
-                    key={download.id}
-                    date={download.date}
-                    onClick={() => onDownload(download.url || '', download.filename || project.name)}
-                  />
-                ))}
-              </div>
-            )}
+            <div className="space-y-1">
+              {project.downloads.slice(0, 3).map((download, idx) => (
+                <DownloadButton 
+                  key={download.id}
+                  date={download.date}
+                  onClick={() => onDownload(download.url || '', download.filename || project.name)}
+                />
+              ))}
+            </div>
           </td>
           <td className="px-6 py-4"></td>
         </tr>
