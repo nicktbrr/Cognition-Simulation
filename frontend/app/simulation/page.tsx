@@ -114,6 +114,7 @@ function SimulationPageContent() {
   const hasInitiallyLoadedRef = useRef(false);
   const loadedModifyExperimentIdRef = useRef<string | null>(null);
   const originalExperimentDataRef = useRef<any>(null); // Store original experiment data for comparison
+  const [simulationHasBeenRun, setSimulationHasBeenRun] = useState(false);
 
   const getUserData = async (userId: string) => {
     const { data, error } = await supabase
@@ -1121,6 +1122,11 @@ function SimulationPageContent() {
         experimentData = {};
       }
 
+      // If simulation has already been run (not a draft), show read-only mode
+      const status = (data.status || "").toString().toLowerCase();
+      const isDraft = status === "draft";
+      setSimulationHasBeenRun(!isDraft);
+
       // Store original experiment data for comparison when submitting
       originalExperimentDataRef.current = JSON.parse(JSON.stringify(experimentData));
 
@@ -1191,6 +1197,7 @@ function SimulationPageContent() {
       setProcessTitle("");
       setStudyIntroduction("");
       setSelectedSample("");
+      setSimulationHasBeenRun(false);
       if (reactFlowRef.current) {
         reactFlowRef.current.clearFlow();
       }
@@ -1200,6 +1207,13 @@ function SimulationPageContent() {
       window.history.replaceState({}, '', url.toString());
     }
   }, [isNewSimulation, modifyExperimentId]);
+
+  // Reset read-only state when no longer modifying an experiment
+  useEffect(() => {
+    if (!modifyExperimentId) {
+      setSimulationHasBeenRun(false);
+    }
+  }, [modifyExperimentId]);
 
   // Load title, description, introduction, and sample size from localStorage on mount (only if not in modify mode and not new simulation)
   useEffect(() => {
@@ -1348,6 +1362,11 @@ function SimulationPageContent() {
       headerTitle=""
       userData={userData}
     >
+      {simulationHasBeenRun && (
+        <div className="w-full bg-red-400/85 text-white px-4 py-2 text-center text-sm font-medium">
+          This simulation has already been run and cannot be modified. You can copy the simulation from the dashboard and then edit the copy.
+        </div>
+      )}
       <SubHeader
         title="Simulation Whiteboard"
         description="Design and visualize your simulation flow"
@@ -1358,6 +1377,7 @@ function SimulationPageContent() {
             onClick={handleSaveDraft}
             variant="outline"
             className="flex items-center gap-2"
+            disabled={simulationHasBeenRun}
           >
             <Save className="w-4 h-4" />
             Save Draft
@@ -1366,6 +1386,7 @@ function SimulationPageContent() {
             type="button"
             onClick={handleSubmitSimulation}
             disabled={
+              simulationHasBeenRun ||
               isSimulationRunning ||
               !!titleError ||
               (isSampleSizeFocused
@@ -1407,12 +1428,13 @@ function SimulationPageContent() {
               placeholder="Describe the study you want to simulate..."
               value={processDescription}
               onChange={(e) => setProcessDescription(e.target.value)}
-              disabled={isGeneratingSteps}
+              disabled={isGeneratingSteps || simulationHasBeenRun}
+              readOnly={simulationHasBeenRun}
               className="w-full h-32 px-3 py-2 text-sm bg-white border border-gray-200 rounded resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed mb-2"
             />
             <Button 
               onClick={handleGenerateSteps}
-              disabled={isGeneratingSteps}
+              disabled={isGeneratingSteps || simulationHasBeenRun}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
             >
               {isGeneratingSteps ? (
@@ -1485,6 +1507,7 @@ function SimulationPageContent() {
                 variant="outline" 
                 className="flex-1 text-xs"
                 onClick={handleClearAll}
+                disabled={simulationHasBeenRun}
               >
                 Clear All
               </Button>
@@ -1492,6 +1515,7 @@ function SimulationPageContent() {
                 variant="outline" 
                 className="flex-1 text-xs"
                 onClick={handleRealign}
+                disabled={simulationHasBeenRun}
               >
                 Realign
               </Button>
@@ -1533,9 +1557,10 @@ function SimulationPageContent() {
               </div>
             ) : (
               <select 
-                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded text-sm"
+                className={`w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded text-sm ${simulationHasBeenRun ? 'cursor-not-allowed opacity-80' : ''}`}
                 value={selectedSample}
                 onChange={(e) => setSelectedSample(e.target.value)}
+                disabled={simulationHasBeenRun}
                 >
                 <option value="">Select a sample</option>
                 {samples.map((s) => (
@@ -1559,6 +1584,8 @@ function SimulationPageContent() {
                 value={sampleSizeInput}
                 onChange={(e) => setSampleSizeInput(e.target.value)}
                 onFocus={() => setIsSampleSizeFocused(true)}
+                readOnly={simulationHasBeenRun}
+                disabled={simulationHasBeenRun}
                 onBlur={() => {
                   setIsSampleSizeFocused(false);
                   const raw = sampleSizeInput.trim();
@@ -1589,7 +1616,7 @@ function SimulationPageContent() {
                     setSampleSizeError("");
                   }
                 }}
-                className={`w-full px-3 py-2 bg-white border rounded text-sm focus:outline-none focus:ring-2 focus:border-transparent ${
+                className={`w-full px-3 py-2 bg-white border rounded text-sm focus:outline-none focus:ring-2 focus:border-transparent ${simulationHasBeenRun ? 'bg-gray-100 cursor-not-allowed' : ''} ${
                   !isSampleSizeFocused && sampleSizeError
                     ? "border-red-500 focus:ring-red-500"
                     : "border-gray-200 focus:ring-blue-500"
@@ -1633,7 +1660,9 @@ function SimulationPageContent() {
                     placeholder="Enter study title..."
                     value={processTitle}
                     onChange={(e) => handleStudyTitleChange(e.target.value)}
-                    className={`w-full px-3 py-2 bg-white border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent text-sm h-[58px] ${
+                    readOnly={simulationHasBeenRun}
+                    disabled={simulationHasBeenRun}
+                    className={`w-full px-3 py-2 bg-white border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent text-sm h-[58px] ${simulationHasBeenRun ? 'bg-gray-100 cursor-not-allowed' : ''} ${
                       titleError
                         ? 'border-red-500 focus:ring-red-500'
                         : 'border-gray-200 focus:ring-blue-500'
@@ -1653,7 +1682,9 @@ function SimulationPageContent() {
                     placeholder="Enter study introduction..."
                     value={studyIntroduction}
                     onChange={(e) => setStudyIntroduction(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    readOnly={simulationHasBeenRun}
+                    disabled={simulationHasBeenRun}
+                    className={`w-full px-3 py-2 bg-white border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm ${simulationHasBeenRun ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                     rows={2}
                   />
                 </div>
@@ -1672,6 +1703,7 @@ function SimulationPageContent() {
                   onColorApplied={() => setColorArmed(false)}
                   measures={measures}
                   loadingMeasures={loadingMeasures}
+                  readOnly={simulationHasBeenRun}
                 />
               </div>
             </div>

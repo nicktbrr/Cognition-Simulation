@@ -542,6 +542,7 @@ export default function SamplesPage() {
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.setData("text/plain", sampleId);
     e.stopPropagation();
+    document.body.style.cursor = "grabbing";
   };
 
   const handleDragOver = (e: React.DragEvent, folderId: string | null | 'root') => {
@@ -568,6 +569,7 @@ export default function SamplesPage() {
   const handleDragEnd = () => {
     setDraggedSample(null);
     setDragOverFolder(null);
+    document.body.style.cursor = "";
   };
 
   const fetchSamples = async (userId: string) => {
@@ -841,6 +843,12 @@ export default function SamplesPage() {
         setOpenDropdown(null);
       }
     }
+  };
+
+  const handleRowDoubleClick = (sample: Sample) => {
+    setEditingSample(sample);
+    setIsEditModalOpen(true);
+    setOpenDropdown(null);
   };
 
   const handleDuplicateSample = async (sampleId: string) => {
@@ -1307,10 +1315,11 @@ export default function SamplesPage() {
                           }).map((sample) => (
                             <React.Fragment key={sample.id}>
                               <TableRow 
-                                className={`group hover:bg-accent/50 transition-fast cursor-grab ${draggedSample === sample.id ? 'opacity-50' : ''}`}
+                                className={`group hover:bg-accent/50 transition-fast cursor-pointer ${draggedSample === sample.id ? 'opacity-50' : ''}`}
                                 draggable={true}
                                 onDragStart={(e) => handleDragStart(e, sample.id)}
                                 onDragEnd={handleDragEnd}
+                                onDoubleClick={() => handleRowDoubleClick(sample)}
                               >
                                 <TableCell>
                                   <div className="ml-4">
@@ -1491,10 +1500,11 @@ export default function SamplesPage() {
                     }).map((sample) => (
                       <React.Fragment key={sample.id}>
                         <TableRow 
-                          className={`group hover:bg-accent/50 transition-fast cursor-grab ${draggedSample === sample.id ? 'opacity-50' : ''}`}
+                          className={`group hover:bg-accent/50 transition-fast cursor-pointer ${draggedSample === sample.id ? 'opacity-50' : ''}`}
                           draggable={true}
                           onDragStart={(e) => handleDragStart(e, sample.id)}
                           onDragEnd={handleDragEnd}
+                          onDoubleClick={() => handleRowDoubleClick(sample)}
                         >
                           <TableCell>
                             <Button
@@ -1695,7 +1705,7 @@ export default function SamplesPage() {
             <Edit2 className="w-4 h-4 mr-3" />
             Rename
           </button>
-          {/* 2. Copy & Edit */}
+          {/* 2. Copy */}
           <button
             onClick={(e) => {
               e.preventDefault();
@@ -1708,7 +1718,7 @@ export default function SamplesPage() {
             className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
           >
             <Copy className="w-4 h-4 mr-3" />
-            Copy & Edit
+            Copy
           </button>
           {/* 4. Move to Folder */}
           <button
@@ -1766,6 +1776,7 @@ export default function SamplesPage() {
           onSave={handleUpdateSample}
           initialSample={editingSample}
           checkNameExists={isSampleNameTaken}
+          readOnly={editingSample.isLocked ?? false}
         />
       )}
 
@@ -1782,7 +1793,7 @@ export default function SamplesPage() {
               </div>
             </div>
             <p className="text-gray-700 mb-6">
-              Samples may be edited up until the first time they are used. You may "Copy & Edit" the sample to edit at any point.
+              Samples may be edited up until the first time they are used. You may make a copy of the sample to edit it at any point.
             </p>
             <div className="flex gap-3 justify-end">
               <Button
@@ -1805,7 +1816,7 @@ export default function SamplesPage() {
                 }}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white"
               >
-                Copy & Edit
+                Copy
               </Button>
             </div>
           </div>

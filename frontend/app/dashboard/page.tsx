@@ -80,9 +80,9 @@ export default function DashboardHistory() {
   const [contentLoaded, setContentLoaded] = useState(false);
   const [projectToRename, setProjectToRename] = useState<{ id: string; name: string } | null>(null);
   const [newName, setNewName] = useState("");
-  const [showReplicateConfirm, setShowReplicateConfirm] = useState(false);
-  const [projectToReplicate, setProjectToReplicate] = useState<string | null>(null);
   const [isReplicating, setIsReplicating] = useState(false);
+  const [showRunAgainConfirm, setShowRunAgainConfirm] = useState(false);
+  const [projectToRunAgain, setProjectToRunAgain] = useState<string | null>(null);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [showNewFolderModal, setShowNewFolderModal] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
@@ -728,53 +728,107 @@ export default function DashboardHistory() {
     return true;
   };
 
-  const handleReplicate = async (projectId: string) => {
-    setProjectToReplicate(projectId);
-    setShowReplicateConfirm(true);
-    return true;
-  };
-
-  const confirmReplicate = async () => {
-    if (!projectToReplicate || !user || isReplicating) {
-      return;
-    }
+  const handleCopy = async (projectId: string) => {
+    if (!user || isReplicating) return true;
 
     setIsReplicating(true);
     try {
-      // Fetch the experiment data from Supabase
       const { data, error } = await supabase
         .from("experiments")
         .select("*")
-        .eq("experiment_id", projectToReplicate)
+        .eq("experiment_id", projectId)
         .single();
 
       if (error) {
         console.error("Error fetching experiment:", error);
-        alert("Error loading experiment for replication. Please try again.");
+        alert("Error loading experiment for copy. Please try again.");
+        return true;
+      }
+
+      const expData = data.experiment_data || {};
+      const originalTitle = (expData.title || expData.simulation_name || "Simulation").trim() || "Simulation";
+
+      let copyName = `${originalTitle} (Copy)`;
+      let counter = 1;
+      while (isSimulationNameTaken(copyName)) {
+        counter++;
+        copyName = `${originalTitle} (Copy ${counter})`;
+      }
+
+      const newExperimentId = crypto.randomUUID();
+      const copiedExperimentData = {
+        ...expData,
+        title: copyName,
+        ...(typeof expData.simulation_name !== "undefined" ? { simulation_name: copyName } : {}),
+      };
+
+      const { error: insertError } = await supabase
+        .from("experiments")
+        .insert({
+          experiment_id: newExperimentId,
+          user_id: user.user_id,
+          experiment_data: copiedExperimentData,
+          status: "Draft",
+          sample_name: data.sample_name ?? "",
+          folder_id: data.folder_id ?? null,
+          created_at: new Date().toISOString(),
+        });
+
+      if (insertError) {
+        console.error("Error creating copy:", insertError);
+        alert("Error creating copy. Please try again.");
+        return true;
+      }
+
+      await getProjects(user.user_id);
+      alert("Copy created. It has been saved as a draft. Open it from the simulation page to edit or run.");
+    } catch (error) {
+      console.error("Error copying experiment:", error);
+      alert(`Error copying experiment: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsReplicating(false);
+    }
+    return true;
+  };
+
+  const handleRunAgain = async (projectId: string) => {
+    setProjectToRunAgain(projectId);
+    setShowRunAgainConfirm(true);
+    return true;
+  };
+
+  const confirmRunAgain = async () => {
+    if (!projectToRunAgain || !user || isReplicating) return;
+
+    setIsReplicating(true);
+    try {
+      const { data, error } = await supabase
+        .from("experiments")
+        .select("*")
+        .eq("experiment_id", projectToRunAgain)
+        .single();
+
+      if (error) {
+        console.error("Error fetching experiment:", error);
+        alert("Error loading experiment. Please try again.");
         setIsReplicating(false);
         return;
       }
 
       const experimentData = data.experiment_data;
-      
-      // Get the user's Supabase access token
       const { data: { session } } = await supabase.auth.getSession();
       const accessToken = session?.access_token;
       if (!accessToken) {
         throw new Error("No Supabase access token found");
       }
 
-      // Generate new UUID for the replicated experiment
       const uuid = crypto.randomUUID();
-
-      // Define backend URL based on environment
       const prod = process.env.NEXT_PUBLIC_DEV || "production";
       const url =
         prod === "development"
           ? "http://127.0.0.1:5000/api/evaluate"
           : "https://cognition-backend-81313456654.us-west1.run.app/api/evaluate";
 
-      // Submit the replicated experiment
       const response = await fetch(url, {
         method: "POST",
         headers: {
@@ -787,32 +841,32 @@ export default function DashboardHistory() {
       const result = await response.json();
 
       if (result.status === "started") {
-        // Keep replicated experiment in the same folder as the original (so it appears inside the folder and groups with it)
         const originalFolderId = data.folder_id ?? null;
         await supabase
           .from("experiments")
           .update({ folder_id: originalFolderId })
           .eq("experiment_id", uuid);
 
-        // Refresh projects to show the new experiment (in folder, with new run/download date when it completes)
         await getProjects(user.user_id);
-        alert("Experiment replicated successfully! The new simulation is now running.");
+        setShowRunAgainConfirm(false);
+        setProjectToRunAgain(null);
+        alert("Experiment is running. The new simulation will appear in your list when it completes.");
       } else {
-        throw new Error(result.message || 'Replication failed to start');
+        throw new Error(result.message || "Failed to start experiment");
       }
     } catch (error) {
-      console.error("Error replicating experiment:", error);
-      alert(`Error replicating experiment: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error("Error running experiment again:", error);
+      alert(`Error: ${error instanceof Error ? error.message : "Unknown error"}`);
     } finally {
       setIsReplicating(false);
-      setShowReplicateConfirm(false);
-      setProjectToReplicate(null);
+      setShowRunAgainConfirm(false);
+      setProjectToRunAgain(null);
     }
   };
 
-  const cancelReplicate = () => {
-    setShowReplicateConfirm(false);
-    setProjectToReplicate(null);
+  const cancelRunAgain = () => {
+    setShowRunAgainConfirm(false);
+    setProjectToRunAgain(null);
   };
 
   const handleDelete = async (projectId: string) => {
@@ -1092,7 +1146,8 @@ export default function DashboardHistory() {
               onRename={handleStartRename}
               onModify={handleModify}
               onDelete={handleDelete}
-              onReplicate={handleReplicate}
+              onReplicate={handleCopy}
+              onRunAgain={handleRunAgain}
               onMoveToFolder={(projectId) => {
                 setProjectToMove(projectId);
                 setShowMoveToFolderModal(true);
@@ -1111,6 +1166,51 @@ export default function DashboardHistory() {
           </div>
         )}
       </div>
+
+      {/* Run Again (Replicate) Confirmation Modal */}
+      {showRunAgainConfirm && createPortal(
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[99999]">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                <Play className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Run experiment again</h3>
+                <p className="text-sm text-gray-500">This will rerun the experiment with the same configuration</p>
+              </div>
+            </div>
+            <p className="text-gray-700 mb-6">
+              Are you sure you want to run this experiment again? The experiment will be rerun with the exact same configuration, steps, and sample. A new simulation will be created and started.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <Button
+                onClick={cancelRunAgain}
+                variant="outline"
+                className="px-4 py-2"
+                disabled={isReplicating}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={confirmRunAgain}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2"
+                disabled={isReplicating}
+              >
+                {isReplicating ? (
+                  <>
+                    <Spinner size="sm" />
+                    <span>Starting...</span>
+                  </>
+                ) : (
+                  "Run again"
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && createPortal(
@@ -1145,51 +1245,6 @@ export default function DashboardHistory() {
             </div>
           </div>
         </div>,
-        document.body
-      )}
-
-      {/* Replicate Confirmation Modal */}
-      {showReplicateConfirm && createPortal(
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[99999]">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                <Play className="w-5 h-5 text-blue-600" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">Replicate Experiment</h3>
-                <p className="text-sm text-gray-500">This will rerun the experiment exactly</p>
-              </div>
-            </div>
-            <p className="text-gray-700 mb-6">
-              Are you sure you want to replicate this experiment? The experiment will be rerun with the exact same configuration, steps, and sample. A new simulation will be created and started.
-            </p>
-            <div className="flex gap-3 justify-end">
-              <Button
-                onClick={cancelReplicate}
-                variant="outline"
-                className="px-4 py-2"
-                disabled={isReplicating}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={confirmReplicate}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2"
-                disabled={isReplicating}
-              >
-                {isReplicating ? (
-                  <>
-                    <Spinner size="sm" />
-                    <span>Replicating...</span>
-                  </>
-                ) : (
-                  "Confirm Replicate"
-                )}
-              </Button>
-            </div>
-          </div>
-          </div>,
         document.body
       )}
 

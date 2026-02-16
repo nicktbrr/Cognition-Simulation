@@ -46,6 +46,7 @@ interface NewSampleModalProps {
   onSave: (sampleName: string, selectedAttributes: Attribute[], attributeSelections: AttributeSelection[]) => void;
   initialSample?: Sample | null;
   checkNameExists?: (name: string, excludeId?: string) => boolean;
+  readOnly?: boolean;
 }
 
 const demographicsAttributes: Attribute[] = demographicsAttributesData as Attribute[];
@@ -98,7 +99,7 @@ const allCategories = [
   { name: "Other", attributes: otherAttributes, expanded: false },
 ];
 
-export default function NewSampleModal({ isOpen, onClose, onSave, initialSample, checkNameExists }: NewSampleModalProps) {
+export default function NewSampleModal({ isOpen, onClose, onSave, initialSample, checkNameExists, readOnly = false }: NewSampleModalProps) {
   const [sampleName, setSampleName] = useState<string>('');
   const [selectedAttributes, setSelectedAttributes] = useState<Attribute[]>([]);
   const [attributeSelections, setAttributeSelections] = useState<AttributeSelection[]>([]);
@@ -127,6 +128,8 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
     "Languages": false,
     "Other": false,
   });
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [showUnsavedConfirm, setShowUnsavedConfirm] = useState(false);
 
   const ageValidation = useMemo(() => {
     const minNum = tempAgeInput.min === '' ? NaN : parseInt(tempAgeInput.min, 10);
@@ -152,12 +155,15 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
         setSampleName('');
       }
       setNameError(''); // Reset error when modal opens
+      setHasUnsavedChanges(false);
+      setShowUnsavedConfirm(false);
     }
   }, [isOpen, initialSample]);
 
   // Check for duplicate name when sample name changes
   const handleSampleNameChange = (name: string) => {
     setSampleName(name);
+    if (!readOnly) setHasUnsavedChanges(true);
     
     // Check for duplicate name if the function is provided
     if (checkNameExists && name.trim()) {
@@ -304,6 +310,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
       } else {
         setSelectedAttributes([...selectedAttributes, attribute]);
       }
+      if (!readOnly) setHasUnsavedChanges(true);
     }
   };
 
@@ -361,6 +368,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
 
         // Mark age range as checked
         setCheckedOptions(prev => new Set(prev).add(`${activeAttributePanel.id}-age-range`));
+        setHasUnsavedChanges(true);
 
         // Close panel
         setActiveAttributePanel(null);
@@ -377,6 +385,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
           const filtered = prev.filter(sel => sel.attributeId !== activeAttributePanel.id);
           return [...filtered, newSelection];
         });
+        setHasUnsavedChanges(true);
 
         // Add to selected attributes if not already there
         if (!selectedAttributes.some(attr => attr.id === activeAttributePanel.id)) {
@@ -415,6 +424,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
       }
       return newSet;
     });
+    setHasUnsavedChanges(true);
   };
 
   const handleToggleAgeRange = (attributeId: string) => {
@@ -428,6 +438,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
       }
       return newSet;
     });
+    setHasUnsavedChanges(true);
   };
 
   const isOptionChecked = (attributeId: string, optionId: string) => {
@@ -484,7 +495,20 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
     setCheckedOptions(new Set());
     setSearchQuery('');
     setNameError('');
+    setShowUnsavedConfirm(false);
     onClose();
+  };
+
+  const attemptClose = () => {
+    if (readOnly) {
+      handleClose();
+      return;
+    }
+    if (hasUnsavedChanges) {
+      setShowUnsavedConfirm(true);
+    } else {
+      handleClose();
+    }
   };
 
   const getSelectedOptionsForAttribute = (attributeId: string) => {
@@ -509,12 +533,17 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
 
   return (
     <>
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-end z-50">
-        <div className="bg-white h-screen flex flex-col shadow-2xl" style={{width: 'calc(100% - 224px)'}}>
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-end z-50" onClick={attemptClose}>
+        <div className="bg-white h-screen flex flex-col shadow-2xl" style={{width: 'calc(100% - 224px)'}} onClick={(e) => e.stopPropagation()}>
           {/* Header */}
           <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0">
             <div className="flex-1">
-              <h2 className="text-xl font-semibold text-blue-600 mb-3">{initialSample ? 'Edit Sample' : 'New Sample'}</h2>
+              <h2 className="text-xl font-semibold text-blue-600 mb-3">{readOnly ? 'View Sample' : (initialSample ? 'Edit Sample' : 'New Sample')}</h2>
+              {readOnly && (
+                <p className="text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3 text-sm">
+                  This sample is locked and cannot be edited.
+                </p>
+              )}
               <div>
                 <label htmlFor="sample-name" className="block text-sm font-medium text-gray-700 mb-2">
                   Sample Name
@@ -525,7 +554,8 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
                   value={sampleName}
                   onChange={(e) => handleSampleNameChange(e.target.value)}
                   placeholder="Enter sample name"
-                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent ${
+                  readOnly={readOnly}
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent ${readOnly ? 'bg-gray-100 cursor-not-allowed' : ''} ${
                     nameError 
                       ? 'border-red-500 focus:ring-red-500' 
                       : 'border-gray-300 focus:ring-blue-500'
@@ -537,7 +567,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
               </div>
             </div>
             <button
-              onClick={handleClose}
+              onClick={attemptClose}
               className="text-gray-400 hover:text-gray-600 ml-4"
             >
               <X className="w-6 h-6" />
@@ -545,6 +575,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
           </div>
 
           {/* Explore Attributes Header */}
+          {!readOnly && (
           <div className="p-6 border-b border-gray-200 flex-shrink-0">
             <h3 className="text-lg font-semibold text-blue-600 mb-4">Explore Attributes</h3>
             {/* Search Bar */}
@@ -559,10 +590,12 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
               />
             </div>
           </div>
+          )}
 
           {/* Main Content Area - Split into two halves */}
           <div className="flex-1 flex flex-col" style={{ minHeight: 0 }}>
-            {/* Top Half - Scrollable Categories */}
+            {/* Top Half - Scrollable Categories (hidden when read-only) */}
+            {!readOnly && (
             <div className="flex-1 overflow-y-auto border-b border-gray-200" style={{ minHeight: 0 }}>
               <div className="p-6">
                 {allCategories.map((category) => {
@@ -636,6 +669,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
                 )}
               </div>
             </div>
+            )}
 
             {/* Bottom Half - Selected Attributes */}
             <div className="flex-1 p-6 bg-white overflow-y-auto" style={{ minHeight: 0 }}>
@@ -659,6 +693,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
                             <div className="text-sm font-medium text-gray-900 mb-1">{attribute.category}</div>
                             <div className="text-base font-semibold text-blue-600 truncate">{attribute.label}</div>
                           </div>
+                          {!readOnly && (
                           <div className="flex items-center gap-1 flex-shrink-0 ml-2">
                             {(attribute.id === 'age' || (attribute.options && attribute.options.length > 0)) && (
                               <button
@@ -673,6 +708,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
                               onClick={() => {
                                 setSelectedAttributes(prev => prev.filter(attr => attr.id !== attribute.id));
                                 setAttributeSelections(prev => prev.filter(sel => sel.attributeId !== attribute.id));
+                                setHasUnsavedChanges(true);
                               }}
                               className="text-gray-400 hover:text-gray-600 p-1 rounded"
                               title="Remove attribute"
@@ -680,6 +716,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
                               <X className="w-4 h-4" />
                             </button>
                           </div>
+                          )}
                         </div>
                         
                         {selectedOptions.length > 0 && (
@@ -691,13 +728,14 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
                                 <div
                                   key={option.id}
                                   onClick={() => {
+                                    if (readOnly) return;
                                     if (attribute.id === 'age' || option.id === 'age-range') {
                                       handleToggleAgeRange(attribute.id);
                                     } else {
                                       handleToggleOption(attribute.id, option.id);
                                     }
                                   }}
-                                  className="flex items-center space-x-2 text-sm text-gray-900 cursor-pointer hover:bg-gray-100 rounded px-2 py-1 -mx-2 -my-1 transition-colors"
+                                  className={`flex items-center space-x-2 text-sm text-gray-900 rounded px-2 py-1 -mx-2 -my-1 transition-colors ${readOnly ? '' : 'cursor-pointer hover:bg-gray-100'}`}
                                 >
                                   {isChecked ? (
                                     <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0 cursor-pointer">
@@ -732,27 +770,50 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
                 </div>
               </div>
             )}
-
-            {/* Action Buttons */}
-            <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-gray-200">
-              <Button
-                onClick={handleClose}
-                variant="outline"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleSave}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-                disabled={selectedAttributes.length === 0 || !sampleName.trim() || !!nameError}
-              >
-                {initialSample ? 'Update Sample' : 'Create Sample'}
-              </Button>
             </div>
           </div>
+
+          {/* Action Buttons - fixed at bottom of screen */}
+          <div className="flex-shrink-0 flex justify-end gap-3 p-6 border-t border-gray-200 bg-white">
+            <Button
+              onClick={readOnly ? handleClose : attemptClose}
+              variant={readOnly ? "default" : "outline"}
+            >
+              {readOnly ? 'Close' : 'Cancel'}
+            </Button>
+            {!readOnly && (
+            <Button
+              onClick={handleSave}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+              disabled={selectedAttributes.length === 0 || !sampleName.trim() || !!nameError}
+            >
+              {initialSample ? 'Update Sample' : 'Create Sample'}
+            </Button>
+            )}
           </div>
         </div>
       </div>
+
+      {/* Unsaved changes confirmation */}
+      {showUnsavedConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]" onClick={() => setShowUnsavedConfirm(false)}>
+          <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4 shadow-xl border border-gray-200" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Unsaved changes</h3>
+            <p className="text-gray-600 text-sm mb-6">You have unsaved changes. Save or discard?</p>
+            <div className="flex flex-col gap-2">
+              <Button onClick={() => { handleSave(); setShowUnsavedConfirm(false); }} className="w-full bg-blue-600 hover:bg-blue-700 text-white">
+                Save changes
+              </Button>
+              <Button onClick={handleClose} variant="outline" className="w-full text-red-600 border-red-200 hover:bg-red-50">
+                Discard changes
+              </Button>
+              <Button onClick={() => setShowUnsavedConfirm(false)} variant="ghost" className="w-full">
+                Keep editing
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Attribute Detail Tooltip */}
       {activeAttributePanel && panelPosition && (

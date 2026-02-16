@@ -45,6 +45,7 @@ interface ReactFlowAppProps {
   onColorApplied?: () => void;
   measures?: Measure[];
   loadingMeasures?: boolean;
+  readOnly?: boolean;
 }
 
 export interface ReactFlowRef {
@@ -56,7 +57,7 @@ export interface ReactFlowRef {
   canRedo: () => boolean;
 }
 
-const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlowDataChange, selectedColor = '#3b82f6', colorArmed = false, onColorApplied, measures = [], loadingMeasures = false }, ref) => {
+const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlowDataChange, selectedColor = '#3b82f6', colorArmed = false, onColorApplied, measures = [], loadingMeasures = false, readOnly = false }, ref) => {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
@@ -632,6 +633,7 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
   return (
     <div ref={containerRef} className="w-full h-full relative bg-gray-50">
       {/* Add Node Button */}
+      {!readOnly && (
       <div className="absolute top-4 left-4 z-10">
         <Button 
           onClick={handleAddNode} 
@@ -641,6 +643,7 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
           Add Node
         </Button>
       </div>
+      )}
 
       {/* Fullscreen Toggle Button - Lower Left */}
       <div className="absolute bottom-4 left-4 z-10">
@@ -670,19 +673,21 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
+        onConnect={readOnly ? undefined : onConnect}
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
-        onNodeDragStart={() => {
+        onNodeDragStart={readOnly ? undefined : () => {
           isDraggingRef.current = true
         }}
-        onNodeDragStop={() => {
+        onNodeDragStop={readOnly ? undefined : () => {
           isDraggingRef.current = false
-          // Save to history when drag ends
           setTimeout(() => {
             saveToHistory()
           }, 0)
         }}
+        nodesDraggable={!readOnly}
+        nodesConnectable={!readOnly}
+        elementsSelectable={!readOnly}
         isValidConnection={isValidConnection}
         nodeTypes={nodeTypes}
         fitView
@@ -710,7 +715,7 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
 
 ReactFlowComponent.displayName = 'ReactFlowComponent'
 
-const ReactFlowApp = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlowDataChange, selectedColor, colorArmed, onColorApplied, measures, loadingMeasures }, ref) => {
+const ReactFlowApp = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlowDataChange, selectedColor, colorArmed, onColorApplied, measures, loadingMeasures, readOnly }, ref) => {
   return (
     <ReactFlowProvider>
       <ReactFlowComponent 
@@ -721,6 +726,7 @@ const ReactFlowApp = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlowDataCh
         onColorApplied={onColorApplied}
         measures={measures}
         loadingMeasures={loadingMeasures}
+        readOnly={readOnly}
       />
     </ReactFlowProvider>
   )

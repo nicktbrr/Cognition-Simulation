@@ -6,9 +6,11 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  /** When provided, rendered at the bottom of the modal (always visible, not scrollable) */
+  footer?: React.ReactNode;
 }
 
-export default function Modal({ isOpen, onClose, title, children }: ModalProps) {
+export default function Modal({ isOpen, onClose, title, children, footer }: ModalProps) {
   // Close modal on escape key
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
@@ -39,9 +41,9 @@ export default function Modal({ isOpen, onClose, title, children }: ModalProps) 
       />
       
       {/* Modal */}
-      <div className="relative bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+      <div className={`relative bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 flex flex-col ${footer ? 'max-h-[90vh] overflow-hidden' : 'max-h-[90vh] overflow-y-auto'}`}>
         {/* Header with Close Button */}
-        <div className="flex items-start justify-between p-6 pb-4">
+        <div className="flex items-start justify-between p-6 pb-4 flex-shrink-0">
           <div className="flex-1">
             <h2 className="text-2xl font-semibold text-blue-600 mb-2">{title}</h2>
             <p className="text-gray-600 text-sm">
@@ -56,10 +58,17 @@ export default function Modal({ isOpen, onClose, title, children }: ModalProps) 
           </button>
         </div>
         
-        {/* Content */}
-        <div className="px-6 pb-6">
+        {/* Content - scrollable when footer is present */}
+        <div className={`px-6 ${footer ? 'flex-1 min-h-0 overflow-y-auto pb-4' : 'pb-6'}`}>
           {children}
         </div>
+
+        {/* Optional footer - fixed at bottom */}
+        {footer != null && (
+          <div className="flex-shrink-0 flex justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-white rounded-b-lg">
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   );
