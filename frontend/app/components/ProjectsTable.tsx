@@ -53,6 +53,7 @@ interface ProjectsTableProps {
   onModify?: (projectId: string) => Promise<boolean>;
   onDelete?: (projectId: string) => Promise<boolean>;
   onReplicate?: (projectId: string) => Promise<boolean>;
+  onRunAgain?: (projectId: string) => Promise<boolean>;
   onMoveToFolder?: (projectId: string) => void;
   onDropToFolder?: (projectId: string, folderId: string | null) => void;
   onRenameFolder?: (folderId: string, currentName: string) => void;
@@ -74,6 +75,7 @@ export default function ProjectsTable({
   onModify, 
   onDelete, 
   onReplicate,
+  onRunAgain,
   onMoveToFolder,
   onDropToFolder,
   onRenameFolder,
@@ -201,6 +203,7 @@ export default function ProjectsTable({
     e.dataTransfer.effectAllowed = "move";
     // Store the project ID in dataTransfer for better compatibility
     e.dataTransfer.setData("text/plain", projectId);
+    if (typeof document !== "undefined") document.body.style.cursor = "grabbing";
     // Allow dragging from anywhere
     e.stopPropagation();
   };
@@ -230,6 +233,7 @@ export default function ProjectsTable({
   const handleDragEnd = () => {
     setDraggedProject(null);
     setDragOverFolder(null);
+    if (typeof document !== "undefined") document.body.style.cursor = "";
   };
 
   // Group sorted projects by folder
@@ -257,7 +261,7 @@ export default function ProjectsTable({
     return (
       <Fragment key={project.id || index}>
         <tr 
-          className={`${isInFolder ? 'bg-gray-50 hover:bg-gray-100' : 'hover:bg-gray-50'} ${draggedProject === projectId ? 'opacity-50' : ''}`}
+          className={`cursor-pointer ${isInFolder ? 'bg-gray-50 hover:bg-gray-100' : 'hover:bg-gray-50'} ${draggedProject === projectId ? 'opacity-50' : ''}`}
           draggable={true}
           onDragStart={(e) => {
             if (projectId) {
@@ -269,6 +273,7 @@ export default function ProjectsTable({
             // Prevent default to allow drop
             e.preventDefault();
           }}
+          onDoubleClick={() => onModify?.(projectId)}
         >
           <td className="px-6 py-4">
             {isInFolder ? (
@@ -331,35 +336,26 @@ export default function ProjectsTable({
                     </>
                   ) : (
                     <>
-                      <button 
-                        onClick={(e) => {
-                          if (draggedProject) {
-                            e.preventDefault();
-                            return;
-                          }
-                          toggleRowExpansion(project.id!);
-                        }}
-                        onMouseDown={(e) => {
-                          if (!draggedProject) {
+                      <div className="flex items-center gap-2 text-left">
+                        <button
+                          type="button"
+                          onClick={(e) => {
                             e.stopPropagation();
-                          }
-                        }}
-                        className="flex items-center gap-2 text-left"
-                      >
-                        <div 
-                          className="w-8 h-8 flex items-center justify-center"
-                          style={{
-                            borderRadius: 'calc(var(--radius) - 2px)'
+                            if (draggedProject) return;
+                            toggleRowExpansion(project.id!);
                           }}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          className="w-8 h-8 flex items-center justify-center flex-shrink-0 rounded hover:bg-gray-200/80 transition-colors"
+                          style={{ borderRadius: 'calc(var(--radius) - 2px)' }}
                         >
                           <ChevronDown 
                             className={`w-4 h-4 transition-transform ${
                               expandedRows.has(project.id!) ? '' : '-rotate-90'
                             }`}
                           />
-                        </div>
+                        </button>
                         <span className="font-medium text-gray-900">{project.name}</span>
-                      </button>
+                      </div>
                       <ProjectDropdown
                         isOpen={projectDropdowns.has(project.id!)}
                         onToggle={() => toggleProjectDropdown(project.id!)}
@@ -369,6 +365,7 @@ export default function ProjectsTable({
                           toggleProjectDropdown(project.id!);
                         }}
                         onReplicate={() => onReplicate?.(project.id!)}
+                        onRunAgain={() => onRunAgain?.(project.id!)}
                         onModify={() => onModify?.(project.id!)}
                         onDelete={() => onDelete?.(project.id!)}
                         onMoveToFolder={(folderId) => {
@@ -442,35 +439,26 @@ export default function ProjectsTable({
                   </>
                 ) : (
                   <>
-                    <button 
-                      onClick={(e) => {
-                        if (draggedProject) {
-                          e.preventDefault();
-                          return;
-                        }
-                        toggleRowExpansion(project.id!);
-                      }}
-                      onMouseDown={(e) => {
-                        if (!draggedProject) {
+                    <div className="flex items-center gap-2 text-left">
+                      <button
+                        type="button"
+                        onClick={(e) => {
                           e.stopPropagation();
-                        }
-                      }}
-                      className="flex items-center gap-2 text-left"
-                    >
-                      <div 
-                        className="w-8 h-8 flex items-center justify-center"
-                        style={{
-                          borderRadius: 'calc(var(--radius) - 2px)'
+                          if (draggedProject) return;
+                          toggleRowExpansion(project.id!);
                         }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        className="w-8 h-8 flex items-center justify-center flex-shrink-0 rounded hover:bg-gray-200/80 transition-colors"
+                        style={{ borderRadius: 'calc(var(--radius) - 2px)' }}
                       >
                         <ChevronDown 
                           className={`w-4 h-4 transition-transform ${
                             expandedRows.has(project.id!) ? '' : '-rotate-90'
                           }`}
                         />
-                      </div>
+                      </button>
                       <span className="font-medium text-gray-900">{project.name}</span>
-                    </button>
+                    </div>
                     <ProjectDropdown
                       isOpen={projectDropdowns.has(project.id!)}
                       onToggle={() => toggleProjectDropdown(project.id!)}
@@ -480,6 +468,7 @@ export default function ProjectsTable({
                         toggleProjectDropdown(project.id!);
                       }}
                       onReplicate={() => onReplicate?.(project.id!)}
+                      onRunAgain={() => onRunAgain?.(project.id!)}
                       onModify={() => onModify?.(project.id!)}
                       onDelete={() => onDelete?.(project.id!)}
                       onMoveToFolder={(folderId) => {
@@ -600,41 +589,34 @@ export default function ProjectsTable({
                       }}
                     >
                       <div className="flex items-center justify-between">
-                        <button
-                          onClick={(e) => {
-                            // Don't trigger drag when clicking
-                            if (draggedProject) {
+                        <div className="flex items-center gap-2 text-left pointer-events-auto">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (draggedProject) return;
+                              toggleFolderExpansion(folder.folder_id);
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            className="w-8 h-8 flex items-center justify-center flex-shrink-0 rounded hover:bg-gray-200/80 transition-colors"
+                            onDragOver={(e) => {
                               e.preventDefault();
-                              return;
-                            }
-                            toggleFolderExpansion(folder.folder_id);
-                          }}
-                          className="flex items-center gap-2 text-left pointer-events-auto"
-                          onDragOver={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handleDragOver(e, folder.folder_id);
-                          }}
-                          onMouseDown={(e) => {
-                            // Allow drag to work even when button is pressed
-                            if (draggedProject) {
-                              e.preventDefault();
-                            }
-                          }}
-                        >
-                          <div className="w-4 h-4 flex items-center justify-center">
+                              e.stopPropagation();
+                              handleDragOver(e, folder.folder_id);
+                            }}
+                          >
                             <ChevronDown 
                               className={`w-4 h-4 transition-transform ${
                                 expandedFolders.has(folder.folder_id) ? '' : '-rotate-90'
                               }`}
                             />
-                          </div>
-                          <Folder className="w-4 h-4 text-blue-600" />
+                          </button>
+                          <Folder className="w-4 h-4 text-blue-600 flex-shrink-0" />
                           <span className="font-medium text-gray-900">{folder.folder_name}</span>
                           <span className="text-sm text-gray-500 ml-2">
                             ({folderProjects.length} {folderProjects.length === 1 ? 'simulation' : 'simulations'})
                           </span>
-                        </button>
+                        </div>
                         <FolderDropdown
                           isOpen={folderDropdowns.has(folder.folder_id)}
                           onToggle={() => toggleFolderDropdown(folder.folder_id)}

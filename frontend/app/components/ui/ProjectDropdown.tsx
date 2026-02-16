@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { MoreVertical, Edit, Edit2, Copy, Trash2, Folder, FolderInput } from "lucide-react";
+import { MoreVertical, Edit, Edit2, Copy, Trash2, Folder, FolderInput, Play } from "lucide-react";
 
 interface Folder {
   folder_id: string;
@@ -16,6 +16,7 @@ interface ProjectDropdownProps {
   onToggle: () => void;
   onRename?: () => void;
   onReplicate?: () => void;
+  onRunAgain?: () => void;
   onModify?: () => void;
   onDelete?: () => void;
   onMoveToFolder?: (folderId: string | null) => void;
@@ -28,7 +29,8 @@ export default function ProjectDropdown({
   isOpen, 
   onToggle, 
   onRename,
-  onReplicate, 
+  onReplicate,
+  onRunAgain,
   onModify,
   onDelete,
   onMoveToFolder,
@@ -278,13 +280,13 @@ export default function ProjectDropdown({
                 document.body
               )}
             </div>
-            {/* 3. Copy & Edit */}
+            {/* 3. Copy */}
             <button 
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 onReplicate?.();
-                onToggle(); // Close the dropdown
+                onToggle();
               }}
               onMouseDown={(e) => {
                 e.stopPropagation();
@@ -292,7 +294,23 @@ export default function ProjectDropdown({
               className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
             >
               <Copy className="h-4 w-4" />
-              Copy & Edit
+              Copy
+            </button>
+            {/* 4. Replicate (run again) */}
+            <button 
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onRunAgain?.();
+                onToggle();
+              }}
+              onMouseDown={(e) => {
+                e.stopPropagation();
+              }}
+              className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <Play className="h-4 w-4" />
+              Replicate
             </button>
             <hr className="my-1 border-gray-100" />
             {/* 5. Delete */}

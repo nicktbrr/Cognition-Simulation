@@ -36,9 +36,10 @@ interface AddMeasureModalProps {
     desiredValues: { value: number; label: string }[];
   }) => void;
   checkNameExists?: (title: string, excludeId?: string) => boolean;
+  readOnly?: boolean;
 }
 
-export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure, onUpdate, checkNameExists }: AddMeasureModalProps) {
+export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure, onUpdate, checkNameExists, readOnly = false }: AddMeasureModalProps) {
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -49,6 +50,8 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
   const [titleError, setTitleError] = useState<string>('');
   const [anchorLimitError, setAnchorLimitError] = useState<string>('');
   const [minMaxError, setMinMaxError] = useState<string>('');
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [showUnsavedConfirm, setShowUnsavedConfirm] = useState(false);
 
   const wholeNumberOnlyRegex = /^-?\d*$/;
   const handleMinMaxChange = (
@@ -58,15 +61,21 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
     if (wholeNumberOnlyRegex.test(raw)) {
       setFormData((prev) => ({ ...prev, [field]: raw }));
       setMinMaxError('');
+      if (!readOnly) setHasUnsavedChanges(true);
       return;
     }
     const validPart = (raw.match(/^-?\d*/) || [''])[0];
     setFormData((prev) => ({ ...prev, [field]: validPart }));
     setMinMaxError('Only whole numbers are allowed (no decimals or other characters).');
+    if (!readOnly) setHasUnsavedChanges(true);
   };
 
   // Populate form when editing measure changes
   useEffect(() => {
+    if (isOpen) {
+      setHasUnsavedChanges(false);
+      setShowUnsavedConfirm(false);
+    }
     if (editingMeasure) {
       const [min, max] = editingMeasure.range.split(' - ').map(val => val.trim());
       const minNum = parseFloat(min);
@@ -101,6 +110,7 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
   // Handle title change with validation
   const handleTitleChange = (title: string) => {
     setFormData(prev => ({ ...prev, title }));
+    if (!readOnly) setHasUnsavedChanges(true);
     
     // Check for duplicate title if the function is provided
     if (checkNameExists && title.trim()) {
@@ -127,10 +137,12 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
     const limit = maxAnchorPoints ?? Infinity;
     if (desiredValues.length >= limit) return;
     setDesiredValues([...desiredValues, { value: "", label: "" }]);
+    if (!readOnly) setHasUnsavedChanges(true);
   };
 
   const removeDesiredValue = (index: number) => {
     setDesiredValues(desiredValues.filter((_, i) => i !== index));
+    if (!readOnly) setHasUnsavedChanges(true);
   };
 
   const updateDesiredValue = (index: number, field: 'value' | 'label', value: string) => {
@@ -138,6 +150,7 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
       i === index ? { ...item, [field]: value } : item
     );
     setDesiredValues(updated);
+    if (!readOnly) setHasUnsavedChanges(true);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -184,21 +197,10 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
     } else {
       onAdd(measureData);
     }
-    
-    // Reset form
-    setFormData({
-      title: "",
-      description: "",
-      minValue: "",
-      maxValue: ""
-    });
-    setDesiredValues([]);
-    
-    onClose();
+    handleClose();
   };
 
-  const handleCancel = () => {
-    // Reset form on cancel
+  const handleClose = () => {
     setFormData({
       title: "",
       description: "",
@@ -209,12 +211,54 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
     setTitleError('');
     setAnchorLimitError('');
     setMinMaxError('');
+    setShowUnsavedConfirm(false);
     onClose();
   };
 
+  const attemptClose = () => {
+    if (readOnly) {
+      handleClose();
+      return;
+    }
+    if (hasUnsavedChanges) {
+      setShowUnsavedConfirm(true);
+    } else {
+      handleClose();
+    }
+  };
+
+  const modalTitle = readOnly ? "View Measure" : (editingMeasure ? "Edit Measure" : "Add New Measure");
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={editingMeasure ? "Edit Measure" : "Add New Measure"}>
+    <>
+    <Modal
+      isOpen={isOpen}
+      onClose={attemptClose}
+      title={modalTitle}
+      footer={
+        readOnly ? (
+          <Button onClick={handleClose} className="px-6 py-2">Close</Button>
+        ) : (
+          <>
+            <Button type="button" variant="outline" onClick={attemptClose} className="px-6 py-2">Cancel</Button>
+            <Button
+              type="button"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2"
+              disabled={!!titleError || !!minMaxError}
+              onClick={(e) => { e.preventDefault(); handleSubmit(e); }}
+            >
+              {editingMeasure ? "Update Measure" : "Add Measure"}
+            </Button>
+          </>
+        )
+      }
+    >
       <div className="space-y-6">
+        {readOnly && (
+          <p className="text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-sm">
+            This measure is locked and cannot be edited.
+          </p>
+        )}
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Title */}
           <div>
@@ -226,7 +270,8 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
               value={formData.title}
               onChange={(e) => handleTitleChange(e.target.value)}
               required
-              className={`w-full border-2 rounded-lg px-4 py-3 focus:ring-2 focus:ring-opacity-20 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-opacity-20 focus-visible:ring-offset-0 ${
+              readOnly={readOnly}
+              className={`w-full border-2 rounded-lg px-4 py-3 focus:ring-2 focus:ring-opacity-20 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-opacity-20 focus-visible:ring-offset-0 ${readOnly ? 'bg-gray-100 cursor-not-allowed' : ''} ${
                 titleError
                   ? 'border-red-500 focus:border-red-500 focus:ring-red-500 focus-visible:ring-red-500'
                   : 'border-gray-200 focus:border-blue-500 focus:ring-blue-500 focus-visible:ring-blue-500'
@@ -245,11 +290,12 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
             <Textarea
               placeholder="Describe what this measure tracks (max 200 characters)..."
               value={formData.description}
-              onChange={(e) => setFormData({...formData, description: e.target.value})}
+              onChange={(e) => { setFormData({...formData, description: e.target.value}); if (!readOnly) setHasUnsavedChanges(true); }}
               maxLength={200}
               rows={4}
               required
-              className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 resize-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-20 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-opacity-20 focus-visible:ring-offset-0"
+              readOnly={readOnly}
+              className={`w-full border-2 border-gray-200 rounded-lg px-4 py-3 resize-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-20 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-opacity-20 focus-visible:ring-offset-0 ${readOnly ? 'bg-gray-100 cursor-not-allowed' : ''}`}
             />
           </div>
 
@@ -266,7 +312,8 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
                 value={formData.minValue}
                 onChange={(e) => handleMinMaxChange('minValue', e.target.value)}
                 required
-                className={`w-full border-2 rounded-lg px-4 py-3 focus:ring-2 focus:ring-opacity-20 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-opacity-20 focus-visible:ring-offset-0 ${
+                readOnly={readOnly}
+                className={`w-full border-2 rounded-lg px-4 py-3 focus:ring-2 focus:ring-opacity-20 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-opacity-20 focus-visible:ring-offset-0 ${readOnly ? 'bg-gray-100 cursor-not-allowed' : ''} ${
                   minMaxError
                     ? 'border-red-500 focus:border-red-500 focus:ring-red-500 focus-visible:ring-red-500'
                     : 'border-gray-200 focus:border-blue-500 focus:ring-blue-500 focus-visible:ring-blue-500'
@@ -284,7 +331,8 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
                 value={formData.maxValue}
                 onChange={(e) => handleMinMaxChange('maxValue', e.target.value)}
                 required
-                className={`w-full border-2 rounded-lg px-4 py-3 focus:ring-2 focus:ring-opacity-20 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-opacity-20 focus-visible:ring-offset-0 ${
+                readOnly={readOnly}
+                className={`w-full border-2 rounded-lg px-4 py-3 focus:ring-2 focus:ring-opacity-20 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-opacity-20 focus-visible:ring-offset-0 ${readOnly ? 'bg-gray-100 cursor-not-allowed' : ''} ${
                   minMaxError
                     ? 'border-red-500 focus:border-red-500 focus:ring-red-500 focus-visible:ring-red-500'
                     : 'border-gray-200 focus:border-blue-500 focus:ring-blue-500 focus-visible:ring-blue-500'
@@ -302,12 +350,13 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
               <div className="flex items-center gap-2">
                 <label className="text-sm font-semibold text-gray-900">
                   Anchor Points
-                  {maxAnchorPoints != null && (
+                  {maxAnchorPoints != null && !readOnly && (
                     <span className="text-gray-500 font-normal ml-1">
                       (max {maxAnchorPoints})
                     </span>
                   )}
                 </label>
+                {!readOnly && (
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -318,7 +367,9 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
+                )}
               </div>
+              {!readOnly && (
               <Button
                 type="button"
                 variant="ghost"
@@ -329,6 +380,7 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
                 <Plus className="h-4 w-4" />
                 Add Anchor
               </Button>
+              )}
             </div>
             
             {anchorLimitError && (
@@ -349,7 +401,8 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
                         placeholder="Value"
                         value={desired.value}
                         onChange={(e) => updateDesiredValue(index, 'value', e.target.value)}
-                        className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-20 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-opacity-20 focus-visible:ring-offset-0"
+                        readOnly={readOnly}
+                        className={`w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-20 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-opacity-20 focus-visible:ring-offset-0 ${readOnly ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                       />
                     </div>
                     <div className="flex gap-2">
@@ -363,9 +416,11 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
                           placeholder="Label"
                           value={desired.label}
                           onChange={(e) => updateDesiredValue(index, 'label', e.target.value)}
-                          className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-20 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-opacity-20 focus-visible:ring-offset-0"
+                          readOnly={readOnly}
+                          className={`w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-20 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-opacity-20 focus-visible:ring-offset-0 ${readOnly ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                         />
                       </div>
+                      {!readOnly && (
                       <Button
                         type="button"
                         variant="ghost"
@@ -375,33 +430,37 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
                       >
                         <X className="h-4 w-4" />
                       </Button>
+                      )}
                     </div>
                   </div>
                 ))}
               </div>
             )}
           </div>
-
-          {/* Buttons */}
-          <div className="flex justify-end space-x-3 pt-6 border-t">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleCancel}
-              className="px-6 py-2"
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2"
-              disabled={!!titleError || !!minMaxError}
-            >
-              {editingMeasure ? "Update Measure" : "Add Measure"}
-            </Button>
-          </div>
         </form>
       </div>
     </Modal>
+
+    {/* Unsaved changes confirmation */}
+    {showUnsavedConfirm && (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]" onClick={() => setShowUnsavedConfirm(false)}>
+        <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4 shadow-xl border border-gray-200" onClick={(e) => e.stopPropagation()}>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Unsaved changes</h3>
+          <p className="text-gray-600 text-sm mb-6">You have unsaved changes. Save or discard?</p>
+          <div className="flex flex-col gap-2">
+            <Button onClick={() => { handleSubmit({ preventDefault: () => {} } as React.FormEvent); setShowUnsavedConfirm(false); }} className="w-full bg-blue-600 hover:bg-blue-700 text-white">
+              Save changes
+            </Button>
+            <Button onClick={handleClose} variant="outline" className="w-full text-red-600 border-red-200 hover:bg-red-50">
+              Discard changes
+            </Button>
+            <Button onClick={() => setShowUnsavedConfirm(false)} variant="ghost" className="w-full">
+              Keep editing
+            </Button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

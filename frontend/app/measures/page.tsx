@@ -437,6 +437,7 @@ export default function MeasuresPage() {
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.setData("text/plain", measureId);
     e.stopPropagation();
+    document.body.style.cursor = "grabbing";
   };
 
   const handleDragOver = (e: React.DragEvent, folderId: string | null | 'root') => {
@@ -463,6 +464,7 @@ export default function MeasuresPage() {
   const handleDragEnd = () => {
     setDraggedMeasure(null);
     setDragOverFolder(null);
+    document.body.style.cursor = "";
   };
 
   const getMeasures = async (userId: string) => {
@@ -757,6 +759,12 @@ export default function MeasuresPage() {
         setIsAddModalOpen(true);
       }
     }
+    setOpenDropdown(null);
+  };
+
+  const handleRowDoubleClick = (measure: Measure) => {
+    setEditingMeasure(measure);
+    setIsAddModalOpen(true);
     setOpenDropdown(null);
   };
 
@@ -1097,10 +1105,11 @@ export default function MeasuresPage() {
                         }).map((measure) => (
                           <React.Fragment key={measure.id}>
                             <TableRow 
-                              className={`group hover:bg-accent/50 transition-fast cursor-grab ${draggedMeasure === measure.id ? 'opacity-50' : ''}`}
+                              className={`group hover:bg-accent/50 transition-fast cursor-pointer ${draggedMeasure === measure.id ? 'opacity-50' : ''}`}
                               draggable={true}
                               onDragStart={(e) => handleDragStart(e, measure.id)}
                               onDragEnd={handleDragEnd}
+                              onDoubleClick={() => handleRowDoubleClick(measure)}
                             >
                               <TableCell>
                                 <div className="ml-4">
@@ -1246,10 +1255,11 @@ export default function MeasuresPage() {
                   }).map((measure) => (
                   <React.Fragment key={measure.id}>
                     <TableRow 
-                      className={`group hover:bg-accent/50 transition-fast cursor-grab ${draggedMeasure === measure.id ? 'opacity-50' : ''}`}
+                      className={`group hover:bg-accent/50 transition-fast cursor-pointer ${draggedMeasure === measure.id ? 'opacity-50' : ''}`}
                       draggable={true}
                       onDragStart={(e) => handleDragStart(e, measure.id)}
                       onDragEnd={handleDragEnd}
+                      onDoubleClick={() => handleRowDoubleClick(measure)}
                     >
                       <TableCell>
                         <Button
@@ -1387,6 +1397,7 @@ export default function MeasuresPage() {
         editingMeasure={editingMeasure}
         onUpdate={handleUpdateMeasure}
         checkNameExists={isMeasureNameTaken}
+        readOnly={editingMeasure?.isLocked ?? false}
       />
 
       {/* Portal-based Dropdown */}
@@ -1414,7 +1425,7 @@ export default function MeasuresPage() {
             <Edit2 className="w-4 h-4 mr-3" />
             Rename
           </button>
-          {/* 2. Copy & Edit */}
+          {/* 2. Copy */}
           <button
             onClick={(e) => {
               e.preventDefault();
@@ -1427,7 +1438,7 @@ export default function MeasuresPage() {
             className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
           >
             <Copy className="w-4 h-4 mr-3" />
-            Copy & Edit
+            Copy
           </button>
           {/* 4. Move to Folder */}
           <button
@@ -1479,7 +1490,7 @@ export default function MeasuresPage() {
               </div>
             </div>
             <p className="text-gray-700 mb-6">
-              Measures may be edited up until the first time they are used in a simulation. You may &quot;Make a copy&quot; of the measure to edit at any point.
+              Measures may be edited up until the first time they are used in a simulation. You may make a copy of the measure to edit it at any point.
             </p>
             <div className="flex gap-3 justify-end">
               <Button
@@ -1502,7 +1513,7 @@ export default function MeasuresPage() {
                 }}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white"
               >
-                Make a copy
+                Copy
               </Button>
             </div>
           </div>
