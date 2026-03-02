@@ -101,7 +101,12 @@ export default function SamplesPage() {
   const [deletedItemName, setDeletedItemName] = useState<string>("");
   const [showErrorPopup, setShowErrorPopup] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string>("");
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem('samples_expandedFolders');
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch { return new Set(); }
+  });
 
   // Helper function to show error popup
   const showError = (message: string) => {
@@ -514,6 +519,7 @@ export default function SamplesPage() {
       } else {
         next.add(folderId);
       }
+      localStorage.setItem('samples_expandedFolders', JSON.stringify([...next]));
       return next;
     });
   };

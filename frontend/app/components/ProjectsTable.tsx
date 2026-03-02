@@ -86,8 +86,18 @@ export default function ProjectsTable({
   onSaveRename,
   onCancelRename
 }: ProjectsTableProps) {
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem('dashboard_expandedRows');
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch { return new Set(); }
+  });
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem('dashboard_expandedFolders');
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch { return new Set(); }
+  });
   const [projectDropdowns, setProjectDropdowns] = useState<Set<string>>(new Set());
   const [folderDropdowns, setFolderDropdowns] = useState<Set<string>>(new Set());
   const [sortConfig, setSortConfig] = useState<{key: string, direction: 'asc' | 'desc'} | null>(null);
@@ -156,6 +166,7 @@ export default function ProjectsTable({
     } else {
       newExpandedRows.add(projectId);
     }
+    localStorage.setItem('dashboard_expandedRows', JSON.stringify([...newExpandedRows]));
     setExpandedRows(newExpandedRows);
   };
 
@@ -195,6 +206,7 @@ export default function ProjectsTable({
     } else {
       newExpandedFolders.add(folderId);
     }
+    localStorage.setItem('dashboard_expandedFolders', JSON.stringify([...newExpandedFolders]));
     setExpandedFolders(newExpandedFolders);
   };
 
