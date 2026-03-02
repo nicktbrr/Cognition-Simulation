@@ -52,7 +52,12 @@ export default function MeasuresPage() {
   const [measures, setMeasures] = useState<Measure[]>([]);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingMeasure, setEditingMeasure] = useState<Measure | null>(null);
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem('measures_expandedRows');
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch { return new Set(); }
+  });
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [loadingMeasures, setLoadingMeasures] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0 });
@@ -82,7 +87,12 @@ export default function MeasuresPage() {
   const [isDeletingFolder, setIsDeletingFolder] = useState(false);
   const [showDeleteSuccess, setShowDeleteSuccess] = useState(false);
   const [deletedItemName, setDeletedItemName] = useState<string>("");
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem('measures_expandedFolders');
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch { return new Set(); }
+  });
   const [folderDropdownOpen, setFolderDropdownOpen] = useState<string | null>(null);
   const [folderDropdownPosition, setFolderDropdownPosition] = useState({ top: 0, right: 0 });
   const folderButtonRefs = useRef<Record<string, HTMLButtonElement>>({});
@@ -409,6 +419,7 @@ export default function MeasuresPage() {
       } else {
         next.add(folderId);
       }
+      localStorage.setItem('measures_expandedFolders', JSON.stringify([...next]));
       return next;
     });
   };
@@ -638,6 +649,7 @@ export default function MeasuresPage() {
     } else {
       newExpandedRows.add(measureId);
     }
+    localStorage.setItem('measures_expandedRows', JSON.stringify([...newExpandedRows]));
     setExpandedRows(newExpandedRows);
   };
 
