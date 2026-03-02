@@ -1363,7 +1363,7 @@ function SimulationPageContent() {
       userData={userData}
     >
       {simulationHasBeenRun && (
-        <div className="w-full bg-red-400/85 text-white px-4 py-2 text-center text-sm font-medium">
+        <div className="w-full bg-red-400/85 text-white px-2 py-1 text-center text-xs font-medium">
           This simulation has already been run and cannot be modified. You can copy the simulation from the dashboard and then edit the copy.
         </div>
       )}
