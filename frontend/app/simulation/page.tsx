@@ -8,6 +8,7 @@ import { Save, Download, HelpCircle, Sparkles, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "../utils/supabase";
 import { useAuth } from "../hooks/useAuth";
+import { useExperimentProgress } from "../hooks/useExperimentProgress";
 import AuthLoading from "../components/auth-loading";
 import AppLayout from "../components/layout/AppLayout";
 import SubHeader from "../components/layout/SubHeader";
@@ -108,8 +109,13 @@ function SimulationPageContent() {
   const [titleError, setTitleError] = useState<string>("");
   const [showNoMeasuresConfirm, setShowNoMeasuresConfirm] = useState(false);
   const [showSubmittedModal, setShowSubmittedModal] = useState(false);
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
+
+  const progressState = useExperimentProgress(
+    simulationTaskId,
+    user?.user_id ?? null,
+    isSimulationRunning && !!simulationTaskId
+  );
   const reactFlowRef = useRef<ReactFlowRef>(null);
   const hasInitiallyLoadedRef = useRef(false);
   const loadedModifyExperimentIdRef = useRef<string | null>(null);
@@ -889,68 +895,32 @@ function SimulationPageContent() {
     setFlowEdges(edges);
   };
 
-  // Function to check progress for a running simulation by querying Supabase directly
-  const checkSimulationProgress = useCallback(async (experimentId: string, userId: string) => {
-    try {
-      // Query Supabase directly for the experiment progress
-      const { data, error } = await supabase
-        .from("experiments")
-        .select("progress, status, url")
-        .eq("experiment_id", experimentId)
-        .eq("user_id", userId)
-        .single();
+  // Handle completion/failure from Realtime progress updates
+  const hasHandledCompletionRef = useRef(false);
+  useEffect(() => {
+    if (!progressState.isComplete && !progressState.isFailed) return;
+    if (hasHandledCompletionRef.current) return;
+    hasHandledCompletionRef.current = true;
 
-      if (error) {
-        console.error("Error checking progress:", error);
-        return;
-      }
+    setIsSimulationRunning(false);
+    setSimulationTaskId(null);
+    setSimulationProgress(null);
+    localStorage.removeItem("simulation-task-id");
+    localStorage.removeItem("simulation-pending");
 
-      if (data) {
-        const progressData = data;
-        
-        // Normalize progress to 0-100 range (backend might return 0-1 or 0-100)
-        let progressPercent = progressData.progress || 0;
-        if (progressPercent <= 1 && progressPercent > 0) {
-          progressPercent = progressPercent * 100;
-        }
-        
-        // Normalize status
-        const status = progressData.status || '';
-        const statusLower = status.toLowerCase();
-        
-        // Update progress state
-        setSimulationProgress(progressPercent);
-        
-        // Check if simulation is complete or failed
-        const isFailed = statusLower === 'failed';
-        const isComplete = progressPercent >= 100 || statusLower === 'completed' || statusLower === 'done' || statusLower === 'finished';
-        
-        if (isComplete || isFailed) {
-          // Stop polling
-          if (pollingIntervalRef.current) {
-            clearInterval(pollingIntervalRef.current);
-            pollingIntervalRef.current = null;
-          }
-          
-          // Clear state and localStorage
-          setIsSimulationRunning(false);
-          setSimulationTaskId(null);
-          setSimulationProgress(null);
-          localStorage.removeItem('simulation-task-id');
-          localStorage.removeItem('simulation-pending');
-          
-          // Show completion message
-          if (isFailed) {
-            alert("Simulation failed. Please check your experiment settings and try again.");
-          } else {
-            alert("Simulation completed successfully! You can view the results in the Dashboard.");
-          }
-        }
-      }
-    } catch (error) {
-      console.error("Error checking progress:", error);
+    if (progressState.isFailed) {
+      alert("Simulation failed. Please check your experiment settings and try again.");
+    } else {
+      alert("Simulation completed successfully! You can view the results in the Dashboard.");
     }
-  }, []);
+  }, [progressState.isComplete, progressState.isFailed]);
+
+  // Reset completion handler when starting a new simulation
+  useEffect(() => {
+    if (isSimulationRunning && simulationTaskId) {
+      hasHandledCompletionRef.current = false;
+    }
+  }, [isSimulationRunning, simulationTaskId]);
 
   const getSelectedSampleDetails = () => {
     return samples.find(sample => sample.id === selectedSample);
@@ -1088,10 +1058,6 @@ function SimulationPageContent() {
     setIsLoadingExperiment(true);
     try {
       // Clear any running simulation state when modifying an experiment
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
-      }
       setIsSimulationRunning(false);
       setSimulationTaskId(null);
       setSimulationProgress(null);
@@ -1317,37 +1283,6 @@ function SimulationPageContent() {
     }
   }, [user, isAuthenticated, modifyExperimentId]);
 
-  // Poll for simulation progress
-  useEffect(() => {
-    if (!user || !isAuthenticated || !simulationTaskId || !isSimulationRunning) {
-      // Clear interval if conditions not met
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
-      }
-      return;
-    }
-
-    // Clear any existing interval before starting a new one
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-    }
-
-    // Start polling every 500ms
-    pollingIntervalRef.current = setInterval(() => {
-      if (simulationTaskId && user.user_id) {
-        checkSimulationProgress(simulationTaskId, user.user_id);
-      }
-    }, 500);
-
-    return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
-      }
-    };
-  }, [simulationTaskId, isSimulationRunning, user, isAuthenticated, checkSimulationProgress]);
-
   if (isLoading) {
     return <AuthLoading message="Loading simulation..." />;
   }
@@ -1399,8 +1334,8 @@ function SimulationPageContent() {
             className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Download className="w-4 h-4" />
-            {isSimulationRunning 
-              ? `Simulation in progress: ${simulationProgress !== null ? Math.round(simulationProgress) : 0}%`
+{isSimulationRunning
+              ? `Simulation in progress: ${Math.round(progressState.progress ?? simulationProgress ?? 0)}%`
               : "Submit for Simulation"
             }
           </Button>

@@ -267,7 +267,7 @@ def dataframe_to_excel(df_response, df_gemini, steps=None):
     return fn
 
 
-def process_row(row_idx, df_row, steps):
+def process_row(row_idx, df_row, steps, progress_callback=None):
     """
     Processes a single row by evaluating responses using Gemini model.
     
@@ -275,6 +275,7 @@ def process_row(row_idx, df_row, steps):
         row_idx (int): Index of the row being processed
         df_row (pd.Series): Row of data to evaluate
         steps (list): List of step dictionaries containing measures
+        progress_callback (callable, optional): Called after each column completes for progress tracking
         
     Returns:
         tuple: Contains:
@@ -299,6 +300,7 @@ def process_row(row_idx, df_row, steps):
                 row_scores[step_metric_name] = []
     
     # Process each column individually
+    print(f"[process_row {row_idx}] len(df_row)={len(df_row)}, has_callback={progress_callback is not None}", flush=True)
     for col in range(1, len(df_row)):
         step_label = df_row.index[col]
         step_output = df_row.iloc[col]  # This is the actual output/response
@@ -391,9 +393,16 @@ def process_row(row_idx, df_row, steps):
                     if step_metric_name in row_scores:
                         row_scores[step_metric_name].append('API Error')
 
+        if progress_callback:
+            progress_callback()
+
+    # If row had no step columns (only persona), still report completion
+    if progress_callback and len(df_row) <= 1:
+        progress_callback()
+
     return row_scores, None, all_token_usage
 
-def evaluate(df, key_g, steps=None):
+def evaluate(df, key_g, steps=None, progress_callback=None):
     """
     Evaluates multiple rows in parallel using threading and combines the results into a DataFrame.
     
@@ -402,6 +411,7 @@ def evaluate(df, key_g, steps=None):
         key_g (str): Gemini API key
         metrics (list): List of dictionaries containing metric definitions
         steps (list): List of step dictionaries containing 'label', 'instructions', and 'measures' keys
+        progress_callback (callable, optional): Called after each row completes for progress tracking
         
     Returns:
         tuple: Contains:
@@ -439,23 +449,34 @@ def evaluate(df, key_g, steps=None):
 
     # No need to build system prompt here - it will be built per column in process_row
 
+    # Total work units = rows * columns per row (each column is a Gemini API call)
+    num_cols_per_row = max(1, df.shape[1] - 1)  # exclude first column (seed/persona)
+    total_units = df.shape[0] * num_cols_per_row
+
+    # Debug: verify we have work to do and callback is passed
+    print(f"[evaluate] df.shape={df.shape}, total_units={total_units}, has_callback={progress_callback is not None}", flush=True)
+
     # Process rows in parallel using ThreadPoolExecutor
+    # progress_callback is called per column inside process_row for more frequent updates
     max_workers = 2
     results_gemini = []
     results_gpt4 = []
     tokens_ls = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(
-            process_row, idx, df.iloc[idx], steps): idx for idx in range(df.shape[0])}
+        futures = {
+            executor.submit(process_row, idx, df.iloc[idx], steps, progress_callback): idx
+            for idx in range(df.shape[0])
+        }
 
         for future in concurrent.futures.as_completed(futures):
             try:
-                results_gemini.append(future.result()[0])
+                result = future.result()
+                results_gemini.append(result[0])
                 # Handle None GPT-4 results since evaluation is commented out
-                gpt4_result = future.result()[1]
+                gpt4_result = result[1]
                 if gpt4_result is not None:
                     results_gpt4.append(gpt4_result)
-                tokens_ls.append(future.result()[2])
+                tokens_ls.append(result[2])
             except Exception:
                 pass
 

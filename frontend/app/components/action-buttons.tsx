@@ -5,11 +5,12 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { isValidURL } from "@/app/utils/urlParser";
 import { AlertCircle } from "lucide-react";
 
 import { supabase } from "@/app/utils/supabase";
+import { useExperimentProgress } from "@/app/hooks/useExperimentProgress";
 
 // Determine environment and get GCP token
 const prod = process.env.NEXT_PUBLIC_DEV || "production";
@@ -72,6 +73,22 @@ export default function ActionButtons({
   const [download, setDownload] = useState("");
   const [progress, setProgress] = useState<ProgressData | null>(null);
   const [taskId, setTaskId] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const s = typeof window !== "undefined" ? localStorage.getItem("supabaseUser") : null;
+    if (s) {
+      try {
+        setUserId(JSON.parse(s).id ?? null);
+      } catch {
+        setUserId(null);
+      }
+    } else {
+      setUserId(null);
+    }
+  }, [taskId]);
+
+  const progressState = useExperimentProgress(taskId, userId, !!taskId);
 
   // Function to get download URL from dashboard table
   const getDownloadUrl = async (taskId: string, userId: string) => {
@@ -92,75 +109,62 @@ export default function ActionButtons({
     }
   };
 
-  // Function to check progress
-  const checkProgress = async (taskId: string, userId: string) => {
-    try {
-      // Get the user's Supabase access token
-      const { data: { session } } = await supabase.auth.getSession();
-      const accessToken = session?.access_token;
-      if (!accessToken) {
-        throw new Error("No Supabase access token found");
-      }
-      const url = prod === "development"
-        ? `http://127.0.0.1:5000/api/progress?task_id=${taskId}&user_id=${userId}`
-        : `https://cognition-backend-81313456654.us-west1.run.app/api/progress?task_id=${taskId}&user_id=${userId}`;
-
-      const response = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.status === "success") {
-          setProgress(data.progress);
-          onProgressUpdate(data.progress);
-          // If completed or failed, clear taskId to stop polling
-          if (data.progress.status === 'completed' || data.progress.status === 'failed') {
-            setTaskId(null);
-            if (data.progress.status === 'completed') {
-              setSimulationActive(false);
-              setIsProcessing(false);
-              setLoading(false);
-              // Get the download URL from the dashboard table
-              getDownloadUrl(data.progress.id, data.progress.user_id);
-            } else {
-              setSimulationActive(false);
-              setIsProcessing(false);
-              setLoading(false);
-              alert(`Simulation failed: ${data.progress.error_message || 'Unknown error'}`);
-            }
-          }
-        }
-      }
-    } catch (error) {
-      console.error("Error checking progress:", error);
-    }
-  };
-
-  // Poll for progress every 2 seconds when taskId is set
+  // Handle completion/failure from Realtime progress updates
+  const hasHandledCompletionRef = useRef(false);
   useEffect(() => {
-    let interval: NodeJS.Timeout | null = null;
-    let userId: string | null = null;
-    const storedUser = localStorage.getItem("supabaseUser");
-    if (storedUser) {
-      try {
-        const parsedUser = JSON.parse(storedUser);
-        userId = parsedUser.id;
-      } catch {}
+    if (!progressState.isComplete && !progressState.isFailed) return;
+    if (hasHandledCompletionRef.current) return;
+    hasHandledCompletionRef.current = true;
+
+    setTaskId(null);
+    setSimulationActive(false);
+    setIsProcessing(false);
+    setLoading(false);
+
+    if (progressState.isComplete) {
+      const progressData: ProgressData = {
+        id: "",
+        task_id: taskId ?? "",
+        progress: 100,
+        status: "Completed",
+      };
+      setProgress(progressData);
+      onProgressUpdate(progressData);
+      if (progressState.url) {
+        setDownload(progressState.url);
+        setIsDisabled(false);
+      }
+    } else {
+      setProgress(null);
+      onProgressUpdate(null);
+      alert("Simulation failed. Please try again.");
     }
-    if (taskId && userId) {
-      // Immediately check once
-      checkProgress(taskId, userId);
-      interval = setInterval(() => {
-        checkProgress(taskId, userId!);
-      }, 1000);
+  }, [progressState.isComplete, progressState.isFailed, progressState.url, taskId]);
+
+  // Reset completion handler when starting a new simulation
+  useEffect(() => {
+    if (taskId) {
+      hasHandledCompletionRef.current = false;
     }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
   }, [taskId]);
+
+  // Sync progress display from Realtime
+  useEffect(() => {
+    if (progressState.progress !== null) {
+      setProgress({
+        id: "",
+        task_id: taskId ?? "",
+        progress: progressState.progress,
+        status: progressState.isFailed ? "Failed" : progressState.isComplete ? "Completed" : "Running",
+      });
+      onProgressUpdate({
+        id: "",
+        task_id: taskId ?? "",
+        progress: progressState.progress,
+        status: progressState.isFailed ? "Failed" : progressState.isComplete ? "Completed" : "Running",
+      });
+    }
+  }, [progressState.progress, progressState.isComplete, progressState.isFailed, taskId]);
 
   /**
    * Handles downloading of the simulation result file.
@@ -353,7 +357,7 @@ export default function ActionButtons({
       const result = await response.json();
       
       if (result.status === "started") {
-        setTaskId(result.experiment_id); // This will trigger polling
+        setTaskId(result.task_id ?? result.experiment_id);
         // Don't set download URL yet - it will be available when progress is completed
         setIsDisabled(true); // Keep disabled until completion
       } else {

@@ -158,7 +158,7 @@ def process_row_with_chat(row_idx, df, prompt, key_g, system_prompt, persona):
     return row_data, tokens_dict
 
 
-def baseline_prompt(prompt, key_g, sample=None):
+def baseline_prompt(prompt, key_g, sample=None, progress_callback=None):
     """
     Process multiple rows in parallel using threading and combine results into a DataFrame.
     
@@ -166,6 +166,7 @@ def baseline_prompt(prompt, key_g, sample=None):
         prompt (list): List containing prompt configuration including seed, steps, and iterations
         key_g (str): Google AI API key
         sample (dict): Sample data containing persona array (list of 10 persona dicts)
+        progress_callback (callable, optional): Called after each row completes for progress tracking
     
     Returns:
         tuple: (final_df, tokens_ls) where:
@@ -248,6 +249,8 @@ def baseline_prompt(prompt, key_g, sample=None):
                 row_data, tokens_dict = future.result()
                 results.append(row_data)
                 tokens_ls.append(tokens_dict)
+                if progress_callback:
+                    progress_callback()
             except Exception:
                 pass
 

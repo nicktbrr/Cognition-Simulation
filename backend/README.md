@@ -11,7 +11,7 @@ This service provides an API endpoint for evaluating LLM responses using various
 - LLM response evaluation and analysis
 - Integration with Google Gemini API
 - Supabase database integration
-- Token usage tracking
+- Token usage and cost tracking (prompt_cost, eval_cost, total_cost via Cloud Billing Catalog API or fallback rates)
 - CORS support for development and production
 - Secure authentication in production
 
@@ -32,6 +32,19 @@ Required environment variables:
 - `VITE_GCP_TOKEN`: Authentication token for production
 - `DEV`: Set to 'development' for local development
 - `OPENAI_API_KEY` OpenAI API key
+- `GCP_BILLING_API_KEY`: (Optional) Google Cloud Billing Catalog API key for live Gemini 2.0 Flash pricing. If unset, uses fallback rates ($0.10/1M input, $0.40/1M output).
+
+## Database Migration
+
+Before using cost tracking, run the migration to add `prompt_cost`, `eval_cost`, and `total_cost` columns to the `tokens` table:
+
+```bash
+# Via Supabase CLI (if configured)
+supabase db push
+
+# Or run the SQL manually in Supabase SQL Editor:
+# See supabase/migrations/20250301000000_add_tokens_cost_columns.sql
+```
 
 ## Development
 
