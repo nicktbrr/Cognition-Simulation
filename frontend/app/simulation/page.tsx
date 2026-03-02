@@ -72,6 +72,9 @@ function SimulationPageContent() {
   const [selectedSample, setSelectedSample] = useState(() =>
     readSimulationFromStorage() ? (localStorage.getItem('simulation-sample') ?? '') : ''
   );
+  const [selectedModel, setSelectedModel] = useState(() =>
+    localStorage.getItem('simulation-model') ?? 'gemini'
+  );
   const [sampleSizeInput, setSampleSizeInput] = useState<string>(() => {
     if (!readSimulationFromStorage()) return '10';
     const saved = localStorage.getItem('simulation-sample-size');
@@ -438,6 +441,7 @@ function SimulationPageContent() {
         title: titleToSave,
         description: processDescription || "",
         study_introduction: studyIntroduction || "",
+        model: selectedModel,
       };
       if (selectedSampleDetails) {
         experimentData.sample = {
@@ -816,6 +820,7 @@ function SimulationPageContent() {
       user_id: parsedUser?.id,
       title: processTitle || "Simulation Flow",
       study_introduction: studyIntroduction || "",
+      model: selectedModel,
       sample: {
         id: selectedSampleDetails.id,
         name: selectedSampleDetails.name,
@@ -1143,6 +1148,11 @@ function SimulationPageContent() {
         if (match) sampleId = match.id;
       }
       setSelectedSample(sampleId);
+
+      // Restore model selection
+      if (experimentData.model && typeof experimentData.model === 'string') {
+        setSelectedModel(experimentData.model);
+      }
 
       // Import sample size (iters) with fallbacks and clamp 10–50
       const rawIters = experimentData.iters ?? experimentData.sample_size ?? (data as any).sample_size;
@@ -1543,6 +1553,22 @@ function SimulationPageContent() {
                 <RotateCw className="w-3 h-3" />
               </Button>
             </div> */}
+          </div>
+
+          {/* Model Selection */}
+          <div>
+            <h3 className="text-sm font-semibold text-gray-700 mb-2">Model:</h3>
+            <select
+              className={`w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded text-sm ${simulationHasBeenRun ? 'cursor-not-allowed opacity-80' : ''}`}
+              value={selectedModel}
+              onChange={(e) => {
+                setSelectedModel(e.target.value);
+                localStorage.setItem('simulation-model', e.target.value);
+              }}
+              disabled={simulationHasBeenRun}
+            >
+              <option value="gemini">Gemini</option>
+            </select>
           </div>
 
           {/* Pick Sample Section */}
