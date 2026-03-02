@@ -18,7 +18,16 @@ import google.generativeai as genai
 from utils.prompts import *
 from utils.evaluate import *
 from utils.progress import create_progress_updater
-from utils.pricing import compute_prompt_and_eval_cost, compute_cost
+try:
+    from utils.pricing import compute_prompt_and_eval_cost, compute_cost
+except ModuleNotFoundError:
+    # Fallback when utils.pricing is not deployed (e.g. missing from build context)
+    _INPUT_PER_M = 0.10
+    _OUTPUT_PER_M = 0.40
+    def compute_cost(input_tokens: int, output_tokens: int) -> float:
+        return (input_tokens * _INPUT_PER_M / 1e6) + (output_tokens * _OUTPUT_PER_M / 1e6)
+    def compute_prompt_and_eval_cost(pi: int, po: int, ei: int, eo: int):
+        return (round(compute_cost(pi, po), 6), round(compute_cost(ei, eo), 6))
 from utils.used_prompts import (
     GENERATE_STEPS_SYSTEM_PROMPT,
     get_generate_steps_user_prompt
