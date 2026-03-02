@@ -18,6 +18,7 @@ import google.generativeai as genai
 from utils.prompts import *
 from utils.evaluate import *
 from utils.progress import create_progress_updater
+from utils.pricing import compute_prompt_and_eval_cost, compute_cost
 from utils.used_prompts import (
     GENERATE_STEPS_SYSTEM_PROMPT,
     get_generate_steps_user_prompt
@@ -285,8 +286,15 @@ def run_evaluation(uuid, data, key_g, jwt=None):
         total_eval_output_token = sum(token_dict.get('gemini_response_tokens', 0) for token_dict in (eval_tokens or []))
         total_eval_total_token = sum(token_dict.get('gemini_total_tokens', 0) for token_dict in (eval_tokens or []))
 
-        # Store token usage in Supabase
+        # Store token usage and cost in Supabase
         total_tokens = total_prompt_total_token + total_eval_total_token
+        prompt_cost, eval_cost = compute_prompt_and_eval_cost(
+            total_prompt_input_token,
+            total_prompt_output_token,
+            total_eval_input_token,
+            total_eval_output_token,
+        )
+        total_cost = prompt_cost + eval_cost
         supabase.table("tokens").insert({
             "id": uuid,
             "experiment_id": uuid,
@@ -299,6 +307,9 @@ def run_evaluation(uuid, data, key_g, jwt=None):
             "eval_output_token": total_eval_output_token,
             "eval_total_token": total_eval_total_token,
             "total_tokens": total_tokens,
+            "prompt_cost": prompt_cost,
+            "eval_cost": eval_cost,
+            "total_cost": total_cost,
         }).execute()
 
         # Upload evaluation results to Supabase storage
@@ -513,6 +524,7 @@ class GenerateSteps(Resource):
                             except Exception:
                                 pass
                         if user_id is not None:
+                            gen_prompt_cost = compute_cost(prompt_count, output_count)
                             supabase_client.table("tokens").insert({
                                 "id": str(uuid.uuid4()),
                                 "experiment_id": None,
@@ -525,6 +537,9 @@ class GenerateSteps(Resource):
                                 "eval_output_token": 0,
                                 "eval_total_token": 0,
                                 "total_tokens": total_count,
+                                "prompt_cost": gen_prompt_cost,
+                                "eval_cost": 0.0,
+                                "total_cost": gen_prompt_cost,
                             }).execute()
                 except Exception as token_err:
                     logger.warning(f"[{request_id}] Failed to store token usage: {token_err}")
