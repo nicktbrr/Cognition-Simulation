@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Play, Trash2, Folder, FolderPlus } from "lucide-react";
 import { createPortal } from "react-dom";
 import { supabase } from "../utils/supabase";
 import { useAuth } from "../hooks/useAuth";
+import { useExperimentsProgress } from "../hooks/useExperimentsProgress";
 import AuthLoading from "../components/auth-loading";
 import { Button } from "../components/ui/button";
 import AppLayout from "../components/layout/AppLayout";
@@ -97,7 +98,6 @@ export default function DashboardHistory() {
   const [isDeletingFolder, setIsDeletingFolder] = useState(false);
   const [showDeleteSuccess, setShowDeleteSuccess] = useState(false);
   const [deletedItemName, setDeletedItemName] = useState<string>("");
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const hasInitiallyLoadedRef = useRef(false); // Add this ref to track initial load
 
   // Helper function to check if a project was created within the last 20 minutes
@@ -105,9 +105,73 @@ export default function DashboardHistory() {
     if (!createdAt) return false;
     const createdTime = new Date(createdAt).getTime();
     const now = Date.now();
-    const twentyMinutesAgo = now - (20 * 60 * 1000); // 20 minutes in milliseconds
+    const twentyMinutesAgo = now - 20 * 60 * 1000;
     return createdTime >= twentyMinutesAgo;
   };
+
+  // Running experiment IDs for Realtime progress subscription
+  const runningExperimentIds = projects
+    .filter(
+      (p) =>
+        p.experiment_id &&
+        p.status === "Running" &&
+        (p.progress === undefined || (typeof p.progress === "number" && p.progress < 100)) &&
+        isRecentProject(p.created_at)
+    )
+    .map((p) => p.experiment_id as string);
+
+  const handleProgressUpdate = useCallback(
+    (
+      experimentId: string,
+      update: {
+        progress: number;
+        status: string;
+        url: string | null;
+        isComplete: boolean;
+        isFailed: boolean;
+        id?: number;
+        created_at?: string;
+        experiment_data?: { title?: string; simulation_name?: string };
+      }
+    ) => {
+      setProjects((prev) =>
+        prev.map((project) => {
+          if (project.experiment_id !== experimentId) return project;
+          const status = update.isFailed ? "Failed" : update.isComplete ? "Completed" : "Running";
+          const progress = update.isComplete || update.isFailed ? undefined : update.progress;
+          const updated: Project = { ...project, status, progress };
+          if ((update.isComplete || update.isFailed) && update.url) {
+            const expData = update.experiment_data || {};
+            const newDownload: Download = {
+              date: update.created_at ? new Date(update.created_at).toLocaleString() : new Date().toLocaleString(),
+              id: update.id ?? 0,
+              url: update.url,
+              filename: expData.title || expData.simulation_name || project.name,
+              created_at: update.created_at,
+            };
+            const existing = project.downloads || [];
+            const alreadyAdded = existing.some((d) => d.id === newDownload.id || d.url === newDownload.url);
+            const combined = alreadyAdded
+              ? existing
+              : [...existing, newDownload].sort((a, b) => {
+                  const tA = new Date(a.created_at || a.date).getTime();
+                  const tB = new Date(b.created_at || b.date).getTime();
+                  return tB - tA;
+                });
+            updated.downloads = combined;
+          }
+          return updated;
+        })
+      );
+    },
+    []
+  );
+
+  useExperimentsProgress(
+    runningExperimentIds,
+    user?.user_id ?? null,
+    handleProgressUpdate
+  );
 
   const getHistory = async (userId: string) => {
     const { data, error } = await supabase.from("dashboard").select("created_at, name, url").eq("user_id", userId);
@@ -912,78 +976,6 @@ export default function DashboardHistory() {
     setProjectToDelete(null);
   };
 
-  // Function to check progress for a running simulation by querying Supabase directly
-  const checkProgress = async (experimentId: string, userId: string) => {
-    try {
-      // Query Supabase for progress and, when complete, full row for the new download
-      const { data, error } = await supabase
-        .from("experiments")
-        .select("progress, status, url, created_at, experiment_data, id")
-        .eq("experiment_id", experimentId)
-        .eq("user_id", userId)
-        .single();
-
-      if (error) {
-        console.error("Error checking progress:", error);
-        return;
-      }
-
-      if (data) {
-        const progressData = data;
-        
-        // Normalize progress to 0-100 range (backend might return 0-1 or 0-100)
-        let progressPercent = progressData.progress || 0;
-        if (progressPercent <= 1 && progressPercent > 0) {
-          progressPercent = progressPercent * 100;
-        }
-        
-        // Normalize status
-        const status = progressData.status || '';
-        const statusLower = status.toLowerCase();
-        const isComplete = progressPercent >= 100 || statusLower === 'completed';
-        const isFailed = statusLower === 'failed';
-        const shouldStopPolling = progressPercent >= 100 || isComplete || isFailed;
-
-        // Update the project with new progress (and new download when just completed) — no full page refresh
-        setProjects(prev => prev.map(project => {
-          if (project.experiment_id !== experimentId) {
-            return project;
-          }
-          const updated: Project = {
-            ...project,
-            status: isFailed ? 'Failed' : (isComplete ? 'Completed' : 'Running'),
-            progress: shouldStopPolling ? undefined : progressPercent
-          };
-          // When simulation just completed and has a download URL, add it in-place so we don't need getProjects
-          // Dedupe by id/url so we never add the same download twice if polling fires again before state updates
-          if (shouldStopPolling && progressData.url) {
-            const expData = progressData.experiment_data || {};
-            const newDownload: Download = {
-              date: new Date(progressData.created_at).toLocaleString(),
-              id: progressData.id ?? 0,
-              url: progressData.url,
-              filename: expData.title || expData.simulation_name || `simulation_${progressData.id}`,
-              created_at: progressData.created_at
-            };
-            const existing = project.downloads || [];
-            const alreadyAdded = existing.some(d => d.id === newDownload.id || d.url === newDownload.url);
-            const combined = alreadyAdded
-              ? existing
-              : [...existing, newDownload].sort((a, b) => {
-                  const tA = new Date(a.created_at || a.date).getTime();
-                  const tB = new Date(b.created_at || b.date).getTime();
-                  return tB - tA;
-                });
-            updated.downloads = combined;
-          }
-          return updated;
-        }));
-      }
-    } catch (error) {
-      console.error("Error checking progress:", error);
-    }
-  };
-
   useEffect(() => {
     if (user && isAuthenticated && !hasInitiallyLoadedRef.current) {
       hasInitiallyLoadedRef.current = true;
@@ -1016,80 +1008,6 @@ export default function DashboardHistory() {
     }, 4000);
     return () => clearInterval(interval);
   }, [user?.user_id, isAuthenticated]);
-
-  // Poll for progress on running simulations
-  useEffect(() => {
-    if (!user || !isAuthenticated) {
-      // Clear interval if user is not authenticated
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
-      }
-      return;
-    }
-
-    const pollInterval = () => {
-      // Check current state on each poll to avoid closure issues
-      setProjects(currentProjects => {
-        // Only poll projects that are Running with progress < 100 AND created within last 20 minutes
-        // Exclude Completed/Failed statuses (they stop polling)
-        // Exclude old/stuck simulations (older than 20 minutes)
-        // If progress is undefined, still poll (might be just started)
-        // But if progress is a number >= 100, don't poll
-        const allRunningProjects = currentProjects.filter(p => 
-          p.experiment_id && 
-          p.status === 'Running' && 
-          (p.progress === undefined || (typeof p.progress === 'number' && p.progress < 100))
-        );
-        
-        const runningProjects = allRunningProjects.filter(p => isRecentProject(p.created_at));
-        
-        // If no running projects, stop polling
-        if (runningProjects.length === 0) {
-          if (pollingIntervalRef.current) {
-            clearInterval(pollingIntervalRef.current);
-            pollingIntervalRef.current = null;
-          }
-          return currentProjects;
-        }
-        // Poll each running project
-        runningProjects.forEach(project => {
-          if (project.experiment_id && user.user_id) {
-            checkProgress(project.experiment_id, user.user_id);
-          }
-        });
-
-        // Return unchanged state (we're just reading it)
-        return currentProjects;
-      });
-    };
-
-    // Clear any existing interval before starting a new one
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-    }
-
-    // Check if there are any running projects (created within last 20 minutes) before starting polling
-    const hasRunningProjects = projects.some(p => 
-      p.experiment_id && 
-      p.status === 'Running' && 
-      (p.progress === undefined || (typeof p.progress === 'number' && p.progress < 100)) &&
-      isRecentProject(p.created_at)
-    );
-
-    // Only start polling if there are running projects
-    if (hasRunningProjects) {
-      pollingIntervalRef.current = setInterval(pollInterval, 500);
-    }
-
-    return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
-      }
-    };
-  }, [projects, user, isAuthenticated]);
-
 
   // Show loading state while checking authentication
   if (isLoading) {

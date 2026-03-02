@@ -17,6 +17,7 @@ import google.generativeai as genai
 # from utils.cosine_sim import *
 from utils.prompts import *
 from utils.evaluate import *
+from utils.progress import create_progress_updater
 from utils.used_prompts import (
     GENERATE_STEPS_SYSTEM_PROMPT,
     get_generate_steps_user_prompt
@@ -195,11 +196,6 @@ def run_evaluation(uuid, data, key_g, jwt=None):
     try:
         # Create a new Supabase client for this request
         supabase = get_supabase_client(jwt)
-        # Update progress to 10% - Starting evaluation
-        response = supabase.table("experiments").update({
-            "progress": 10,
-        }).eq("experiment_id", uuid).execute()
-
 
         # Number of sample rows (personas) to use for this run: from request, clamped to 10-50
         num_samples = data.get('iters', 10)
@@ -250,36 +246,34 @@ def run_evaluation(uuid, data, key_g, jwt=None):
                 persona_pool = sorted(persona_pool, key=lambda x: x.get('number', 0))
             random_samples = persona_pool[:num_samples]
 
-        # Generate baseline prompt and get token usage
+        # Update progress to 10% - Setup complete, starting baseline
+        supabase.table("experiments").update({"progress": 10}).eq("experiment_id", uuid).execute()
+
+        # Generate baseline prompt and get token usage (progress 10-30% via callback)
         sample = data.get('sample')
         # Add the generated personas to the sample object
         sample['persona'] = random_samples
 
-        df, prompt_tokens = baseline_prompt(data, key_g, sample)
+        on_baseline_row = create_progress_updater(
+            uuid, supabase, 10, 30, num_samples,
+            get_client=get_supabase_client, jwt=jwt, no_throttle=True
+        )
+        df, prompt_tokens = baseline_prompt(data, key_g, sample, progress_callback=on_baseline_row)
 
-        # Update progress to 30% - Baseline prompt generated
-        supabase.table("experiments").update({
-            "progress": 30,
-        }).eq("experiment_id", uuid).execute()
-
-        # Evaluate responses and get token usage
+        # Evaluate responses and get token usage (progress 30-80% via per-column callback, write every call)
         steps = data.get('steps', [])
-
-        # Evaluate responses and get token usage
-        fn, eval_tokens = evaluate(df, key_g, steps)
-
-        # Update progress to 60% - Evaluation completed
-        supabase.table("experiments").update({
-            "progress": 60,
-        }).eq("experiment_id", uuid).execute()
+        num_cols_per_row = max(1, df.shape[1] - 1)
+        total_eval_units = df.shape[0] * num_cols_per_row
+        on_eval_unit = create_progress_updater(
+            uuid, supabase, 30, 80, total_eval_units,
+            get_client=get_supabase_client, jwt=jwt, no_throttle=True
+        )
+        fn, eval_tokens = evaluate(df, key_g, steps, progress_callback=on_eval_unit)
 
         df = df.replace('\n', '', regex=True)
         # sim_matrix = create_sim_matrix(df)
         
-        # Update progress to 80% - Similarity matrix created
-        supabase.table("experiments").update({
-            "progress": 80,
-        }).eq("experiment_id", uuid).execute()
+        # Progress already at 80% from callback; post-process is fast
         
         # Calculate total token usage for prompts
         total_prompt_input_token = sum(token_dict.get('prompt_tokens', 0) for token_dict in (prompt_tokens or []))
