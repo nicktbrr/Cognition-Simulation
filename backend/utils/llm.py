@@ -23,17 +23,39 @@ class EvaluationMetrics(BaseModel):
     score: List[float]
 
 
+# Maps short/friendly names (sent from the frontend) to canonical API model IDs.
+MODEL_NAME_MAP: Dict[str, str] = {
+    "gemini": "gemini-2.0-flash",
+    "gemini-flash": "gemini-2.0-flash",
+    "gemini-2.0": "gemini-2.0-flash",
+    # Future entries:
+    # "gpt4o": "gpt-4o",
+    # "claude": "claude-3-5-sonnet-20241022",
+}
+
+DEFAULT_MODEL = "gemini-2.0-flash"
+
+
+def resolve_model_name(model_name: str) -> str:
+    """Normalize a model name to a canonical API model ID."""
+    if not model_name:
+        return DEFAULT_MODEL
+    return MODEL_NAME_MAP.get(model_name, model_name)
+
+
 def get_llm(model_name: str, temperature: float = 0.0):
     """
     Create a LangChain chat model instance for the given model name.
 
     Args:
-        model_name: Model identifier (e.g. "gemini-2.0-flash")
+        model_name: Model identifier or short name (e.g. "gemini", "gemini-2.0-flash")
         temperature: Sampling temperature (0.0 – 1.0)
 
     Returns:
         LangChain BaseChatModel instance
     """
+    model_name = resolve_model_name(model_name)
+
     if model_name.startswith("gemini"):
         from langchain_google_genai import ChatGoogleGenerativeAI
         return ChatGoogleGenerativeAI(

@@ -17,7 +17,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 # from utils.cosine_sim import *
 from utils.prompts import *
 from utils.evaluate import *
-from utils.llm import get_llm
+from utils.llm import get_llm, resolve_model_name
 from utils.progress import create_progress_updater
 try:
     from utils.pricing import compute_prompt_and_eval_cost, compute_cost
@@ -376,7 +376,7 @@ class Evaluation(Resource):
                 jwt = auth_header.split("Bearer ")[1]
             uuid = request.get_json()['id']
             data = request.get_json()['data']
-            model_name = data.get('model', 'gemini-2.0-flash')
+            model_name = resolve_model_name(data.get('model', 'gemini-2.0-flash'))
 
             supabase: Client = create_client(url, key)
             if jwt:
@@ -428,7 +428,7 @@ class Progress(Resource):
             user_id = request.args.get('user_id')
 
             if not task_id or not user_id:
-                return jsonify({"status": "error", "message": "Missing task_id or user_id"}), 400
+                return {"status": "error", "message": "Missing task_id or user_id"}, 400
             
             # Create a new Supabase client for this request
             supabase = get_supabase_client(jwt)
@@ -451,11 +451,11 @@ class Progress(Resource):
                     "progress": progress_data
                 })
             else:
-                return jsonify({"status": "not_found", "message": "Progress not found"}), 404
-                
+                return {"status": "not_found", "message": "Progress not found"}, 404
+
         except Exception as e:
             logger.error(f"Error in Progress endpoint: {str(e)}")
-            return jsonify({"status": "error", "message": str(e)}), 500
+            return {"status": "error", "message": str(e)}, 500
 
 
 class GenerateSteps(Resource):
@@ -488,7 +488,7 @@ class GenerateSteps(Resource):
             
             if not user_prompt:
                 logger.warning(f"[{request_id}] Missing 'prompt' in request body")
-                return jsonify({"status": "error", "message": "Missing 'prompt' in request body"}), 400
+                return {"status": "error", "message": "Missing 'prompt' in request body"}, 400
             
             # System prompt for the cognitive science researcher
             system_prompt = GENERATE_STEPS_SYSTEM_PROMPT
@@ -505,7 +505,15 @@ class GenerateSteps(Resource):
                     SystemMessage(content=system_prompt),
                     HumanMessage(content=full_prompt),
                 ])
-                response_text = lc_response.content
+                # content may be a string or a list of parts depending on the provider/version
+                raw_content = lc_response.content
+                if isinstance(raw_content, list):
+                    response_text = "".join(
+                        part.get("text", "") if isinstance(part, dict) else str(part)
+                        for part in raw_content
+                    )
+                else:
+                    response_text = raw_content or ""
                 logger.info(f"[{request_id}] LLM call successful")
 
                 # Track token usage for generate_steps
@@ -549,10 +557,7 @@ class GenerateSteps(Resource):
                 error_msg = str(api_error)
                 error_type = type(api_error).__name__
                 logger.error(f"[{request_id}] Error calling LLM: {error_type}: {error_msg}", exc_info=True)
-                return jsonify({
-                    "status": "error",
-                    "message": f"Failed to call LLM: {error_msg}"
-                }), 500
+                return {"status": "error", "message": f"Failed to call LLM: {error_msg}"}, 500
 
             # Parse JSON response
             logger.info(f"[{request_id}] Parsing LLM response")
@@ -571,30 +576,18 @@ class GenerateSteps(Resource):
                 error_msg = str(parse_error)
                 error_type = type(parse_error).__name__
                 logger.error(f"[{request_id}] Error accessing LLM response: {error_type}: {error_msg}", exc_info=True)
-                return jsonify({
-                    "status": "error",
-                    "message": f"Failed to access LLM response: {error_msg}"
-                }), 500
+                return {"status": "error", "message": f"Failed to access LLM response: {error_msg}"}, 500
             except json.JSONDecodeError as parse_error:
                 error_msg = str(parse_error)
                 logger.error(f"[{request_id}] JSON decode error: {error_msg}", exc_info=True)
-                try:
-                    logger.error(f"[{request_id}] Response text that failed to parse: {response_text[:500]}")
-                except:
-                    pass
-                return jsonify({
-                    "status": "error",
-                    "message": f"Failed to parse JSON response from Gemini: {error_msg}"
-                }), 500
-            
+                logger.error(f"[{request_id}] Response text that failed to parse: {response_text[:500]}")
+                return {"status": "error", "message": f"Failed to parse JSON response from LLM: {error_msg}"}, 500
+
             # Validate basic structure - just needs to be a dict with at least one step
             logger.info(f"[{request_id}] Validating response structure")
             if not isinstance(steps_data, dict):
                 logger.error(f"[{request_id}] Invalid response format: expected dict, got {type(steps_data)}")
-                return jsonify({
-                    "status": "error",
-                    "message": "Invalid response format: expected a JSON object"
-                }), 500
+                return {"status": "error", "message": "Invalid response format: expected a JSON object"}, 500
             
             # Extract introduction and title if present
             generated_introduction = steps_data.get('introduction', '')
@@ -609,10 +602,7 @@ class GenerateSteps(Resource):
             if not step_keys:
                 logger.error(f"[{request_id}] No steps found in response")
                 logger.error(f"[{request_id}] Available keys: {list(steps_data.keys())}")
-                return jsonify({
-                    "status": "error",
-                    "message": "Response must contain at least one step (step01, step02, etc.)"
-                }), 500
+                return {"status": "error", "message": "Response must contain at least one step (step01, step02, etc.)"}, 500
             logger.info(f"[{request_id}] Found {len(step_keys)} step(s)")
             logger.debug(f"[{request_id}] Step keys: {step_keys}")
             
@@ -648,10 +638,7 @@ class GenerateSteps(Resource):
             
             if not filtered_steps:
                 logger.error(f"[{request_id}] All steps were filtered out as introduction steps")
-                return jsonify({
-                    "status": "error",
-                    "message": "No valid steps generated. Please ensure your prompt describes actual tasks, not just an introduction."
-                }), 500
+                return {"status": "error", "message": "No valid steps generated. Please ensure your prompt describes actual tasks, not just an introduction."}, 500
             
             # Build output dict with steps, introduction, and optional title
             output_dict = filtered_steps.copy()
@@ -678,10 +665,7 @@ class GenerateSteps(Resource):
             logger.error(f"[{request_id}] Unexpected error in GenerateSteps: {error_type}: {error_msg}", exc_info=True)
             import traceback
             logger.error(f"[{request_id}] Traceback: {traceback.format_exc()}")
-            return jsonify({
-                "status": "error",
-                "message": f"An unexpected error occurred: {error_msg}"
-            }), 500
+            return {"status": "error", "message": f"An unexpected error occurred: {error_msg}"}, 500
 
 
 # Register the resources with the API
