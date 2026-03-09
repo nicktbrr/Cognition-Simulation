@@ -535,15 +535,16 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
     <>
       <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-end z-50" onClick={attemptClose}>
         <div className="bg-white h-screen flex flex-col shadow-2xl" style={{width: 'calc(100% - 224px)'}} onClick={(e) => e.stopPropagation()}>
+          {/* Locked Banner */}
+          {readOnly && (
+            <div className="w-full bg-red-400/85 text-white px-2 py-1 text-center text-xs font-medium flex-shrink-0">
+              This sample has already been used in an experiment and cannot be modified. You can copy the sample from the samples page and then edit the copy.
+            </div>
+          )}
           {/* Header */}
           <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0">
             <div className="flex-1">
               <h2 className="text-xl font-semibold text-blue-600 mb-3">{readOnly ? 'View Sample' : (initialSample ? 'Edit Sample' : 'New Sample')}</h2>
-              {readOnly && (
-                <p className="text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3 text-sm">
-                  This sample is locked and cannot be edited.
-                </p>
-              )}
               <div>
                 <label htmlFor="sample-name" className="block text-sm font-medium text-gray-700 mb-2">
                   Sample Name
