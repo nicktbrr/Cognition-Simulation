@@ -4,43 +4,19 @@ It includes utilities for processing evaluation results and generating Excel rep
 """
 
 import pandas as pd
-import google.generativeai as genai
-import typing_extensions as typing
-import json
-from pydantic import BaseModel
 import concurrent.futures
 import os
-# import openai
 from datetime import datetime
 from supabase import create_client, Client
+
+from langchain_core.messages import SystemMessage, HumanMessage
+
+from .llm import invoke_structured, EvaluationMetrics, get_llm
 from .used_prompts import (
     get_persona_generation_user_prompt,
     get_evaluation_system_prompt,
     get_evaluation_user_prompt
 )
-
-class EvaluationMetricsGPT4(BaseModel):
-    """
-    Pydantic model for GPT-4 evaluation metrics.
-    
-    Attributes:
-        metric (list[str]): List of metric names being evaluated
-        score (list[float]): List of corresponding scores for each metric
-    """
-    metric: list[str]
-    score: list[float]
-
-
-class EvaluationMetrics(typing.TypedDict):
-    """
-    TypedDict for Gemini evaluation metrics.
-    
-    Attributes:
-        metric (list[str]): List of metric names being evaluated
-        score (list[float]): List of corresponding scores for each metric
-    """
-    metric: list[str]
-    score: list[float]
 
 
 def generate_persona_from_attributes(sample, key_g, supabase_client=None):
@@ -76,20 +52,9 @@ def generate_persona_from_attributes(sample, key_g, supabase_client=None):
     persona_prompt = get_persona_generation_user_prompt(attributes_text)
 
     try:
-        # Configure Gemini API
-        genai.configure(api_key=key_g)
-        model = genai.GenerativeModel("gemini-2.0-flash")
-        
-        # Generate persona
-        response = model.generate_content(
-            persona_prompt,
-            generation_config=genai.types.GenerationConfig(
-                temperature=0.7,
-                max_output_tokens=200
-            )
-        )
-        
-        generated_persona = response.text.strip()
+        llm = get_llm("gemini-2.0-flash", temperature=0.7)
+        response = llm.invoke([HumanMessage(content=persona_prompt)])
+        generated_persona = response.content.strip()
 
         # Update the sample in the database if supabase client is provided
         if supabase_client and generated_persona:
@@ -267,7 +232,7 @@ def dataframe_to_excel(df_response, df_gemini, steps=None):
     return fn
 
 
-def process_row(row_idx, df_row, steps, progress_callback=None):
+def process_row(row_idx, df_row, steps, model_name, progress_callback=None):
     """
     Processes a single row by evaluating responses using Gemini model.
     
@@ -275,6 +240,7 @@ def process_row(row_idx, df_row, steps, progress_callback=None):
         row_idx (int): Index of the row being processed
         df_row (pd.Series): Row of data to evaluate
         steps (list): List of step dictionaries containing measures
+        model_name (str): LLM model identifier (e.g. "gemini-2.0-flash")
         progress_callback (callable, optional): Called after each column completes for progress tracking
         
     Returns:
@@ -349,43 +315,33 @@ def process_row(row_idx, df_row, steps, progress_callback=None):
             system_prompt = get_evaluation_system_prompt(measures)
             
             try:
-                # Make API call for this specific step
-                model = genai.GenerativeModel(
-                    "gemini-2.0-flash", system_instruction=system_prompt)
-
-                response = model.generate_content(
-                    user_prompt,
-                    generation_config=genai.types.GenerationConfig(
-                        temperature=1.0,
-                        response_mime_type="application/json",
-                        response_schema=EvaluationMetrics
-                    )
+                # Invoke LLM with structured output via LangChain
+                messages = [
+                    SystemMessage(content=system_prompt),
+                    HumanMessage(content=user_prompt),
+                ]
+                parsed, usage = invoke_structured(
+                    model_name, EvaluationMetrics, messages, temperature=1.0
                 )
 
                 # Track token usage
-                if hasattr(response, 'usage_metadata') and response.usage_metadata:
-                    all_token_usage['gemini_prompt_tokens'] += response.usage_metadata.prompt_token_count
-                    all_token_usage['gemini_response_tokens'] += response.usage_metadata.candidates_token_count
-                    all_token_usage['gemini_total_tokens'] += response.usage_metadata.total_token_count
-
-                # Parse JSON response
-                json_response = json.loads(
-                    response._result.candidates[0].content.parts[0].text)
+                all_token_usage['gemini_prompt_tokens'] += usage['input_tokens']
+                all_token_usage['gemini_response_tokens'] += usage['output_tokens']
+                all_token_usage['gemini_total_tokens'] += usage['total_tokens']
 
                 # Process scores for this step's measures
                 for idx, measure in enumerate(current_measures):
                     step_metric_name = f"{step_label}_{measure.get('title', '')}"
-                    
+
                     if step_metric_name in row_scores:
                         try:
-                            if idx < len(json_response.get('score', [])):
-                                score = json_response["score"][idx]
-                                row_scores[step_metric_name].append(score)
+                            if parsed is not None and idx < len(parsed.score):
+                                row_scores[step_metric_name].append(parsed.score[idx])
                             else:
                                 row_scores[step_metric_name].append('Poorly Defined Criteria')
                         except (IndexError, KeyError):
                             row_scores[step_metric_name].append('Error in scoring')
-                        
+
             except Exception:
                 # Add error scores for this step's measures
                 for measure in current_measures:
@@ -402,25 +358,22 @@ def process_row(row_idx, df_row, steps, progress_callback=None):
 
     return row_scores, None, all_token_usage
 
-def evaluate(df, key_g, steps=None, progress_callback=None):
+def evaluate(df, model_name, steps=None, progress_callback=None):
     """
     Evaluates multiple rows in parallel using threading and combines the results into a DataFrame.
-    
+
     Args:
         df (pd.DataFrame): Input dataframe containing responses to evaluate
-        key_g (str): Gemini API key
-        metrics (list): List of dictionaries containing metric definitions
+        model_name (str): LLM model identifier (e.g. "gemini-2.0-flash")
         steps (list): List of step dictionaries containing 'label', 'instructions', and 'measures' keys
         progress_callback (callable, optional): Called after each row completes for progress tracking
-        
+
     Returns:
         tuple: Contains:
             - str: Filename of the generated Excel report
             - list: List of token usage statistics for each row
     """
-    # Configure Gemini API
-    genai.configure(api_key=key_g)
-    
+
     if steps:
         all_metrics_to_evaluate = []
         
@@ -464,7 +417,7 @@ def evaluate(df, key_g, steps=None, progress_callback=None):
     tokens_ls = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
-            executor.submit(process_row, idx, df.iloc[idx], steps, progress_callback): idx
+            executor.submit(process_row, idx, df.iloc[idx], steps, model_name, progress_callback): idx
             for idx in range(df.shape[0])
         }
 
