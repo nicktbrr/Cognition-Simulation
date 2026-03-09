@@ -1,10 +1,9 @@
 """
-Pricing utility for Gemini 2.0 Flash using Google Cloud Billing Catalog API.
+Pricing utility for LLM token cost calculation.
 
-Fetches official list prices for input/output tokens and computes cost from token counts.
-Falls back to hardcoded rates if the API is unavailable.
-
-Set GCP_BILLING_API_KEY to fetch live rates from the Cloud Billing Catalog API.
+Supports multiple models with a fallback pricing table.
+For Gemini 2.0 Flash, live rates can be fetched from the Google Cloud Billing
+Catalog API when GCP_BILLING_API_KEY is set.
 """
 
 import os
@@ -26,6 +25,17 @@ GEMINI_2_FLASH_OUTPUT_SKU = "DFB0-8442-43A8"  # Text Output - Predictions
 # Fallback rates (USD per 1M tokens) - Gemini 2.0 Flash as of 2025
 FALLBACK_INPUT_PER_MILLION = 0.10
 FALLBACK_OUTPUT_PER_MILLION = 0.40
+
+# Static pricing table (USD per 1M tokens) for all supported models.
+# Used when live billing API rates are unavailable or for non-Gemini models.
+MODEL_PRICING: dict = {
+    "gemini-2.0-flash": {"input_per_million": 0.10, "output_per_million": 0.40},
+    # Future models — uncomment and set correct rates when adding support:
+    # "gpt-4o":                        {"input_per_million": 2.50,  "output_per_million": 10.00},
+    # "gpt-4o-mini":                   {"input_per_million": 0.15,  "output_per_million": 0.60},
+    # "claude-3-5-sonnet-20241022":    {"input_per_million": 3.00,  "output_per_million": 15.00},
+    # "claude-3-5-haiku-20241022":     {"input_per_million": 0.80,  "output_per_million": 4.00},
+}
 
 # In-memory cache for rates (avoids API calls on every simulation)
 _cached_rates: Tuple[float, float] | None = None
@@ -122,10 +132,37 @@ def compute_cost(
     output_tokens: int,
 ) -> float:
     """
-    Compute total cost in USD for given input and output token counts.
-    Uses Gemini 2.0 Flash rates (from Billing API or fallback).
+    Compute total cost in USD for Gemini 2.0 Flash (uses Billing API or fallback).
+    Kept for backward compatibility — prefer compute_cost_for_model for new code.
     """
     input_rate, output_rate = get_gemini_2_flash_rates()
+    return (input_tokens * input_rate) + (output_tokens * output_rate)
+
+
+def compute_cost_for_model(
+    model_name: str,
+    input_tokens: int,
+    output_tokens: int,
+) -> float:
+    """
+    Compute total cost in USD for a given model using the MODEL_PRICING table.
+    Falls back to Gemini 2.0 Flash rates if the model is not in the table.
+
+    Args:
+        model_name: LLM model identifier (e.g. "gemini-2.0-flash")
+        input_tokens: Number of input/prompt tokens
+        output_tokens: Number of output/completion tokens
+
+    Returns:
+        Total cost in USD
+    """
+    # For Gemini models, prefer the live billing API rates
+    if model_name.startswith("gemini"):
+        return compute_cost(input_tokens, output_tokens)
+
+    rates = MODEL_PRICING.get(model_name, MODEL_PRICING["gemini-2.0-flash"])
+    input_rate = rates["input_per_million"] / 1_000_000
+    output_rate = rates["output_per_million"] / 1_000_000
     return (input_tokens * input_rate) + (output_tokens * output_rate)
 
 
@@ -134,11 +171,12 @@ def compute_prompt_and_eval_cost(
     prompt_output: int,
     eval_input: int,
     eval_output: int,
+    model_name: str = "gemini-2.0-flash",
 ) -> Tuple[float, float]:
     """
-    Compute prompt cost and eval cost separately.
+    Compute prompt cost and eval cost separately for a given model.
     Returns (prompt_cost_usd, eval_cost_usd).
     """
-    prompt_cost = compute_cost(prompt_input, prompt_output)
-    eval_cost = compute_cost(eval_input, eval_output)
+    prompt_cost = compute_cost_for_model(model_name, prompt_input, prompt_output)
+    eval_cost = compute_cost_for_model(model_name, eval_input, eval_output)
     return round(prompt_cost, 6), round(eval_cost, 6)

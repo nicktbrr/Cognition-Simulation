@@ -13,10 +13,11 @@ from flask_cors import CORS
 import os
 from supabase import create_client, Client
 from pathlib import Path
-import google.generativeai as genai
+from langchain_core.messages import SystemMessage, HumanMessage
 # from utils.cosine_sim import *
 from utils.prompts import *
 from utils.evaluate import *
+from utils.llm import get_llm
 from utils.progress import create_progress_updater
 try:
     from utils.pricing import compute_prompt_and_eval_cost, compute_cost
@@ -107,9 +108,8 @@ def get_supabase_client(jwt=None):
         client.auth.set_session(jwt, "")
     return client
 
-# Configure Google Gemini API
+# Keep GEMINI_KEY available for reference; get_llm() reads it from env directly.
 key_g = os.environ.get('GEMINI_KEY')
-genai.configure(api_key=key_g)
 
 
 def parse_age_range(age_range_str):
@@ -201,7 +201,7 @@ def generate_random_samples(attributes, num_samples=10):
     return samples
 
 
-def run_evaluation(uuid, data, key_g, jwt=None):
+def run_evaluation(uuid, data, model_name, jwt=None):
     fn = None  # Initialize fn variable for cleanup
     try:
         # Create a new Supabase client for this request
@@ -268,7 +268,7 @@ def run_evaluation(uuid, data, key_g, jwt=None):
             uuid, supabase, 10, 30, num_samples,
             get_client=get_supabase_client, jwt=jwt, no_throttle=True
         )
-        df, prompt_tokens = baseline_prompt(data, key_g, sample, progress_callback=on_baseline_row)
+        df, prompt_tokens = baseline_prompt(data, model_name, sample, progress_callback=on_baseline_row)
 
         # Evaluate responses and get token usage (progress 30-80% via per-column callback, write every call)
         steps = data.get('steps', [])
@@ -278,7 +278,7 @@ def run_evaluation(uuid, data, key_g, jwt=None):
             uuid, supabase, 30, 80, total_eval_units,
             get_client=get_supabase_client, jwt=jwt, no_throttle=True
         )
-        fn, eval_tokens = evaluate(df, key_g, steps, progress_callback=on_eval_unit)
+        fn, eval_tokens = evaluate(df, model_name, steps, progress_callback=on_eval_unit)
 
         df = df.replace('\n', '', regex=True)
         # sim_matrix = create_sim_matrix(df)
@@ -302,6 +302,7 @@ def run_evaluation(uuid, data, key_g, jwt=None):
             total_prompt_output_token,
             total_eval_input_token,
             total_eval_output_token,
+            model_name=model_name,
         )
         total_cost = prompt_cost + eval_cost
         supabase.table("tokens").insert({
@@ -375,11 +376,11 @@ class Evaluation(Resource):
                 jwt = auth_header.split("Bearer ")[1]
             uuid = request.get_json()['id']
             data = request.get_json()['data']
+            model_name = data.get('model', 'gemini-2.0-flash')
 
             supabase: Client = create_client(url, key)
             if jwt:
                 supabase.auth.set_session(jwt, "")
-            # return jsonify({"status": "success", "message": "Simulation submitted successfully"})
             # Create progress tracking entry
             task_id = uuid
             response = supabase.table("experiments").insert({
@@ -390,9 +391,10 @@ class Evaluation(Resource):
                 "user_id": data['user_id'],
                 "simulation_name": data['title'],
                 "experiment_data": data,
+                "model": model_name,
             }).execute()
-            # Start background thread for evaluation, pass jwt
-            thread = threading.Thread(target=run_evaluation, args=(uuid, data, key_g, jwt))
+            # Start background thread for evaluation, pass model_name and jwt
+            thread = threading.Thread(target=run_evaluation, args=(uuid, data, model_name, jwt))
             thread.start()
             # Return immediately with task_id
             return jsonify({"status": "started", "task_id": task_id})
@@ -495,81 +497,71 @@ class GenerateSteps(Resource):
             full_prompt = get_generate_steps_user_prompt(user_prompt, title=title, introduction=introduction)
             logger.debug(f"[{request_id}] Full prompt prepared (length: {len(full_prompt)} characters)")
             
-            # Configure Gemini API
-            logger.info(f"[{request_id}] Configuring Gemini API")
-            genai.configure(api_key=key_g)
-            model = genai.GenerativeModel(
-                "gemini-2.0-flash",
-                system_instruction=system_prompt
-            )
-            
-            # Generate structured JSON response using TypedDict schema (like evaluate.py)
-            logger.info(f"[{request_id}] Calling Gemini API with response_schema")
+            # Call LLM via LangChain
+            logger.info(f"[{request_id}] Calling LLM (gemini-2.0-flash) via LangChain")
             try:
-                gemini_response = model.generate_content(
-                    full_prompt,
-                    generation_config=genai.types.GenerationConfig(
-                        temperature=0.7,
-                        response_mime_type="application/json",
-                    )
-                )
-                logger.info(f"[{request_id}] Gemini API call successful")
+                llm = get_llm("gemini-2.0-flash", temperature=0.7)
+                lc_response = llm.invoke([
+                    SystemMessage(content=system_prompt),
+                    HumanMessage(content=full_prompt),
+                ])
+                response_text = lc_response.content
+                logger.info(f"[{request_id}] LLM call successful")
 
                 # Track token usage for generate_steps
                 try:
-                    if hasattr(gemini_response, 'usage_metadata') and gemini_response.usage_metadata:
-                        prompt_count = getattr(gemini_response.usage_metadata, 'prompt_token_count', 0) or 0
-                        output_count = getattr(gemini_response.usage_metadata, 'candidates_token_count', 0) or 0
-                        total_count = getattr(gemini_response.usage_metadata, 'total_token_count', 0) or 0
-                        auth_header = request.headers.get("Authorization")
-                        jwt = auth_header.split("Bearer ")[1] if auth_header and auth_header.startswith("Bearer ") else None
-                        supabase_client = get_supabase_client(jwt)
-                        user_id = data.get("user_id")
-                        if not user_id and jwt:
-                            try:
-                                user_response = supabase_client.auth.get_user()
-                                if user_response and getattr(user_response, "user", None):
-                                    user_id = user_response.user.id
-                            except Exception:
-                                pass
-                        if user_id is not None:
-                            gen_prompt_cost = compute_cost(prompt_count, output_count)
-                            supabase_client.table("tokens").insert({
-                                "id": str(uuid.uuid4()),
-                                "experiment_id": None,
-                                "operation": "generate_steps",
-                                "user_id": user_id,
-                                "prompt_input_token": prompt_count,
-                                "prompt_output_token": output_count,
-                                "prompt_total_token": total_count,
-                                "eval_input_token": 0,
-                                "eval_output_token": 0,
-                                "eval_total_token": 0,
-                                "total_tokens": total_count,
-                                "prompt_cost": gen_prompt_cost,
-                                "eval_cost": 0.0,
-                                "total_cost": gen_prompt_cost,
-                            }).execute()
+                    usage_meta = lc_response.usage_metadata or {}
+                    prompt_count = usage_meta.get("input_tokens", 0) or 0
+                    output_count = usage_meta.get("output_tokens", 0) or 0
+                    total_count = usage_meta.get("total_tokens", 0) or 0
+                    auth_header = request.headers.get("Authorization")
+                    jwt = auth_header.split("Bearer ")[1] if auth_header and auth_header.startswith("Bearer ") else None
+                    supabase_client = get_supabase_client(jwt)
+                    user_id = data.get("user_id")
+                    if not user_id and jwt:
+                        try:
+                            user_response = supabase_client.auth.get_user()
+                            if user_response and getattr(user_response, "user", None):
+                                user_id = user_response.user.id
+                        except Exception:
+                            pass
+                    if user_id is not None:
+                        gen_prompt_cost = compute_cost(prompt_count, output_count)
+                        supabase_client.table("tokens").insert({
+                            "id": str(uuid.uuid4()),
+                            "experiment_id": None,
+                            "operation": "generate_steps",
+                            "user_id": user_id,
+                            "prompt_input_token": prompt_count,
+                            "prompt_output_token": output_count,
+                            "prompt_total_token": total_count,
+                            "eval_input_token": 0,
+                            "eval_output_token": 0,
+                            "eval_total_token": 0,
+                            "total_tokens": total_count,
+                            "prompt_cost": gen_prompt_cost,
+                            "eval_cost": 0.0,
+                            "total_cost": gen_prompt_cost,
+                        }).execute()
                 except Exception as token_err:
                     logger.warning(f"[{request_id}] Failed to store token usage: {token_err}")
             except Exception as api_error:
                 error_msg = str(api_error)
                 error_type = type(api_error).__name__
-                logger.error(f"[{request_id}] Error calling Gemini API: {error_type}: {error_msg}", exc_info=True)
+                logger.error(f"[{request_id}] Error calling LLM: {error_type}: {error_msg}", exc_info=True)
                 return jsonify({
                     "status": "error",
-                    "message": f"Failed to call Gemini API: {error_msg}"
+                    "message": f"Failed to call LLM: {error_msg}"
                 }), 500
-            
-            # Parse JSON response - use the same pattern as other code in the codebase
-            logger.info(f"[{request_id}] Parsing Gemini response")
+
+            # Parse JSON response
+            logger.info(f"[{request_id}] Parsing LLM response")
             try:
-                response_text = gemini_response._result.candidates[0].content.parts[0].text
-                logger.info(f"[{request_id}] ========== FULL GEMINI RESPONSE ==========")
+                logger.info(f"[{request_id}] ========== FULL LLM RESPONSE ==========")
                 logger.info(f"[{request_id}] Response text length: {len(response_text)} characters")
                 logger.info(f"[{request_id}] Full response:\n{response_text}")
-                logger.info(f"[{request_id}] ==========================================")
-                
+                logger.info(f"[{request_id}] ========================================")
+
                 steps_data = json.loads(response_text)
                 logger.info(f"[{request_id}] JSON parsing successful")
                 logger.info(f"[{request_id}] Parsed data structure:")
@@ -578,17 +570,10 @@ class GenerateSteps(Resource):
             except (AttributeError, KeyError, IndexError) as parse_error:
                 error_msg = str(parse_error)
                 error_type = type(parse_error).__name__
-                logger.error(f"[{request_id}] Error accessing Gemini response: {error_type}: {error_msg}", exc_info=True)
-                try:
-                    logger.error(f"[{request_id}] Response object: {gemini_response}")
-                    logger.error(f"[{request_id}] Response has _result: {hasattr(gemini_response, '_result')}")
-                    if hasattr(gemini_response, '_result'):
-                        logger.error(f"[{request_id}] Response _result: {gemini_response._result}")
-                except:
-                    pass
+                logger.error(f"[{request_id}] Error accessing LLM response: {error_type}: {error_msg}", exc_info=True)
                 return jsonify({
                     "status": "error",
-                    "message": f"Failed to access Gemini response: {error_msg}"
+                    "message": f"Failed to access LLM response: {error_msg}"
                 }), 500
             except json.JSONDecodeError as parse_error:
                 error_msg = str(parse_error)

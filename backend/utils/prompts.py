@@ -4,12 +4,13 @@ It includes utilities for handling persona-based responses and parallel processi
 """
 
 import pandas as pd
-import google.generativeai as genai
-import typing_extensions as typing
 import json
 import concurrent.futures
-
 import random
+
+from langchain_core.messages import SystemMessage, HumanMessage
+
+from .llm import invoke_structured, BaseResponse
 from .personas import personas
 from .used_prompts import (
     BASELINE_SYSTEM_PROMPT,
@@ -43,19 +44,7 @@ def persona_dict_to_string(persona):
     return str(persona)
 
 
-class BaseClass(typing.TypedDict, total=False):
-    """
-    TypedDict class defining the structure of the AI model's response.
-    
-    Attributes:
-        type (list[str]): List of response types
-        response (str): The actual response text
-    """
-    type: list[str]
-    response: str
-
-
-def process_row_with_chat(row_idx, df, prompt, key_g, system_prompt, persona):
+def process_row_with_chat(row_idx, df, prompt, model_name, system_prompt, persona):
     """
     Process a single row of data using the Gemini AI model with chat-based interaction.
     
@@ -63,7 +52,7 @@ def process_row_with_chat(row_idx, df, prompt, key_g, system_prompt, persona):
         row_idx (int): Index of the row to process
         df (pd.DataFrame): DataFrame containing the data to process
         prompt (list): List containing prompt configuration and steps
-        key_g (str): Google AI API key
+        model_name (str): LLM model identifier (e.g. "gemini-2.0-flash")
         system_prompt (str): System-level instructions for the AI model
         persona (dict or str): The persona to use for this row (can be dict or string)
     
@@ -125,29 +114,24 @@ def process_row_with_chat(row_idx, df, prompt, key_g, system_prompt, persona):
                     instructions
                 )
 
-            # Configure and call the AI model
-            genai.configure(api_key=key_g)
+            # Invoke the LLM with structured output via LangChain
+            messages = [
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=llm_prompt),
+            ]
+            parsed, usage = invoke_structured(
+                model_name, BaseResponse, messages, temperature=temperature / 100.0
+            )
 
-            model = genai.GenerativeModel(
-                "gemini-2.0-flash", system_instruction=system_prompt)
-
-            response = model.generate_content(llm_prompt,
-                                              generation_config=genai.types.GenerationConfig(
-                                                  temperature=temperature/100.0,
-                                                  response_mime_type="application/json",
-                                                  response_schema=BaseClass))
-            
             # Track token usage
-            tokens_dict['prompt_tokens'] += response.usage_metadata.prompt_token_count
-            tokens_dict['response_tokens'] += response.usage_metadata.candidates_token_count
-            tokens_dict['total_tokens'] += response.usage_metadata.total_token_count
-            
+            tokens_dict['prompt_tokens'] += usage['input_tokens']
+            tokens_dict['response_tokens'] += usage['output_tokens']
+            tokens_dict['total_tokens'] += usage['total_tokens']
+
             # Process the response
-            try:
-                json_response = json.loads(
-                    response._result.candidates[0].content.parts[0].text)
-                row_data[col_name] = json_response['response']
-            except Exception:
+            if parsed is not None:
+                row_data[col_name] = parsed.response
+            else:
                 row_data[col_name] = "Error processing row ignore in simulation"
         else:
             row_data[col_name] = "No matching instructions found"
@@ -158,13 +142,13 @@ def process_row_with_chat(row_idx, df, prompt, key_g, system_prompt, persona):
     return row_data, tokens_dict
 
 
-def baseline_prompt(prompt, key_g, sample=None, progress_callback=None):
+def baseline_prompt(prompt, model_name, sample=None, progress_callback=None):
     """
     Process multiple rows in parallel using threading and combine results into a DataFrame.
-    
+
     Args:
         prompt (list): List containing prompt configuration including seed, steps, and iterations
-        key_g (str): Google AI API key
+        model_name (str): LLM model identifier (e.g. "gemini-2.0-flash")
         sample (dict): Sample data containing persona array (list of 10 persona dicts)
         progress_callback (callable, optional): Called after each row completes for progress tracking
     
@@ -241,7 +225,7 @@ def baseline_prompt(prompt, key_g, sample=None, progress_callback=None):
     # Process rows in parallel
     results = []
     with concurrent.futures.ThreadPoolExecutor() as executor:
-        futures = {executor.submit(process_row_with_chat, row_idx, df, prompt, key_g, system_prompt, selected_personas[row_idx]): row_idx for row_idx in range(df.shape[0])}
+        futures = {executor.submit(process_row_with_chat, row_idx, df, prompt, model_name, system_prompt, selected_personas[row_idx]): row_idx for row_idx in range(df.shape[0])}
         tokens_ls = []
 
         for future in concurrent.futures.as_completed(futures):
