@@ -8,9 +8,11 @@ interface ModalProps {
   children: React.ReactNode;
   /** When provided, rendered at the bottom of the modal (always visible, not scrollable) */
   footer?: React.ReactNode;
+  /** When provided, rendered as a full-width banner at the top of the modal */
+  banner?: React.ReactNode;
 }
 
-export default function Modal({ isOpen, onClose, title, children, footer }: ModalProps) {
+export default function Modal({ isOpen, onClose, title, children, footer, banner }: ModalProps) {
   // Close modal on escape key
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
@@ -42,6 +44,8 @@ export default function Modal({ isOpen, onClose, title, children, footer }: Moda
       
       {/* Modal */}
       <div className={`relative bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 flex flex-col ${footer ? 'max-h-[90vh] overflow-hidden' : 'max-h-[90vh] overflow-y-auto'}`}>
+        {/* Top Banner */}
+        {banner}
         {/* Header with Close Button */}
         <div className="flex items-start justify-between p-6 pb-4 flex-shrink-0">
           <div className="flex-1">
