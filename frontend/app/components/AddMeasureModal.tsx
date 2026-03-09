@@ -235,6 +235,11 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
       isOpen={isOpen}
       onClose={attemptClose}
       title={modalTitle}
+      banner={readOnly && (
+        <div className="w-full bg-red-400/85 text-white px-2 py-1 text-center text-xs font-medium rounded-t-lg flex-shrink-0">
+          This measure has already been used in a simulation and cannot be modified. You can copy the measure from the measures page and then edit the copy.
+        </div>
+      )}
       footer={
         readOnly ? (
           <Button onClick={handleClose} className="px-6 py-2">Close</Button>
@@ -254,11 +259,6 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
       }
     >
       <div className="space-y-6">
-        {readOnly && (
-          <p className="text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-sm">
-            This measure is locked and cannot be edited.
-          </p>
-        )}
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Title */}
           <div>
