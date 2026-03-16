@@ -37,9 +37,10 @@ interface AddMeasureModalProps {
   }) => void;
   checkNameExists?: (title: string, excludeId?: string) => boolean;
   readOnly?: boolean;
+  onCopy?: () => void;
 }
 
-export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure, onUpdate, checkNameExists, readOnly = false }: AddMeasureModalProps) {
+export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure, onUpdate, checkNameExists, readOnly = false, onCopy }: AddMeasureModalProps) {
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -240,9 +241,12 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
           This measure has already been used in a simulation and cannot be modified. You can copy the measure from the measures page and then edit the copy.
         </div>
       )}
+      headerAction={readOnly && onCopy && (
+        <Button onClick={onCopy} className="bg-gray-900 hover:bg-gray-700 text-white text-sm px-4 py-2">Make a Copy</Button>
+      )}
       footer={
         readOnly ? (
-          <Button onClick={handleClose} className="px-6 py-2">Close</Button>
+          <Button onClick={handleClose} variant="outline" className="px-6 py-2">Close</Button>
         ) : (
           <>
             <Button type="button" variant="outline" onClick={attemptClose} className="px-6 py-2">Cancel</Button>

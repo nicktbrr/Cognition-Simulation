@@ -47,6 +47,7 @@ interface NewSampleModalProps {
   initialSample?: Sample | null;
   checkNameExists?: (name: string, excludeId?: string) => boolean;
   readOnly?: boolean;
+  onCopy?: () => void;
 }
 
 const demographicsAttributes: Attribute[] = demographicsAttributesData as Attribute[];
@@ -99,7 +100,7 @@ const allCategories = [
   { name: "Other", attributes: otherAttributes, expanded: false },
 ];
 
-export default function NewSampleModal({ isOpen, onClose, onSave, initialSample, checkNameExists, readOnly = false }: NewSampleModalProps) {
+export default function NewSampleModal({ isOpen, onClose, onSave, initialSample, checkNameExists, readOnly = false, onCopy }: NewSampleModalProps) {
   const [sampleName, setSampleName] = useState<string>('');
   const [selectedAttributes, setSelectedAttributes] = useState<Attribute[]>([]);
   const [attributeSelections, setAttributeSelections] = useState<AttributeSelection[]>([]);
@@ -542,7 +543,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
             </div>
           )}
           {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0">
+          <div className="flex items-start justify-between p-6 border-b border-gray-200 flex-shrink-0">
             <div className="flex-1">
               <h2 className="text-xl font-semibold text-blue-600 mb-3">{readOnly ? 'View Sample' : (initialSample ? 'Edit Sample' : 'New Sample')}</h2>
               <div>
@@ -567,12 +568,23 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
                 )}
               </div>
             </div>
-            <button
-              onClick={attemptClose}
-              className="text-gray-400 hover:text-gray-600 ml-4"
-            >
-              <X className="w-6 h-6" />
-            </button>
+            <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+              {readOnly && onCopy && (
+                <Button
+                  type="button"
+                  onClick={onCopy}
+                  className="bg-gray-900 hover:bg-gray-700 text-white text-sm px-4 py-2"
+                >
+                  Make a Copy
+                </Button>
+              )}
+              <button
+                onClick={attemptClose}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
           </div>
 
           {/* Explore Attributes Header */}
@@ -626,7 +638,13 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
                         onClick={() => toggleCategoryExpansion(category.name)}
                         className="flex items-center justify-between w-full text-left font-medium text-blue-600 mb-3 hover:text-blue-800 transition-colors"
                       >
-                        <span>{category.name}</span>
+                        <span>
+                          {category.name}
+                          {(() => {
+                            const count = category.attributes.filter(attr => selectedAttributes.some(s => s.id === attr.id)).length;
+                            return count > 0 ? <span className="ml-1.5 text-xs font-semibold bg-blue-100 text-blue-700 rounded-full px-1.5 py-0.5">{count}</span> : null;
+                          })()}
+                        </span>
                         {shouldShowExpanded ? (
                           <ChevronUp className="w-4 h-4" />
                         ) : (

@@ -103,7 +103,7 @@ export default function MeasuresPage() {
   const [dragOverFolder, setDragOverFolder] = useState<string | null | 'root'>(null);
   
   // Sorting state
-  const [sortConfig, setSortConfig] = useState<{key: string, direction: 'asc' | 'desc'} | null>(null);
+  const [sortConfig, setSortConfig] = useState<{key: string, direction: 'asc' | 'desc'} | null>({ key: 'name', direction: 'asc' });
 
   const handleTableSort = (key: string) => {
     setSortConfig((prev) => {
@@ -1410,6 +1410,11 @@ export default function MeasuresPage() {
         onUpdate={handleUpdateMeasure}
         checkNameExists={isMeasureNameTaken}
         readOnly={editingMeasure?.isLocked ?? false}
+        onCopy={editingMeasure?.isLocked ? () => {
+          handleDuplicateMeasure(editingMeasure.id);
+          setIsAddModalOpen(false);
+          setEditingMeasure(null);
+        } : undefined}
       />
 
       {/* Portal-based Dropdown */}

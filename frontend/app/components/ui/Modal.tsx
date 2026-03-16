@@ -10,9 +10,11 @@ interface ModalProps {
   footer?: React.ReactNode;
   /** When provided, rendered as a full-width banner at the top of the modal */
   banner?: React.ReactNode;
+  /** When provided, rendered to the left of the close button in the header */
+  headerAction?: React.ReactNode;
 }
 
-export default function Modal({ isOpen, onClose, title, children, footer, banner }: ModalProps) {
+export default function Modal({ isOpen, onClose, title, children, footer, banner, headerAction }: ModalProps) {
   // Close modal on escape key
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
@@ -54,12 +56,15 @@ export default function Modal({ isOpen, onClose, title, children, footer, banner
               Define a performance measure for your simulation project.
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="ml-4 p-1 hover:bg-gray-100 rounded-full transition-colors flex-shrink-0"
-          >
-            <X className="w-5 h-5 text-gray-500" />
-          </button>
+          <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+            {headerAction}
+            <button
+              onClick={onClose}
+              className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+            >
+              <X className="w-5 h-5 text-gray-500" />
+            </button>
+          </div>
         </div>
         
         {/* Content - scrollable when footer is present */}
