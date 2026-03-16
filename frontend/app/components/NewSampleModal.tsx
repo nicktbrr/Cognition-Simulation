@@ -626,7 +626,13 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
                         onClick={() => toggleCategoryExpansion(category.name)}
                         className="flex items-center justify-between w-full text-left font-medium text-blue-600 mb-3 hover:text-blue-800 transition-colors"
                       >
-                        <span>{category.name}</span>
+                        <span>
+                          {category.name}
+                          {(() => {
+                            const count = category.attributes.filter(attr => selectedAttributes.some(s => s.id === attr.id)).length;
+                            return count > 0 ? <span className="ml-1.5 text-xs font-semibold bg-blue-100 text-blue-700 rounded-full px-1.5 py-0.5">{count}</span> : null;
+                          })()}
+                        </span>
                         {shouldShowExpanded ? (
                           <ChevronUp className="w-4 h-4" />
                         ) : (
