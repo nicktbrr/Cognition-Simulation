@@ -123,7 +123,7 @@ export default function SamplesPage() {
   const [dragOverFolder, setDragOverFolder] = useState<string | null | 'root'>(null);
   
   // Sorting state
-  const [sortConfig, setSortConfig] = useState<{key: string, direction: 'asc' | 'desc'} | null>(null);
+  const [sortConfig, setSortConfig] = useState<{key: string, direction: 'asc' | 'desc'} | null>({ key: 'created_date', direction: 'desc' });
 
   // Table sort: 'name' | 'date' | 'attributes', direction asc/desc
   type SortColumn = 'name' | 'date' | 'attributes';

@@ -103,7 +103,7 @@ export default function MeasuresPage() {
   const [dragOverFolder, setDragOverFolder] = useState<string | null | 'root'>(null);
   
   // Sorting state
-  const [sortConfig, setSortConfig] = useState<{key: string, direction: 'asc' | 'desc'} | null>(null);
+  const [sortConfig, setSortConfig] = useState<{key: string, direction: 'asc' | 'desc'} | null>({ key: 'name', direction: 'asc' });
 
   const handleTableSort = (key: string) => {
     setSortConfig((prev) => {
