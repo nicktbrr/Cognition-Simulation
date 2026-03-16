@@ -394,6 +394,39 @@ function SimulationPageContent() {
     }
   };
 
+  const handleCopySimulation = async () => {
+    if (!user || !modifyExperimentId) return;
+    try {
+      const { data, error } = await supabase
+        .from("experiments")
+        .select("*")
+        .eq("experiment_id", modifyExperimentId)
+        .single();
+      if (error || !data) { alert("Error loading simulation for copy. Please try again."); return; }
+      const expData = data.experiment_data || {};
+      const originalTitle = (expData.title || expData.simulation_name || "Simulation").trim() || "Simulation";
+      let copyName = `${originalTitle} (Copy)`;
+      let counter = 1;
+      while (await checkSimulationNameExists(copyName)) {
+        counter++;
+        copyName = `${originalTitle} (Copy ${counter})`;
+      }
+      const { error: insertError } = await supabase.from("experiments").insert({
+        experiment_id: crypto.randomUUID(),
+        user_id: user.user_id,
+        experiment_data: { ...expData, title: copyName, ...(typeof expData.simulation_name !== "undefined" ? { simulation_name: copyName } : {}) },
+        status: "Draft",
+        sample_name: data.sample_name ?? "",
+        folder_id: data.folder_id ?? null,
+        created_at: new Date().toISOString(),
+      });
+      if (insertError) { alert("Error creating copy. Please try again."); return; }
+      alert("Copy created and saved as a draft. Open it from the dashboard to edit or run.");
+    } catch (err) {
+      alert(`Error copying simulation: ${err instanceof Error ? err.message : "Unknown error"}`);
+    }
+  };
+
   // Handle study title change with validation
   const handleStudyTitleChange = async (title: string) => {
     setProcessTitle(title);
@@ -1327,28 +1360,37 @@ function SimulationPageContent() {
             <Save className="w-4 h-4" />
             Save Draft
           </Button>
-          <Button 
-            type="button"
-            onClick={handleSubmitSimulation}
-            disabled={
-              simulationHasBeenRun ||
-              isSimulationRunning ||
-              !!titleError ||
-              (isSampleSizeFocused
-                ? sampleSizeInput.trim() === "" ||
-                  Number.isNaN(parseInt(sampleSizeInput.trim(), 10)) ||
-                  parseInt(sampleSizeInput.trim(), 10) < 10 ||
-                  parseInt(sampleSizeInput.trim(), 10) > 50
-                : !!sampleSizeError)
-            }
-            className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Download className="w-4 h-4" />
-{isSimulationRunning
-              ? `Simulation in progress: ${Math.round(progressState.progress ?? simulationProgress ?? 0)}%`
-              : "Submit for Simulation"
-            }
-          </Button>
+          {simulationHasBeenRun ? (
+            <Button
+              type="button"
+              onClick={handleCopySimulation}
+              className="bg-gray-900 hover:bg-gray-700 text-white flex items-center gap-2"
+            >
+              Make a Copy
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              onClick={handleSubmitSimulation}
+              disabled={
+                isSimulationRunning ||
+                !!titleError ||
+                (isSampleSizeFocused
+                  ? sampleSizeInput.trim() === "" ||
+                    Number.isNaN(parseInt(sampleSizeInput.trim(), 10)) ||
+                    parseInt(sampleSizeInput.trim(), 10) < 10 ||
+                    parseInt(sampleSizeInput.trim(), 10) > 50
+                  : !!sampleSizeError)
+              }
+              className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Download className="w-4 h-4" />
+              {isSimulationRunning
+                ? `Simulation in progress: ${Math.round(progressState.progress ?? simulationProgress ?? 0)}%`
+                : "Submit for Simulation"
+              }
+            </Button>
+          )}
         </div>
       </SubHeader>
 

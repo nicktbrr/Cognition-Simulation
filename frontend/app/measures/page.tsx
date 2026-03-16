@@ -1410,6 +1410,11 @@ export default function MeasuresPage() {
         onUpdate={handleUpdateMeasure}
         checkNameExists={isMeasureNameTaken}
         readOnly={editingMeasure?.isLocked ?? false}
+        onCopy={editingMeasure?.isLocked ? () => {
+          handleDuplicateMeasure(editingMeasure.id);
+          setIsAddModalOpen(false);
+          setEditingMeasure(null);
+        } : undefined}
       />
 
       {/* Portal-based Dropdown */}

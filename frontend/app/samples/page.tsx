@@ -1783,6 +1783,11 @@ export default function SamplesPage() {
           initialSample={editingSample}
           checkNameExists={isSampleNameTaken}
           readOnly={editingSample.isLocked ?? false}
+          onCopy={editingSample.isLocked ? () => {
+            handleDuplicateSample(editingSample.id);
+            setIsEditModalOpen(false);
+            setEditingSample(null);
+          } : undefined}
         />
       )}
 
