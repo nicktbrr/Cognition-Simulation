@@ -23,12 +23,26 @@ interface SimulationHistoryItem {
   status?: string;
 }
 
+type Sample = {
+  id: string;
+  name: string;
+  desc: string;
+  user_id?: string;
+  created_at?: string;
+  attributes?: any;
+  persona?: string;
+};
+
 interface Download {
   date: string;
   id: number;
   url?: string;
   filename?: string;
   created_at?: string;
+  sample_size?: number;
+  sample_name?: string;
+  text_model?: string;
+  evaluations_model?: string;
 }
 
 interface SimulationStep {
@@ -58,6 +72,8 @@ interface Project {
   experiment_id?: string; // Backend experiment ID for polling
   configKey?: string; // Configuration key for grouping experiments
   folder_id?: string | null; // Folder ID if project is in a folder
+  text_model?: string;
+  evaluations_model?: string;
 }
 
 interface UserData {
@@ -99,6 +115,18 @@ export default function DashboardHistory() {
   const [showDeleteSuccess, setShowDeleteSuccess] = useState(false);
   const [deletedItemName, setDeletedItemName] = useState<string>("");
   const hasInitiallyLoadedRef = useRef(false); // Add this ref to track initial load
+
+  // Replicate modal state
+  const [showReplicateModal, setShowReplicateModal] = useState(false);
+  const [replicateProjectId, setReplicateProjectId] = useState<string | null>(null);
+  const [replicateOriginalData, setReplicateOriginalData] = useState<any>(null);
+  const [replicateSamples, setReplicateSamples] = useState<Sample[]>([]);
+  const [replicateSampleId, setReplicateSampleId] = useState<string>("");
+  const [replicateSampleSize, setReplicateSampleSize] = useState<number>(10);
+  const [replicateSampleSizeStr, setReplicateSampleSizeStr] = useState<string>("10");
+  const [replicateTextModel, setReplicateTextModel] = useState<string>("gemini");
+  const [replicateEvalModel, setReplicateEvalModel] = useState<string>("gemini");
+  const [replicateLoadingSamples, setReplicateLoadingSamples] = useState(false);
 
   // Helper function to check if a project was created within the last 20 minutes
   const isRecentProject = (createdAt: string | undefined): boolean => {
@@ -562,11 +590,14 @@ export default function DashboardHistory() {
         
         const sampleName = experimentData.sample?.name || experiment.sample_name || experiment.description || "No seed";
         const configKey = getExperimentConfigKey(experimentData);
-        
+        const textModel = experimentData.text_model || experimentData.model || "gemini";
+        const evaluationsModel = experimentData.evaluations_model || experimentData.model || "gemini";
+        const sampleSize = experimentData.iters ?? experiment.sample_size ?? experimentData.sample_size ?? 10;
+
         return {
           name: experimentData.title || experiment.simulation_name || `Simulation ${index + 1}`,
           sample_name: sampleName,
-          sample_size: experimentData.iters ?? experiment.sample_size ?? experimentData.sample_size ?? 10, // Use iters (actual run size) from payload
+          sample_size: sampleSize,
           status: status,
           progress: progress,
           created_at: experiment.created_at,
@@ -574,13 +605,19 @@ export default function DashboardHistory() {
           experiment_id: experiment.experiment_id,
           configKey: configKey, // Add config key for grouping
           folder_id: experiment.folder_id || null, // Include folder_id
+          text_model: textModel,
+          evaluations_model: evaluationsModel,
           downloads: experiment.url ? [
             {
               date: new Date(experiment.created_at).toLocaleString(),
               id: experiment.id || index + 1,
               url: experiment.url,
               filename: experimentData.title || experiment.simulation_name || `simulation_${experiment.id}`,
-              created_at: experiment.created_at // Add raw date for sorting
+              created_at: experiment.created_at,
+              sample_size: sampleSize,
+              sample_name: sampleName,
+              text_model: textModel,
+              evaluations_model: evaluationsModel,
             }
           ] : [],
           steps: experimentData.steps && Array.isArray(experimentData.steps) ? 
@@ -655,6 +692,8 @@ export default function DashboardHistory() {
           id: baseExperiment.id, // Use most recent experiment ID
           experiment_id: baseExperiment.experiment_id,
           folder_id: baseExperiment.folder_id || null, // Include folder_id from base experiment
+          text_model: baseExperiment.text_model,
+          evaluations_model: baseExperiment.evaluations_model,
           downloads: allDownloads,
           steps: baseExperiment.steps
         };
@@ -787,9 +826,151 @@ export default function DashboardHistory() {
   };
 
   const handleModify = async (projectId: string) => {
-    // Redirect to simulation page with the experiment ID
     router.push(`/simulation?modify=${projectId}`);
     return true;
+  };
+
+  const handleAddSimulationToFolder = (folderId: string) => {
+    const keys = [
+      'simulation-flow',
+      'simulation-title',
+      'simulation-description',
+      'simulation-introduction',
+      'simulation-sample',
+      'simulation-sample-size',
+    ];
+    keys.forEach((k) => localStorage.removeItem(k));
+    router.push(`/simulation?new=true&folder=${folderId}`);
+  };
+
+  const handleReplicate = async (projectId: string) => {
+    if (!user) return true;
+
+    setReplicateLoadingSamples(true);
+    try {
+      const { data: expData, error: expError } = await supabase
+        .from("experiments")
+        .select("*")
+        .eq("experiment_id", projectId)
+        .single();
+
+      if (expError) {
+        console.error("Error fetching experiment:", expError);
+        alert("Error loading experiment for replication. Please try again.");
+        return true;
+      }
+
+      const { data: samplesData } = await supabase
+        .from("samples")
+        .select("*")
+        .eq("user_id", user.user_id);
+
+      const experimentData = expData.experiment_data || {};
+      setReplicateOriginalData(expData);
+      setReplicateSamples(samplesData || []);
+      setReplicateSampleId(experimentData.sample?.id || "");
+      const initialSize = experimentData.iters || 10;
+      setReplicateSampleSize(initialSize);
+      setReplicateSampleSizeStr(String(initialSize));
+      setReplicateTextModel(experimentData.text_model || experimentData.model || "gemini");
+      setReplicateEvalModel(experimentData.evaluations_model || experimentData.model || "gemini");
+      setReplicateProjectId(projectId);
+      setShowReplicateModal(true);
+    } catch (error) {
+      console.error("Error preparing replication:", error);
+      alert("Error preparing replication. Please try again.");
+    } finally {
+      setReplicateLoadingSamples(false);
+    }
+    return true;
+  };
+
+  const confirmReplicate = async () => {
+    if (!user || !replicateOriginalData || isReplicating) return;
+
+    setIsReplicating(true);
+    try {
+      const originalExpData = replicateOriginalData.experiment_data || {};
+      const originalSampleId = originalExpData.sample?.id || "";
+      const originalSampleSize = originalExpData.iters ?? 10;
+      const originalTextModel = originalExpData.text_model || originalExpData.model || "gemini";
+      const originalEvalModel = originalExpData.evaluations_model || originalExpData.model || "gemini";
+
+      const sampleChanged = replicateSampleId !== "" && replicateSampleId !== originalSampleId;
+      const nothingChanged =
+        !sampleChanged &&
+        replicateSampleSize === originalSampleSize &&
+        replicateTextModel === originalTextModel &&
+        replicateEvalModel === originalEvalModel;
+
+      // Build experiment data to run
+      let experimentDataToRun = originalExpData;
+      if (!nothingChanged) {
+        const selectedSampleObj = replicateSampleId
+          ? replicateSamples.find((s) => s.id === replicateSampleId)
+          : null;
+        const sampleToUse = selectedSampleObj
+          ? { id: selectedSampleObj.id, name: selectedSampleObj.name, attributes: selectedSampleObj.attributes, persona: selectedSampleObj.persona }
+          : originalExpData.sample;
+        experimentDataToRun = {
+          ...originalExpData,
+          iters: replicateSampleSize,
+          sample: sampleToUse,
+          text_model: replicateTextModel,
+          evaluations_model: replicateEvalModel,
+          model: replicateTextModel,
+        };
+      }
+
+      // Call backend API to run the experiment immediately
+      const { data: { session } } = await supabase.auth.getSession();
+      const accessToken = session?.access_token;
+      if (!accessToken) throw new Error("No Supabase access token found");
+
+      const uuid = crypto.randomUUID();
+      const prod = process.env.NEXT_PUBLIC_DEV || "production";
+      const apiUrl =
+        prod === "development"
+          ? "http://127.0.0.1:5000/api/evaluate"
+          : "https://cognition-backend-81313456654.us-west1.run.app/api/evaluate";
+
+      const response = await fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ id: uuid, data: experimentDataToRun }),
+      });
+
+      const result = await response.json();
+      if (result.status === "started") {
+        const originalFolderId = replicateOriginalData.folder_id ?? null;
+        await supabase
+          .from("experiments")
+          .update({ folder_id: originalFolderId })
+          .eq("experiment_id", uuid);
+
+        await getProjects(user.user_id);
+        setShowReplicateModal(false);
+        setReplicateProjectId(null);
+        setReplicateOriginalData(null);
+      } else {
+        throw new Error(result.message || "Failed to start experiment");
+      }
+    } catch (error) {
+      console.error("Error replicating experiment:", error);
+      alert(`Error: ${error instanceof Error ? error.message : "Unknown error"}`);
+    } finally {
+      setIsReplicating(false);
+    }
+  };
+
+  const cancelReplicate = () => {
+    setShowReplicateModal(false);
+    setReplicateProjectId(null);
+    setReplicateOriginalData(null);
+    setReplicateSampleSizeStr("10");
   };
 
   const handleCopy = async (projectId: string) => {
@@ -845,10 +1026,10 @@ export default function DashboardHistory() {
       }
 
       await getProjects(user.user_id);
-      alert("Copy created. It has been saved as a draft. Open it from the simulation page to edit or run.");
+      alert("Copy created and saved as a draft. Open it from the simulation page to edit or run.");
     } catch (error) {
       console.error("Error copying experiment:", error);
-      alert(`Error copying experiment: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      alert(`Error copying experiment: ${error instanceof Error ? error.message : "Unknown error"}`);
     } finally {
       setIsReplicating(false);
     }
@@ -1064,7 +1245,8 @@ export default function DashboardHistory() {
               onRename={handleStartRename}
               onModify={handleModify}
               onDelete={handleDelete}
-              onReplicate={handleCopy}
+              onReplicate={handleReplicate}
+              onCopy={handleCopy}
               onRunAgain={handleRunAgain}
               onMoveToFolder={(projectId) => {
                 setProjectToMove(projectId);
@@ -1075,6 +1257,7 @@ export default function DashboardHistory() {
               }}
               onRenameFolder={handleRenameFolder}
               onDeleteFolder={handleDeleteFolder}
+              onAddSimulationToFolder={handleAddSimulationToFolder}
               renamingProjectId={projectToRename?.id ?? null}
               renameValue={newName}
               onRenameValueChange={setNewName}
@@ -1084,6 +1267,117 @@ export default function DashboardHistory() {
           </div>
         )}
       </div>
+
+      {/* Replicate Modal */}
+      {showReplicateModal && createPortal(
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[99999]">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-1">Replicate Simulation</h3>
+            <p className="text-sm text-gray-500 mb-5">Optionally change the sample, sample size, and models before creating the replication draft.</p>
+
+            {/* Sample */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Sample</label>
+              {replicateLoadingSamples ? (
+                <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded text-sm text-gray-400">Loading samples...</div>
+              ) : (
+                <select
+                  value={replicateSampleId}
+                  onChange={(e) => setReplicateSampleId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                >
+                  <option value="">Keep original sample</option>
+                  {replicateSamples.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            {/* Sample Size */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Sample Size</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={replicateSampleSizeStr}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  // Only allow digits (and empty string while typing)
+                  if (raw === "" || /^\d+$/.test(raw)) {
+                    setReplicateSampleSizeStr(raw);
+                    const num = parseInt(raw, 10);
+                    if (!isNaN(num)) setReplicateSampleSize(num);
+                  }
+                }}
+                onBlur={() => {
+                  const num = parseInt(replicateSampleSizeStr, 10);
+                  const clamped = isNaN(num) ? 10 : Math.min(50, Math.max(10, num));
+                  setReplicateSampleSize(clamped);
+                  setReplicateSampleSizeStr(String(clamped));
+                }}
+                onKeyDown={(e) => {
+                  const allowed = ["Backspace", "Delete", "Tab", "Escape", "Enter", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"];
+                  if (allowed.includes(e.key)) return;
+                  if (!/^\d$/.test(e.key)) e.preventDefault();
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              />
+              <p className="text-xs text-gray-400 mt-1">Enter a number between 10 and 50</p>
+            </div>
+
+            {/* Text Model */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Text Model</label>
+              <select
+                value={replicateTextModel}
+                onChange={(e) => setReplicateTextModel(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              >
+                <option value="gemini">Gemini</option>
+              </select>
+            </div>
+
+            {/* Evaluations Model */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Evaluations Model</label>
+              <select
+                value={replicateEvalModel}
+                onChange={(e) => setReplicateEvalModel(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              >
+                <option value="gemini">Gemini</option>
+              </select>
+            </div>
+
+            <div className="flex gap-3 justify-end">
+              <Button
+                onClick={cancelReplicate}
+                variant="outline"
+                className="px-4 py-2"
+                disabled={isReplicating}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={confirmReplicate}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2"
+                disabled={isReplicating}
+              >
+                {isReplicating ? (
+                  <>
+                    <Spinner size="sm" />
+                    <span>Creating...</span>
+                  </>
+                ) : (
+                  "Replicate"
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* Run Again (Replicate) Confirmation Modal */}
       {showRunAgainConfirm && createPortal(

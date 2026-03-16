@@ -16,6 +16,7 @@ interface ProjectDropdownProps {
   onToggle: () => void;
   onRename?: () => void;
   onReplicate?: () => void;
+  onCopy?: () => void;
   onRunAgain?: () => void;
   onModify?: () => void;
   onDelete?: () => void;
@@ -25,18 +26,19 @@ interface ProjectDropdownProps {
   position?: 'top' | 'bottom';
 }
 
-export default function ProjectDropdown({ 
-  isOpen, 
-  onToggle, 
+export default function ProjectDropdown({
+  isOpen,
+  onToggle,
   onRename,
   onReplicate,
+  onCopy,
   onRunAgain,
   onModify,
   onDelete,
   onMoveToFolder,
   folders = [],
   currentFolderId = null,
-  position = 'bottom' 
+  position = 'bottom'
 }: ProjectDropdownProps) {
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0, maxHeight: 200 });
   const [showFolderSubmenu, setShowFolderSubmenu] = useState(false);
@@ -280,8 +282,8 @@ export default function ProjectDropdown({
                 document.body
               )}
             </div>
-            {/* 3. Copy */}
-            <button 
+            {/* 3. Replicate */}
+            <button
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -293,15 +295,15 @@ export default function ProjectDropdown({
               }}
               className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
             >
-              <Copy className="h-4 w-4" />
-              Copy
+              <Play className="h-4 w-4" />
+              Replicate
             </button>
-            {/* 4. Replicate (run again) */}
-            <button 
+            {/* 4. Copy */}
+            <button
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                onRunAgain?.();
+                onCopy?.();
                 onToggle();
               }}
               onMouseDown={(e) => {
@@ -309,8 +311,8 @@ export default function ProjectDropdown({
               }}
               className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
             >
-              <Play className="h-4 w-4" />
-              Replicate
+              <Copy className="h-4 w-4" />
+              Copy
             </button>
             <hr className="my-1 border-gray-100" />
             {/* 5. Delete */}
