@@ -59,6 +59,7 @@ function SimulationPageContent() {
   const searchParams = useSearchParams();
   const modifyExperimentId = searchParams.get('modify');
   const isNewSimulation = searchParams.get('new') === 'true';
+  const folderIdParam = searchParams.get('folder');
   const { user, isLoading, isAuthenticated } = useAuth();
   const [userData, setUserData] = useState<UserData | null>(null);
   const [processDescription, setProcessDescription] = useState(() =>
@@ -498,6 +499,7 @@ function SimulationPageContent() {
               experiment_data: experimentData,
               status: "Draft",
               sample_name: selectedSampleDetails?.name ?? "",
+              folder_id: folderIdParam || null,
               created_at: new Date().toISOString()
             })
             .select()
@@ -517,6 +519,7 @@ function SimulationPageContent() {
             experiment_data: experimentData,
             status: "Draft",
             sample_name: selectedSampleDetails?.name ?? "",
+            folder_id: folderIdParam || null,
             created_at: new Date().toISOString()
           })
           .select()
@@ -685,29 +688,35 @@ function SimulationPageContent() {
       errors.push(`Node(s) are missing descriptions`);
     }
     
-    // 2. Check connectivity - find starting node and ensure all nodes are connected
+    // 2. Check connectivity - find starting node and ensure all nodes are in one linear sequence
     if (flowNodes.length > 1) {
-      // Find nodes with no incoming edges (potential starting nodes)
-      const nodeIds = new Set(flowNodes.map(node => node.id));
       const targetNodes = new Set(flowEdges.map(edge => edge.target));
       const startingNodes = flowNodes.filter(node => !targetNodes.has(node.id));
-      
+      const getNodeLabel = (node: Node) => (node.data?.title as string)?.trim() || `"${node.id}"`;
+
       if (startingNodes.length === 0) {
-        errors.push("No starting node found - all nodes have incoming connections");
+        errors.push(
+          "Flow must have one first step with no arrow pointing into it. " +
+          "Right now every step has an arrow coming in, so there’s no clear start. "
+        );
       } else if (startingNodes.length > 1) {
-        errors.push(`Multiple starting nodes found. There should be only one starting node.`);
+        const names = startingNodes.slice(0, 5).map(getNodeLabel).join(", ");
+        const more = startingNodes.length > 5 ? ` and ${startingNodes.length - 5} more` : "";
+        errors.push(
+          `There are ${startingNodes.length} steps with no arrow pointing into them (${names}${more}). ` +
+          "The flow must be one linear sequence with a single first step. "
+        );
       } else {
         // Traverse from starting node to check connectivity
         const visited = new Set<string>();
         const queue = [startingNodes[0].id];
-        
+
         while (queue.length > 0) {
           const currentNodeId = queue.shift()!;
           if (visited.has(currentNodeId)) continue;
-          
+
           visited.add(currentNodeId);
-          
-          // Find all outgoing edges from current node
+
           const outgoingEdges = flowEdges.filter(edge => edge.source === currentNodeId);
           for (const edge of outgoingEdges) {
             if (!visited.has(edge.target)) {
@@ -715,11 +724,15 @@ function SimulationPageContent() {
             }
           }
         }
-        
-        // Check if all nodes were visited
+
         const unvisitedNodes = flowNodes.filter(node => !visited.has(node.id));
         if (unvisitedNodes.length > 0) {
-          errors.push(`Disconnected nodes found. All nodes must be connected to the flow.`);
+          const labels = unvisitedNodes.slice(0, 5).map(getNodeLabel).join(", ");
+          const more = unvisitedNodes.length > 5 ? ` and ${unvisitedNodes.length - 5} more` : "";
+          errors.push(
+            `${unvisitedNodes.length} step(s) are not in the sequence: ${labels}${more}. ` +
+            "Every step must be reachable by following arrows from the first step. "
+          );
         }
       }
     }
@@ -736,7 +749,10 @@ function SimulationPageContent() {
     const validation = validateFlow();
     
     if (!validation.isValid) {
-      alert("Validation failed:\n" + validation.errors.join('\n'));
+      const diagnosis = validation.errors.length === 1
+        ? validation.errors[0]
+        : "Several issues need fixing:\n\n" + validation.errors.map((e, i) => `${i + 1}. ${e}`).join("\n\n");
+      alert("Can’t run simulation\n\n" + diagnosis);
       return;
     }
 

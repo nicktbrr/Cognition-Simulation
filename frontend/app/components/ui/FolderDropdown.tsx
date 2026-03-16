@@ -2,22 +2,24 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { MoreVertical, Edit, Edit2, Trash2 } from "lucide-react";
+import { MoreVertical, Edit2, Trash2, Plus } from "lucide-react";
 
 interface FolderDropdownProps {
   isOpen: boolean;
   onToggle: () => void;
   onRename?: () => void;
   onDelete?: () => void;
+  onAddSimulation?: () => void;
   position?: 'top' | 'bottom';
 }
 
-export default function FolderDropdown({ 
-  isOpen, 
-  onToggle, 
+export default function FolderDropdown({
+  isOpen,
+  onToggle,
   onRename,
   onDelete,
-  position = 'bottom' 
+  onAddSimulation,
+  position = 'bottom'
 }: FolderDropdownProps) {
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0, maxHeight: 200 });
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -153,31 +155,41 @@ export default function FolderDropdown({
           }}
         >
           <div className="py-1">
-            <button 
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onToggle();
+                onAddSimulation?.();
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+              className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <Plus className="h-4 w-4" />
+              Add Simulation
+            </button>
+            <hr className="my-1 border-gray-100" />
+            <button
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 onRename?.();
-                onToggle(); // Close the dropdown
+                onToggle();
               }}
-              onMouseDown={(e) => {
-                e.stopPropagation();
-              }}
+              onMouseDown={(e) => e.stopPropagation()}
               className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
             >
               <Edit2 className="h-4 w-4" />
               Rename
             </button>
-            <button 
+            <button
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 onDelete?.();
-                onToggle(); // Close the dropdown
+                onToggle();
               }}
-              onMouseDown={(e) => {
-                e.stopPropagation();
-              }}
+              onMouseDown={(e) => e.stopPropagation()}
               className="flex items-center gap-3 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
             >
               <Trash2 className="h-4 w-4" />

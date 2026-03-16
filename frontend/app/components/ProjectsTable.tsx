@@ -16,6 +16,10 @@ interface Download {
   url?: string;
   filename?: string;
   created_at?: string;
+  sample_size?: number;
+  sample_name?: string;
+  text_model?: string;
+  evaluations_model?: string;
 }
 
 interface SimulationStep {
@@ -43,6 +47,8 @@ interface Project {
   id?: string;
   experiment_id?: string; // Backend experiment ID for polling
   folder_id?: string | null;
+  text_model?: string;
+  evaluations_model?: string;
 }
 
 interface ProjectsTableProps {
@@ -53,11 +59,13 @@ interface ProjectsTableProps {
   onModify?: (projectId: string) => Promise<boolean>;
   onDelete?: (projectId: string) => Promise<boolean>;
   onReplicate?: (projectId: string) => Promise<boolean>;
+  onCopy?: (projectId: string) => Promise<boolean>;
   onRunAgain?: (projectId: string) => Promise<boolean>;
   onMoveToFolder?: (projectId: string) => void;
   onDropToFolder?: (projectId: string, folderId: string | null) => void;
   onRenameFolder?: (folderId: string, currentName: string) => void;
   onDeleteFolder?: (folderId: string) => void;
+  onAddSimulationToFolder?: (folderId: string) => void;
   /** In-place rename: which project row is being renamed (experiment_id) */
   renamingProjectId?: string | null;
   /** In-place rename: current input value */
@@ -67,19 +75,21 @@ interface ProjectsTableProps {
   onCancelRename?: () => void;
 }
 
-export default function ProjectsTable({ 
-  projects, 
+export default function ProjectsTable({
+  projects,
   folders = [],
-  onDownload, 
-  onRename, 
-  onModify, 
-  onDelete, 
+  onDownload,
+  onRename,
+  onModify,
+  onDelete,
   onReplicate,
+  onCopy,
   onRunAgain,
   onMoveToFolder,
   onDropToFolder,
   onRenameFolder,
   onDeleteFolder,
+  onAddSimulationToFolder,
   renamingProjectId = null,
   renameValue = "",
   onRenameValueChange,
@@ -285,7 +295,7 @@ export default function ProjectsTable({
             // Prevent default to allow drop
             e.preventDefault();
           }}
-          onDoubleClick={() => onModify?.(projectId)}
+          onDoubleClick={() => projectId && onModify?.(projectId)}
         >
           <td className="px-6 py-4">
             {isInFolder ? (
@@ -377,6 +387,7 @@ export default function ProjectsTable({
                           toggleProjectDropdown(project.id!);
                         }}
                         onReplicate={() => onReplicate?.(project.id!)}
+                        onCopy={() => onCopy?.(project.id!)}
                         onRunAgain={() => onRunAgain?.(project.id!)}
                         onModify={() => onModify?.(project.id!)}
                         onDelete={() => onDelete?.(project.id!)}
@@ -480,6 +491,7 @@ export default function ProjectsTable({
                         toggleProjectDropdown(project.id!);
                       }}
                       onReplicate={() => onReplicate?.(project.id!)}
+                      onCopy={() => onCopy?.(project.id!)}
                       onRunAgain={() => onRunAgain?.(project.id!)}
                       onModify={() => onModify?.(project.id!)}
                       onDelete={() => onDelete?.(project.id!)}
@@ -505,13 +517,23 @@ export default function ProjectsTable({
           <td className="px-6 py-4 text-sm text-gray-900">
             {project.sample_name}
           </td>
+          <td className="px-6 py-4 text-sm text-gray-900">
+            {project.text_model ? (project.text_model.charAt(0).toUpperCase() + project.text_model.slice(1)) : "—"}
+          </td>
+          <td className="px-6 py-4 text-sm text-gray-900">
+            {project.evaluations_model ? (project.evaluations_model.charAt(0).toUpperCase() + project.evaluations_model.slice(1)) : "—"}
+          </td>
           <td className="px-6 py-4">
             <div className="space-y-1">
-              {project.downloads.slice(0, 3).map((download, idx) => (
-                <DownloadButton 
+              {project.downloads.slice(0, 3).map((download) => (
+                <DownloadButton
                   key={download.id}
                   date={download.date}
                   onClick={() => onDownload(download.url || '', download.filename || project.name)}
+                  sampleSize={download.sample_size}
+                  sampleName={download.sample_name}
+                  textModel={download.text_model}
+                  evaluationsModel={download.evaluations_model}
                 />
               ))}
             </div>
@@ -521,7 +543,7 @@ export default function ProjectsTable({
         
         {expandedRows.has(project.id!) && (
           <tr>
-            <td colSpan={6} className="px-6 py-4 bg-gray-50">
+            <td colSpan={8} className="px-6 py-4 bg-gray-50">
               <div className="flex gap-6" style={{marginLeft: isInFolder ? '64px' : '40px'}}>
                 <SimulationSteps steps={project.steps} />
               </div>
@@ -561,6 +583,8 @@ export default function ProjectsTable({
               <SortableTableHeader label="Status" sortKey="status" onSort={handleSort} currentSort={sortConfig} />
               <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Sample Size</th>
               <SortableTableHeader label="Sample Name" sortKey="sample_name" onSort={handleSort} currentSort={sortConfig} />
+              <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Text Model</th>
+              <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Evaluations Model</th>
               <SortableTableHeader label="Data Download" sortKey="download_date" onSort={handleSort} currentSort={sortConfig} />
               <th className="px-6 py-3 text-left text-sm font-medium text-gray-700"></th>
             </tr>
@@ -633,11 +657,14 @@ export default function ProjectsTable({
                           isOpen={folderDropdowns.has(folder.folder_id)}
                           onToggle={() => toggleFolderDropdown(folder.folder_id)}
                           position={sortedFolders.indexOf(folder) >= sortedFolders.length - 2 ? 'top' : 'bottom'}
+                          onAddSimulation={() => onAddSimulationToFolder?.(folder.folder_id)}
                           onRename={() => onRenameFolder?.(folder.folder_id, folder.folder_name)}
                           onDelete={() => onDeleteFolder?.(folder.folder_id)}
                         />
                       </div>
                     </td>
+                    <td className="px-6 py-3 bg-gray-50"></td>
+                    <td className="px-6 py-3 bg-gray-50"></td>
                     <td className="px-6 py-3 bg-gray-50"></td>
                     <td className="px-6 py-3 bg-gray-50"></td>
                     <td className="px-6 py-3 bg-gray-50"></td>
