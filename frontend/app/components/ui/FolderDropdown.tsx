@@ -159,20 +159,6 @@ export default function FolderDropdown({
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                onToggle();
-                onAddSimulation?.();
-              }}
-              onMouseDown={(e) => e.stopPropagation()}
-              className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              <Plus className="h-4 w-4" />
-              Add Simulation
-            </button>
-            <hr className="my-1 border-gray-100" />
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
                 onRename?.();
                 onToggle();
               }}
@@ -182,6 +168,20 @@ export default function FolderDropdown({
               <Edit2 className="h-4 w-4" />
               Rename
             </button>
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onToggle();
+                onAddSimulation?.();
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+              className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <Plus className="h-4 w-4" />
+              New Simulation
+            </button>
+            <hr className="my-1 border-gray-100" />
             <button
               onClick={(e) => {
                 e.preventDefault();
