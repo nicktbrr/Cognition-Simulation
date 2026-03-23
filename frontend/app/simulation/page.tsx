@@ -395,6 +395,17 @@ function SimulationPageContent() {
     }
   };
 
+  // Generate a unique "Untitled Simulation", "Untitled Simulation 1", "Untitled Simulation 2", ... name
+  const getUniqueUntitledName = async (excludeExperimentId?: string): Promise<string> => {
+    const base = "Untitled";
+    if (!await checkSimulationNameExists(base, excludeExperimentId)) return base;
+    let counter = 1;
+    while (await checkSimulationNameExists(`${base}-${counter}`, excludeExperimentId)) {
+      counter++;
+    }
+    return `${base}-${counter}`;
+  };
+
   const handleCopySimulation = async () => {
     if (!user || !modifyExperimentId) return;
     try {
@@ -453,15 +464,20 @@ function SimulationPageContent() {
         return;
       }
 
-      const titleToSave = (processTitle || "").trim() || "Untitled Simulation";
-
-      // Enforce unique simulation name (case-insensitive); exclude current experiment when updating
       const excludeId = modifyExperimentId || undefined;
-      const nameExists = await checkSimulationNameExists(titleToSave, excludeId);
-      if (nameExists) {
-        setTitleError(`A simulation with the name "${titleToSave}" already exists. Please choose a different name.`);
-        alert(`A simulation with the name "${titleToSave}" already exists. Please choose a different name.`);
-        return;
+      let titleToSave = (processTitle || "").trim();
+
+      if (!titleToSave) {
+        // Auto-generate unique untitled name
+        titleToSave = await getUniqueUntitledName(excludeId);
+      } else {
+        // Enforce unique simulation name (case-insensitive); exclude current experiment when updating
+        const nameExists = await checkSimulationNameExists(titleToSave, excludeId);
+        if (nameExists) {
+          setTitleError(`A simulation with the name "${titleToSave}" already exists. Please choose a different name.`);
+          alert(`A simulation with the name "${titleToSave}" already exists. Please choose a different name.`);
+          return;
+        }
       }
       setTitleError("");
 
