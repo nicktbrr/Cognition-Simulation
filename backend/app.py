@@ -567,7 +567,14 @@ class GenerateSteps(Resource):
                 logger.info(f"[{request_id}] Full response:\n{response_text}")
                 logger.info(f"[{request_id}] ========================================")
 
-                steps_data = json.loads(response_text)
+                # Strip markdown code fences if the LLM wrapped the response
+                cleaned = response_text.strip()
+                if cleaned.startswith("```"):
+                    cleaned = cleaned.split("```", 2)[1]  # drop opening fence
+                    if cleaned.startswith("json"):
+                        cleaned = cleaned[4:]
+                    cleaned = cleaned.rsplit("```", 1)[0]  # drop closing fence
+                steps_data = json.loads(cleaned.strip())
                 logger.info(f"[{request_id}] JSON parsing successful")
                 logger.info(f"[{request_id}] Parsed data structure:")
                 logger.info(f"[{request_id}] {json.dumps(steps_data, indent=2)}")

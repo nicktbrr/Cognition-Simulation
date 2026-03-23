@@ -813,7 +813,8 @@ export default function MeasuresPage() {
           definition: measureToDuplicate.description,
           min: min,
           max: max,
-          desired_values: measureToDuplicate.desiredValues
+          desired_values: measureToDuplicate.desiredValues,
+          folder_id: measureToDuplicate.folder_id ?? null
         })
         .select()
         .single();

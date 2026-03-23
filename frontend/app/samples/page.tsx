@@ -621,7 +621,7 @@ export default function SamplesPage() {
       }));
   };
 
-  const insertSample = async (sampleData: { name: string; attributes: any; user_id: string }) => {
+  const insertSample = async (sampleData: { name: string; attributes: any; user_id: string; folder_id?: string | null }) => {
     const { data, error } = await supabase
       .from("samples")
       .insert([sampleData])
@@ -874,7 +874,8 @@ export default function SamplesPage() {
       const duplicateData = {
         name: duplicateName,
         attributes: sample.attributes,
-        user_id: user.user_id
+        user_id: user.user_id,
+        folder_id: sample.folder_id ?? null
       };
 
       const insertedSample = await insertSample(duplicateData);
