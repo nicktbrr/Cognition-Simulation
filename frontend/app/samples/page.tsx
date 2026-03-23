@@ -1482,6 +1482,13 @@ export default function SamplesPage() {
                       );
                     })}
                     
+                    {/* Divider between folders and individual samples */}
+                    {folders.length > 0 && samples.some(s => !s.folder_id) && (
+                      <TableRow>
+                        <TableCell colSpan={100} className="p-0 h-0 border-t-2 border-black" />
+                      </TableRow>
+                    )}
+
                     {/* Render samples not in any folder - sorted based on sortConfig */}
                     {[...samples.filter(s => !s.folder_id)].sort((a, b) => {
                       if (!sortConfig) return 0;

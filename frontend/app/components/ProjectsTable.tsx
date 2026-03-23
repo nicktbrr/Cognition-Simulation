@@ -678,8 +678,15 @@ export default function ProjectsTable({
               );
             })}
             
+            {/* Divider between folders and root projects */}
+            {sortedFolders.length > 0 && rootProjects.length > 0 && (
+              <tr>
+                <td colSpan={100} className="p-0 h-0 border-t-2 border-black"></td>
+              </tr>
+            )}
+
             {/* Render root projects (no folder) - after folders, without header */}
-            {rootProjects.map((project, idx) => 
+            {rootProjects.map((project, idx) =>
               renderProjectRow(project, idx, false, rootProjects.length)
             )}
             

@@ -1247,6 +1247,13 @@ export default function MeasuresPage() {
                     );
                   })}
                   
+                  {/* Divider between folders and individual measures */}
+                  {folders.length > 0 && measures.some(m => !m.folder_id) && (
+                    <TableRow>
+                      <TableCell colSpan={100} className="p-0 h-0 border-t-2 border-black" />
+                    </TableRow>
+                  )}
+
                   {/* Render measures not in any folder - sorted based on sortConfig */}
                   {[...measures.filter(m => !m.folder_id)].sort((a, b) => {
                     if (!sortConfig) return 0;
