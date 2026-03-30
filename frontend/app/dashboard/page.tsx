@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useState, useRef, useCallback } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Play, Trash2, Folder, FolderPlus } from "lucide-react";
 import { createPortal } from "react-dom";
@@ -127,6 +126,11 @@ export default function DashboardHistory() {
   const [replicateTextModel, setReplicateTextModel] = useState<string>("gemini");
   const [replicateEvalModel, setReplicateEvalModel] = useState<string>("gemini");
   const [replicateLoadingSamples, setReplicateLoadingSamples] = useState(false);
+
+  // Cache prompt state
+  const [showCachePrompt, setShowCachePrompt] = useState(false);
+  const [pendingFolderId, setPendingFolderId] = useState<string | null>(null);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
 
   // Helper function to check if a project was created within the last 20 minutes
   const isRecentProject = (createdAt: string | undefined): boolean => {
@@ -830,17 +834,155 @@ export default function DashboardHistory() {
     return true;
   };
 
+  const cacheKeys = [
+    'simulation-flow',
+    'simulation-title',
+    'simulation-description',
+    'simulation-introduction',
+    'simulation-sample',
+    'simulation-sample-size',
+  ];
+
+  const hasCachedWork = (): boolean => {
+    if (typeof window === 'undefined') return false;
+    const textKeys = ['simulation-title', 'simulation-description', 'simulation-introduction', 'simulation-sample'];
+    if (textKeys.some((k) => (localStorage.getItem(k) ?? '').trim().length > 0)) return true;
+    try {
+      const flow = localStorage.getItem('simulation-flow');
+      if (flow) {
+        const parsed = JSON.parse(flow);
+        return (parsed?.nodes?.length ?? 0) > 0;
+      }
+    } catch {}
+    return false;
+  };
+
+  const clearSimulationCache = () => {
+    cacheKeys.forEach((k) => localStorage.removeItem(k));
+  };
+
+  const handleNewSimulation = () => {
+    if (hasCachedWork()) {
+      setPendingFolderId(null);
+      setShowCachePrompt(true);
+    } else {
+      clearSimulationCache();
+      router.push('/simulation?new=true');
+    }
+  };
+
   const handleAddSimulationToFolder = (folderId: string) => {
-    const keys = [
-      'simulation-flow',
-      'simulation-title',
-      'simulation-description',
-      'simulation-introduction',
-      'simulation-sample',
-      'simulation-sample-size',
-    ];
-    keys.forEach((k) => localStorage.removeItem(k));
-    router.push(`/simulation?new=true&folder=${folderId}`);
+    if (hasCachedWork()) {
+      setPendingFolderId(folderId);
+      setShowCachePrompt(true);
+    } else {
+      clearSimulationCache();
+      router.push(`/simulation?new=true&folder=${folderId}`);
+    }
+  };
+
+  const handleCacheDiscard = () => {
+    setShowCachePrompt(false);
+    clearSimulationCache();
+    const url = pendingFolderId ? `/simulation?new=true&folder=${pendingFolderId}` : '/simulation?new=true';
+    router.push(url);
+  };
+
+  const handleCacheSave = async () => {
+    if (!user) {
+      handleCacheDiscard();
+      return;
+    }
+    setIsSavingDraft(true);
+    try {
+      const title = localStorage.getItem('simulation-title') || '';
+      const description = localStorage.getItem('simulation-description') || '';
+      const studyIntroduction = localStorage.getItem('simulation-introduction') || '';
+      const model = localStorage.getItem('simulation-model') || 'gemini';
+      const sampleSizeStr = localStorage.getItem('simulation-sample-size') || '10';
+      const sampleSize = Math.min(50, Math.max(10, parseInt(sampleSizeStr, 10) || 10));
+
+      // Convert flow nodes to steps
+      const steps: Array<{ label: string; instructions: string; temperature: number; measures: any[] }> = [];
+      try {
+        const flowData = localStorage.getItem('simulation-flow');
+        if (flowData) {
+          const flow = JSON.parse(flowData);
+          const nodes: any[] = flow?.nodes || [];
+          const edges: any[] = flow?.edges || [];
+          if (nodes.length > 0) {
+            const targetNodeIds = new Set(edges.map((e: any) => e.target));
+            const startingNodes = nodes.filter((n: any) => !targetNodeIds.has(n.id));
+            const visited = new Set<string>();
+            const traverse = (nodeId: string) => {
+              if (visited.has(nodeId)) return;
+              visited.add(nodeId);
+              const node = nodes.find((n: any) => n.id === nodeId);
+              if (node) {
+                steps.push({
+                  label: node.data?.title || `Step ${node.id}`,
+                  instructions: node.data?.description || '',
+                  temperature: node.data?.sliderValue ? node.data.sliderValue / 100 : 0.5,
+                  measures: [],
+                });
+                edges.filter((e: any) => e.source === nodeId).forEach((e: any) => traverse(e.target));
+              }
+            };
+            (startingNodes.length > 0 ? startingNodes : [nodes[0]]).forEach((n: any) => traverse(n.id));
+          }
+        }
+      } catch {}
+
+      // Resolve a unique title, appending "(copy)" if needed
+      const getUniqueDraftTitle = async (base: string): Promise<string> => {
+        const { data } = await supabase
+          .from('experiments')
+          .select('experiment_data')
+          .eq('user_id', user.user_id);
+        const existingTitles = new Set(
+          (data || []).map((e: any) => (e.experiment_data?.title || '').toLowerCase())
+        );
+        if (!existingTitles.has(base.toLowerCase())) return base;
+        let candidate = `${base} (copy)`;
+        let counter = 2;
+        while (existingTitles.has(candidate.toLowerCase())) {
+          candidate = `${base} (copy ${counter})`;
+          counter++;
+        }
+        return candidate;
+      };
+
+      const rawTitle = title.trim() || 'Untitled';
+      const titleToSave = await getUniqueDraftTitle(rawTitle);
+      const experimentData = {
+        seed: 'no-seed',
+        steps,
+        iters: sampleSize,
+        temperature: 0.5,
+        user_id: user.user_id,
+        title: titleToSave,
+        description,
+        study_introduction: studyIntroduction,
+        model,
+      };
+
+      await supabase.from('experiments').insert({
+        experiment_id: crypto.randomUUID(),
+        user_id: user.user_id,
+        experiment_data: experimentData,
+        status: 'Draft',
+        sample_name: '',
+        folder_id: pendingFolderId || null,
+        created_at: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('Error saving draft:', error);
+    }
+    setIsSavingDraft(false);
+    setShowCachePrompt(false);
+    clearSimulationCache();
+    const url = pendingFolderId ? `/simulation?new=true&folder=${pendingFolderId}` : '/simulation?new=true';
+    router.push(url);
   };
 
   const handleReplicate = async (projectId: string) => {
@@ -1218,12 +1360,13 @@ export default function DashboardHistory() {
             <FolderPlus className="w-4 h-4" />
             New Folder
           </Button>
-          <Link href="/simulation?new=true">
-            <Button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg flex items-center gap-2">
-              <Play className="w-4 h-4" />
-              New Simulation
-            </Button>
-          </Link>
+          <Button
+            onClick={handleNewSimulation}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg flex items-center gap-2"
+          >
+            <Play className="w-4 h-4" />
+            New Simulation
+          </Button>
         </div>
       </SubHeader>
 
@@ -1649,6 +1792,58 @@ export default function DashboardHistory() {
                   </>
                 ) : (
                   "Delete Folder"
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Unsaved Cache Prompt */}
+      {showCachePrompt && createPortal(
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[99999]">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center">
+                <Play className="w-5 h-5 text-yellow-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Unsaved Changes</h3>
+                <p className="text-sm text-gray-500">You have unsaved work from a previous session</p>
+              </div>
+            </div>
+            <p className="text-gray-700 mb-6">
+              Would you like to save your previous simulation as a draft, or discard it and start fresh?
+            </p>
+            <div className="flex gap-3 justify-end">
+              <Button
+                onClick={() => setShowCachePrompt(false)}
+                variant="outline"
+                className="px-4 py-2"
+                disabled={isSavingDraft}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCacheDiscard}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white"
+                disabled={isSavingDraft}
+              >
+                Discard
+              </Button>
+              <Button
+                onClick={handleCacheSave}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2"
+                disabled={isSavingDraft}
+              >
+                {isSavingDraft ? (
+                  <>
+                    <Spinner size="sm" />
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  "Save Draft"
                 )}
               </Button>
             </div>
