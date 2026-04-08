@@ -858,7 +858,8 @@ function SimulationPageContent() {
     setTitleError("");
 
     // Optimistic update: show running state and popup immediately (backend may be cold on Cloud Run)
-    const uuid = crypto.randomUUID();
+    // Reuse the draft's experiment ID so the draft row gets updated instead of creating a duplicate
+    const uuid = modifyExperimentId || crypto.randomUUID();
 
     // Get the user from local storage
     let parsedUser = null;

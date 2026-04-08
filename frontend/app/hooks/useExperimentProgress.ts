@@ -77,7 +77,7 @@ export function useExperimentProgress(
     const fetchInitial = async () => {
       const { data, error } = await supabase
         .from("experiments")
-        .select("progress, status, url")
+        .select("progress, status, url, user_id")
         .eq("experiment_id", experimentId)
         .eq("user_id", userId)
         .single();
@@ -89,7 +89,7 @@ export function useExperimentProgress(
     fetchInitial();
 
     const channel = supabase
-      .channel(`experiment-${experimentId}`)
+      .channel(`experiment-${experimentId}-${Date.now()}`)
       .on(
         "postgres_changes",
         {
