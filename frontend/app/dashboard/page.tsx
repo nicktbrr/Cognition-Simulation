@@ -717,9 +717,18 @@ export default function DashboardHistory() {
           const pendingRaw = localStorage.getItem("simulation-pending");
           const pending = pendingRaw ? JSON.parse(pendingRaw) as { taskId: string; title: string; sample_name: string; created_at: string } : null;
           if (pending) {
-            const alreadyInList = formattedProjects.some((p) => p.experiment_id === pending.taskId);
+            const existingIdx = formattedProjects.findIndex((p) => p.experiment_id === pending.taskId);
+            const alreadyInList = existingIdx !== -1;
             if (alreadyInList) {
-              localStorage.removeItem("simulation-pending");
+              const existing = formattedProjects[existingIdx];
+              if (existing.status === "Running" || existing.status === "Completed" || existing.status === "Failed") {
+                // Backend has already updated the row; safe to clear pending
+                localStorage.removeItem("simulation-pending");
+              } else {
+                // Row exists but backend hasn't updated it yet (e.g. draft → started race);
+                // force it to "Running" so realtime tracks it
+                formattedProjects[existingIdx] = { ...existing, status: "Running", progress: existing.progress ?? 0 };
+              }
             } else {
               const placeholder: Project = {
                 name: pending.title,

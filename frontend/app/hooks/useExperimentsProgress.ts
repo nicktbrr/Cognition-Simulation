@@ -71,10 +71,13 @@ export function useExperimentsProgress(
       });
     };
 
+    // Use a unique suffix so channel teardown/recreation never collides
+    const channelSuffix = Date.now();
+
     if (experimentIds.length === 1) {
       const experimentId = experimentIds[0];
       const channel = supabase
-        .channel(`experiment-${experimentId}`)
+        .channel(`experiment-${experimentId}-${channelSuffix}`)
         .on(
           "postgres_changes",
           {
@@ -103,7 +106,7 @@ export function useExperimentsProgress(
     // Multiple experiments: use in filter (max 100 values per Supabase docs)
     const ids = experimentIds.slice(0, 100);
     const channel = supabase
-      .channel(`experiments-${ids[0]}`)
+      .channel(`experiments-${ids[0]}-${channelSuffix}`)
       .on(
         "postgres_changes",
         {

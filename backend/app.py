@@ -381,9 +381,12 @@ class Evaluation(Resource):
             supabase: Client = create_client(url, key)
             if jwt:
                 supabase.auth.set_session(jwt, "")
-            # Create progress tracking entry
+            # Create progress tracking entry.
+            # If this ID already exists (e.g. a draft being run), delete the
+            # old row first so the INSERT generates a fresh Realtime event that
+            # Supabase can track for subsequent UPDATE broadcasts.
             task_id = uuid
-            response = supabase.table("experiments").insert({
+            experiment_payload = {
                 "experiment_id": uuid,
                 "progress": 0,
                 "status": "Started",
@@ -392,7 +395,17 @@ class Evaluation(Resource):
                 "simulation_name": data['title'],
                 "experiment_data": data,
                 "model": model_name,
-            }).execute()
+            }
+            existing = supabase.table("experiments").select("id, folder_id").eq("experiment_id", uuid).execute()
+            if existing.data:
+                # Preserve folder assignment from the draft
+                folder_id = existing.data[0].get("folder_id")
+                if folder_id:
+                    experiment_payload["folder_id"] = folder_id
+                supabase.table("experiments").delete().eq("experiment_id", uuid).execute()
+            response = supabase.table("experiments").insert(
+                experiment_payload
+            ).execute()
             # Start background thread for evaluation, pass model_name and jwt
             thread = threading.Thread(target=run_evaluation, args=(uuid, data, model_name, jwt))
             thread.start()
