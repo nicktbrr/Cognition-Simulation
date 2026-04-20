@@ -681,7 +681,7 @@ export default function ProjectsTable({
             {/* Divider between folders and root projects */}
             {sortedFolders.length > 0 && rootProjects.length > 0 && (
               <tr>
-                <td colSpan={100} className="p-0 h-0 border-t-2 border-black"></td>
+                <td colSpan={100} className="p-0 h-0 border-t-4 border-gray-200"></td>
               </tr>
             )}
 
