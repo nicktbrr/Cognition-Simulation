@@ -295,6 +295,10 @@ export default function ProjectsTable({
             // Prevent default to allow drop
             e.preventDefault();
           }}
+          onClick={() => {
+            if (draggedProject) return;
+            toggleRowExpansion(project.id!);
+          }}
           onDoubleClick={() => projectId && onModify?.(projectId)}
         >
           <td className="px-6 py-4">
@@ -303,35 +307,12 @@ export default function ProjectsTable({
                 <div className="flex items-center justify-between">
                   {renamingProjectId && (project.id === renamingProjectId || project.experiment_id === renamingProjectId) ? (
                     <>
-                      <button
-                        onClick={(e) => {
-                          if (draggedProject) {
-                            e.preventDefault();
-                            return;
-                          }
-                          toggleRowExpansion(project.id!);
-                        }}
-                        onMouseDown={(e) => {
-                          if (!draggedProject) e.stopPropagation();
-                        }}
-                        className="flex items-center gap-2 text-left"
-                      >
-                        <div
-                          className="w-8 h-8 flex items-center justify-center"
-                          style={{ borderRadius: 'calc(var(--radius) - 2px)' }}
-                        >
-                          <ChevronDown
-                            className={`w-4 h-4 transition-transform ${
-                              expandedRows.has(project.id!) ? '' : '-rotate-90'
-                            }`}
-                          />
-                        </div>
-                      </button>
                       <div className="flex items-center gap-2 flex-1 min-w-0">
                         <input
                           type="text"
                           value={renameValue}
                           onChange={(e) => onRenameValueChange?.(e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
                           className="text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-0 flex-1"
                           autoFocus
                           onKeyDown={(e) => {
@@ -343,13 +324,13 @@ export default function ProjectsTable({
                           }}
                         />
                         <button
-                          onClick={onSaveRename}
+                          onClick={(e) => { e.stopPropagation(); onSaveRename?.(); }}
                           className="text-green-600 hover:text-green-800 text-xs font-medium flex-shrink-0"
                         >
                           Save
                         </button>
                         <button
-                          onClick={onCancelRename}
+                          onClick={(e) => { e.stopPropagation(); onCancelRename?.(); }}
                           className="text-gray-500 hover:text-gray-700 text-xs font-medium flex-shrink-0"
                         >
                           Cancel
@@ -359,23 +340,6 @@ export default function ProjectsTable({
                   ) : (
                     <>
                       <div className="flex items-center gap-2 text-left">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (draggedProject) return;
-                            toggleRowExpansion(project.id!);
-                          }}
-                          onMouseDown={(e) => e.stopPropagation()}
-                          className="w-8 h-8 flex items-center justify-center flex-shrink-0 rounded hover:bg-gray-200/80 transition-colors"
-                          style={{ borderRadius: 'calc(var(--radius) - 2px)' }}
-                        >
-                          <ChevronDown 
-                            className={`w-4 h-4 transition-transform ${
-                              expandedRows.has(project.id!) ? '' : '-rotate-90'
-                            }`}
-                          />
-                        </button>
                         <span className="font-medium text-gray-900">{project.name}</span>
                       </div>
                       <ProjectDropdown
@@ -407,35 +371,12 @@ export default function ProjectsTable({
               <div className="flex items-center justify-between">
                 {renamingProjectId && (project.id === renamingProjectId || project.experiment_id === renamingProjectId) ? (
                   <>
-                    <button
-                      onClick={(e) => {
-                        if (draggedProject) {
-                          e.preventDefault();
-                          return;
-                        }
-                        toggleRowExpansion(project.id!);
-                      }}
-                      onMouseDown={(e) => {
-                        if (!draggedProject) e.stopPropagation();
-                      }}
-                      className="flex items-center gap-2 text-left"
-                    >
-                      <div
-                        className="w-8 h-8 flex items-center justify-center"
-                        style={{ borderRadius: 'calc(var(--radius) - 2px)' }}
-                      >
-                        <ChevronDown
-                          className={`w-4 h-4 transition-transform ${
-                            expandedRows.has(project.id!) ? '' : '-rotate-90'
-                          }`}
-                        />
-                      </div>
-                    </button>
                     <div className="flex items-center gap-2 flex-1 min-w-0">
                       <input
                         type="text"
                         value={renameValue}
                         onChange={(e) => onRenameValueChange?.(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
                         className="text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-0 flex-1"
                         autoFocus
                         onKeyDown={(e) => {
@@ -447,13 +388,13 @@ export default function ProjectsTable({
                         }}
                       />
                       <button
-                        onClick={onSaveRename}
+                        onClick={(e) => { e.stopPropagation(); onSaveRename?.(); }}
                         className="text-green-600 hover:text-green-800 text-xs font-medium flex-shrink-0"
                       >
                         Save
                       </button>
                       <button
-                        onClick={onCancelRename}
+                        onClick={(e) => { e.stopPropagation(); onCancelRename?.(); }}
                         className="text-gray-500 hover:text-gray-700 text-xs font-medium flex-shrink-0"
                       >
                         Cancel
@@ -463,23 +404,6 @@ export default function ProjectsTable({
                 ) : (
                   <>
                     <div className="flex items-center gap-2 text-left">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (draggedProject) return;
-                          toggleRowExpansion(project.id!);
-                        }}
-                        onMouseDown={(e) => e.stopPropagation()}
-                        className="w-8 h-8 flex items-center justify-center flex-shrink-0 rounded hover:bg-gray-200/80 transition-colors"
-                        style={{ borderRadius: 'calc(var(--radius) - 2px)' }}
-                      >
-                        <ChevronDown 
-                          className={`w-4 h-4 transition-transform ${
-                            expandedRows.has(project.id!) ? '' : '-rotate-90'
-                          }`}
-                        />
-                      </button>
                       <span className="font-medium text-gray-900">{project.name}</span>
                     </div>
                     <ProjectDropdown
@@ -544,7 +468,7 @@ export default function ProjectsTable({
         {expandedRows.has(project.id!) && (
           <tr>
             <td colSpan={8} className="px-6 py-4 bg-gray-50">
-              <div className="flex gap-6" style={{marginLeft: isInFolder ? '64px' : '40px'}}>
+              <div className="flex gap-6" style={{marginLeft: isInFolder ? '32px' : '8px'}}>
                 <SimulationSteps steps={project.steps} />
               </div>
             </td>
