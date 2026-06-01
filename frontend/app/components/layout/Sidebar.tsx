@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Activity, Users, BarChart3, ChevronDown, LogOut } from "lucide-react";
+import { Home, Activity, Users, BarChart3, ChevronDown, LogOut, Settings } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 
 interface UserData {
@@ -13,7 +13,7 @@ interface UserData {
 }
 
 interface SidebarProps {
-  currentPage: 'dashboard' | 'simulation' | 'measures' | 'samples';
+  currentPage: 'dashboard' | 'simulation' | 'measures' | 'samples' | 'account';
   userData?: UserData | null;
 }
 
@@ -217,7 +217,16 @@ export default function Sidebar({ currentPage, userData }: SidebarProps) {
             {profileDropdownOpen && !isCollapsed && (
               <div className="absolute bottom-full left-0 mb-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
                 <div className="py-1">
-                  <button 
+                  <Link
+                    href="/account"
+                    onClick={() => setProfileDropdownOpen(false)}
+                    className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  >
+                    <Settings className="w-4 h-4" />
+                    Account Settings
+                  </Link>
+                  <div className="my-1 border-t border-gray-100" />
+                  <button
                     onClick={(e) => {
                       e.stopPropagation();
                       handleSignOut();
