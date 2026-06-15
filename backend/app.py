@@ -41,6 +41,7 @@ import random
 import json
 import re
 import logging
+import stripe
 import typing_extensions as typing
 from datetime import datetime
 
@@ -99,6 +100,10 @@ key: str = os.environ.get("VITE_SUPABASE_KEY")
 env_path = Path('.') / '.env'
 load_dotenv(dotenv_path=env_path)
 
+# Service-role key for trusted server-side writes (e.g. crediting purchases).
+# This bypasses RLS, so it must NEVER be exposed to clients.
+service_key: str = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+
 # Function to create a Supabase client with optional JWT authentication
 def get_supabase_client(jwt=None):
     """
@@ -110,8 +115,66 @@ def get_supabase_client(jwt=None):
         client.auth.set_session(jwt, "")
     return client
 
+
+def get_service_client():
+    """
+    Create a Supabase client using the service-role key. Bypasses RLS so the
+    backend can update protected columns (like user_emails.credits). Returns None
+    if the service key isn't configured.
+    """
+    if not service_key:
+        return None
+    return create_client(url, service_key)
+
+
+def credit_user_account(user_id, amount, session):
+    """
+    Add `amount` credits to user_emails.credits for `user_id`, idempotently.
+
+    Idempotency: once a Stripe session has been credited we stamp its metadata
+    with credited="true", so repeated verify calls (e.g. a page refresh) never
+    double-credit the same payment.
+
+    Returns the new credit balance, or None if it could not be applied.
+    """
+    client = get_service_client()
+    if client is None:
+        logger.error("SUPABASE_SERVICE_ROLE_KEY not set; cannot credit user %s.", user_id)
+        return None
+
+    # metadata is a StripeObject; use its to_dict() for a plain dict (dict() and
+    # .get() don't work on StripeObject).
+    md = session.metadata.to_dict() if session.metadata else {}
+
+    # Read current balance.
+    row = client.table("user_emails").select("credits").eq("user_id", user_id).execute()
+    current = 0
+    if row.data:
+        current = row.data[0].get("credits") or 0
+
+    # Already credited this session — return the current balance unchanged.
+    if md.get("credited") == "true":
+        return round(float(current), 2)
+
+    new_balance = round(float(current) + float(amount), 2)
+    client.table("user_emails").update({"credits": new_balance}).eq("user_id", user_id).execute()
+
+    # Stamp the session so it can't be credited again.
+    try:
+        stripe.checkout.Session.modify(session.id, metadata={**md, "credited": "true"})
+    except Exception as e:
+        logger.warning("Could not mark session %s credited: %s", session.id, e)
+
+    return new_balance
+
 # Keep GEMINI_KEY available for reference; get_llm() reads it from env directly.
 key_g = os.environ.get('GEMINI_KEY')
+
+# Stripe configuration. The secret key lives only on the backend.
+stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
+STRIPE_CURRENCY = "usd"
+STRIPE_MIN_AMOUNT = 1       # $1
+STRIPE_MAX_AMOUNT = 10000   # $10,000
 
 
 def parse_age_range(age_range_str):
@@ -690,10 +753,115 @@ class GenerateSteps(Resource):
             return {"status": "error", "message": f"An unexpected error occurred: {error_msg}"}, 500
 
 
+class Checkout(Resource):
+    """
+    Create a Stripe Checkout Session for purchasing simulation credits.
+
+    Accepts an arbitrary dollar amount and builds the line item server-side with
+    inline price_data, so custom amounts work without pre-creating Prices in the
+    Stripe Dashboard. The secret key never leaves the backend.
+    """
+
+    def post(self):
+        try:
+            if not stripe.api_key:
+                return {"status": "error", "message": "Stripe is not configured (missing STRIPE_SECRET_KEY)."}, 500
+
+            data = request.get_json(silent=True) or {}
+
+            try:
+                amount = float(data.get("amount"))
+            except (TypeError, ValueError):
+                return {"status": "error", "message": "Invalid amount."}, 400
+
+            if not (STRIPE_MIN_AMOUNT <= amount <= STRIPE_MAX_AMOUNT):
+                return {
+                    "status": "error",
+                    "message": f"Amount must be between ${STRIPE_MIN_AMOUNT} and ${STRIPE_MAX_AMOUNT}.",
+                }, 400
+
+            # Stripe expects the amount in cents.
+            unit_amount = round(amount * 100)
+
+            user_id = data.get("userId")
+            email = data.get("email")
+            # The frontend passes its own origin so success/cancel return to the
+            # right place; fall back to the request Origin header.
+            origin = data.get("origin") or request.headers.get("Origin") or "http://localhost:3000"
+
+            session = stripe.checkout.Session.create(
+                mode="payment",
+                line_items=[{
+                    "quantity": 1,
+                    "price_data": {
+                        "currency": STRIPE_CURRENCY,
+                        "unit_amount": unit_amount,
+                        "product_data": {"name": "Simulation credits"},
+                    },
+                }],
+                # session_id is needed on return so we can verify the payment
+                # before crediting (don't trust a raw amount in the URL).
+                success_url=f"{origin}/account?status=success&session_id={{CHECKOUT_SESSION_ID}}",
+                cancel_url=f"{origin}/account?status=cancel",
+                customer_email=email,
+                client_reference_id=user_id,
+                metadata={"userId": user_id or "", "credits": str(amount)},
+            )
+
+            return jsonify({"url": session.url})
+        except Exception as e:
+            logger.exception("Stripe checkout failed")
+            return {"status": "error", "message": str(e)}, 502
+
+
+class CheckoutVerify(Resource):
+    """
+    Verify a completed Stripe Checkout Session on return from Stripe. The client
+    calls this with the session_id from the success URL; we confirm the payment
+    is actually paid and report the real amount so the balance is credited from a
+    trusted source rather than a spoofable query param.
+    """
+
+    def get(self):
+        try:
+            if not stripe.api_key:
+                return {"status": "error", "message": "Stripe is not configured (missing STRIPE_SECRET_KEY)."}, 500
+
+            session_id = request.args.get("session_id")
+            if not session_id:
+                return {"status": "error", "message": "Missing session_id."}, 400
+
+            session = stripe.checkout.Session.retrieve(session_id)
+            # StripeObject overrides attribute access, so dict.get() is not
+            # available — use attribute access (these fields are always present,
+            # possibly None).
+            paid = session.payment_status == "paid"
+            amount_total = session.amount_total  # in cents
+            amount = (amount_total / 100) if (paid and amount_total is not None) else 0
+            user_id = session.client_reference_id
+
+            # Credit the user's account in Supabase from this trusted context.
+            balance = None
+            if paid and user_id and amount > 0:
+                balance = credit_user_account(user_id, amount, session)
+
+            return jsonify({
+                "paid": paid,
+                "amount": amount,
+                "userId": user_id,
+                "balance": balance,
+            })
+        except Exception as e:
+            logger.exception("Stripe verify failed")
+            return {"status": "error", "message": str(e)}, 502
+
+
 # Register the resources with the API
 api.add_resource(Evaluation, "/evaluate")
 api.add_resource(Progress, "/progress")
 api.add_resource(GenerateSteps, "/generate-steps")
+api.add_resource(Checkout, "/checkout")
+api.add_resource(CheckoutVerify, "/checkout/verify")
 
 # Register the API blueprint with the Flask application
 app.register_blueprint(api_bp, url_prefix="/api")

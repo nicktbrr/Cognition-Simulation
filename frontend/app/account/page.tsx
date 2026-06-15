@@ -8,11 +8,13 @@ import AuthLoading from "../components/auth-loading";
 import AppLayout from "../components/layout/AppLayout";
 import SubHeader from "../components/layout/SubHeader";
 import { Button } from "../components/ui/button";
+import { startCheckout, verifyCheckout } from "../utils/stripe";
 
 interface UserData {
   user_email: string;
   user_id: string;
   pic_url: string;
+  credits?: number;
 }
 
 interface ProfileData {
@@ -127,13 +129,16 @@ export default function AccountPage() {
   const [profile, setProfile] = useState<ProfileData>(emptyProfile);
   const [draft, setDraft] = useState<ProfileData>(emptyProfile);
   const [billing, setBilling] = useState<BillingData>(defaultBilling);
+  const [checkoutStatus, setCheckoutStatus] = useState<"success" | "cancel" | null>(null);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [pendingAmount, setPendingAmount] = useState<number | null>(null);
   const [customAmount, setCustomAmount] = useState("");
   const hasLoadedRef = useRef(false);
 
   const getUserData = async (userId: string) => {
     const { data, error } = await supabase
       .from("user_emails")
-      .select("user_email, user_id, pic_url")
+      .select("user_email, user_id, pic_url, credits")
       .eq("user_id", userId)
       .maybeSingle();
 
@@ -142,6 +147,11 @@ export default function AccountPage() {
       setUserData(null);
     } else {
       setUserData(data ?? null);
+      // Credit balance is the source of truth in user_emails; mirror it into the
+      // billing panel (transactions remain local history).
+      if (data) {
+        setBilling((prev) => ({ ...prev, balance: data.credits ?? 0 }));
+      }
     }
   };
 
@@ -198,9 +208,9 @@ export default function AccountPage() {
     setDraft((prev) => ({ ...prev, [field]: value }));
   };
 
-  // Prototype only: locally credits the balance and records a transaction.
-  // Swap for a real checkout/payment flow when billing is implemented.
-  const handleAddCredits = (amount: number) => {
+  // Records a verified credit purchase. The balance comes from the server
+  // (user_emails.credits, returned by verify); transactions remain local history.
+  const recordCredits = (amount: number, serverBalance: number | null) => {
     if (!user || !(amount > 0)) return;
     const newTransaction: Transaction = {
       id: crypto.randomUUID(),
@@ -208,12 +218,37 @@ export default function AccountPage() {
       date: formatDate(new Date()),
       amount,
     };
-    const next: BillingData = {
-      balance: Math.round((billing.balance + amount) * 100) / 100,
-      transactions: [newTransaction, ...billing.transactions],
-    };
-    setBilling(next);
-    saveBilling(user.user_id, next);
+    // Functional update so this composes with the billing-load effect that runs
+    // on the same render (avoids reading a stale `billing` from the closure).
+    setBilling((prev) => {
+      const next: BillingData = {
+        // Prefer the authoritative server balance; fall back to a local sum only
+        // if the backend couldn't return one.
+        balance:
+          serverBalance != null
+            ? serverBalance
+            : Math.round((prev.balance + amount) * 100) / 100,
+        transactions: [newTransaction, ...prev.transactions],
+      };
+      saveBilling(user.user_id, next);
+      return next;
+    });
+  };
+
+  // Asks our server to create a Stripe Checkout Session for `amount` dollars,
+  // then redirects to Stripe's hosted page. Works for fixed packs and the
+  // custom amount alike.
+  const handleAddCredits = async (amount: number) => {
+    if (!user || !(amount > 0) || pendingAmount !== null) return;
+    setCheckoutError(null);
+    setPendingAmount(amount);
+    try {
+      await startCheckout(amount, { userId: user.user_id, email: user.user_email });
+      // On success the browser navigates to Stripe; this line isn't reached.
+    } catch (err) {
+      setCheckoutError(err instanceof Error ? err.message : "Could not start checkout.");
+      setPendingAmount(null);
+    }
   };
 
   const handleAddCustom = () => {
@@ -222,6 +257,42 @@ export default function AccountPage() {
     handleAddCredits(Math.round(amount * 100) / 100);
     setCustomAmount("");
   };
+
+  // Handle the return from Stripe Checkout. On success we verify the session
+  // server-side (so the credited amount comes from Stripe, not a spoofable URL)
+  // before recording it. Query params are stripped so a refresh can't re-credit.
+  useEffect(() => {
+    if (!user || !isAuthenticated) return;
+    const params = new URLSearchParams(window.location.search);
+    const status = params.get("status");
+    if (status !== "success" && status !== "cancel") return;
+
+    setActiveTab("billing");
+    window.history.replaceState({}, "", "/account");
+
+    if (status === "cancel") {
+      setCheckoutStatus("cancel");
+      return;
+    }
+
+    // The session_id has already been stripped from the URL above, so this
+    // verify path runs exactly once even under StrictMode's double-invoke.
+    const sessionId = params.get("session_id");
+    if (!sessionId) return;
+    verifyCheckout(sessionId)
+      .then((result) => {
+        if (result.paid && result.amount > 0) {
+          recordCredits(result.amount, result.balance);
+          setCheckoutStatus("success");
+        } else {
+          setCheckoutError("Payment could not be verified.");
+        }
+      })
+      .catch((err) => {
+        setCheckoutError(err instanceof Error ? err.message : "Could not verify payment.");
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.user_id, isAuthenticated]);
 
   // Show loading state while checking authentication
   if (isLoading) {
@@ -393,6 +464,23 @@ export default function AccountPage() {
                 <p className="text-sm text-gray-500 mt-0.5">Add funds and manage your credit balance</p>
               </div>
 
+              {/* Checkout result banners */}
+              {checkoutStatus === "success" && (
+                <div className="mb-6 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+                  Payment successful — your credits have been added.
+                </div>
+              )}
+              {checkoutStatus === "cancel" && (
+                <div className="mb-6 rounded-xl border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
+                  Checkout canceled — no charge was made.
+                </div>
+              )}
+              {checkoutError && (
+                <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {checkoutError}
+                </div>
+              )}
+
               {/* Credit Balance */}
               <div className="bg-white rounded-xl border border-gray-200 p-6">
                 <p className="text-sm text-gray-500">Credit Balance</p>
@@ -417,10 +505,11 @@ export default function AccountPage() {
                     </div>
                     <button
                       onClick={() => handleAddCredits(10)}
-                      className="w-full flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium py-2.5 rounded-lg transition-colors"
+                      disabled={pendingAmount !== null}
+                      className="w-full flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 disabled:opacity-60 disabled:cursor-not-allowed text-gray-700 text-sm font-medium py-2.5 rounded-lg transition-colors"
                     >
                       <CreditCard className="w-4 h-4" />
-                      Add $10
+                      {pendingAmount === 10 ? "Redirecting…" : "Add $10"}
                     </button>
                   </div>
 
@@ -434,10 +523,11 @@ export default function AccountPage() {
                     </div>
                     <button
                       onClick={() => handleAddCredits(50)}
-                      className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2.5 rounded-lg transition-colors"
+                      disabled={pendingAmount !== null}
+                      className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-medium py-2.5 rounded-lg transition-colors"
                     >
                       <CreditCard className="w-4 h-4" />
-                      Add $50
+                      {pendingAmount === 50 ? "Redirecting…" : "Add $50"}
                     </button>
                   </div>
 
@@ -464,10 +554,13 @@ export default function AccountPage() {
                     </div>
                     <button
                       onClick={handleAddCustom}
-                      className="w-full flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium py-2.5 rounded-lg transition-colors"
+                      disabled={pendingAmount !== null || !(parseFloat(customAmount) > 0)}
+                      className="w-full flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 disabled:opacity-60 disabled:cursor-not-allowed text-gray-700 text-sm font-medium py-2.5 rounded-lg transition-colors"
                     >
                       <CreditCard className="w-4 h-4" />
-                      Add Custom
+                      {pendingAmount !== null && pendingAmount !== 10 && pendingAmount !== 50
+                        ? "Redirecting…"
+                        : "Add Custom"}
                     </button>
                   </div>
                 </div>
