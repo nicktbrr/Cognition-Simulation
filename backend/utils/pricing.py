@@ -22,14 +22,15 @@ VERTEX_AI_SERVICE_ID = "C7E2-9256-1C43"
 GEMINI_2_FLASH_INPUT_SKU = "1127-99B9-1860"   # Text Input - Predictions
 GEMINI_2_FLASH_OUTPUT_SKU = "DFB0-8442-43A8"  # Text Output - Predictions
 
-# Fallback rates (USD per 1M tokens) - Gemini 2.0 Flash as of 2025
-FALLBACK_INPUT_PER_MILLION = 0.10
-FALLBACK_OUTPUT_PER_MILLION = 0.40
+# Fallback rates (USD per 1M tokens) - Gemini 2.0 Flash, verified against the
+# Cloud Billing Catalog API (Text Input/Output - Predictions) on 2026-06-02.
+FALLBACK_INPUT_PER_MILLION = 0.15
+FALLBACK_OUTPUT_PER_MILLION = 0.60
 
 # Static pricing table (USD per 1M tokens) for all supported models.
 # Used when live billing API rates are unavailable or for non-Gemini models.
 MODEL_PRICING: dict = {
-    "gemini-2.0-flash": {"input_per_million": 0.10, "output_per_million": 0.40},
+    "gemini-2.0-flash": {"input_per_million": 0.15, "output_per_million": 0.60},
     # Future models — uncomment and set correct rates when adding support:
     # "gpt-4o":                        {"input_per_million": 2.50,  "output_per_million": 10.00},
     # "gpt-4o-mini":                   {"input_per_million": 0.15,  "output_per_million": 0.60},
@@ -43,44 +44,71 @@ _cached_rates: Tuple[float, float] | None = None
 
 def _parse_price_per_token(pe: dict, price_per_unit: float) -> float:
     """
-    Convert API price to USD per token.
-    Billing API may use usageUnit like '1' (per token) or displayQuantity for display.
-    """
-    display_qty = pe.get("displayQuantity")
-    base_factor = pe.get("baseUnitConversionFactor")
+    Convert a Cloud Billing Catalog unit price to USD per token.
 
-    # Common patterns: price per 1M tokens (0.10), per 1K (0.0001), or per token (1e-7)
-    if display_qty and display_qty > 0:
-        # displayQuantity often indicates "per N units" for display
-        return price_per_unit / display_qty
-    if base_factor and base_factor != 0:
-        return price_per_unit * base_factor
-    # If price is already tiny (per-token range), use as-is
-    if 0 < price_per_unit < 1e-4:
-        return price_per_unit
-    # Assume price is per 1M tokens
-    return price_per_unit / 1_000_000
+    Per the API spec (verified against the live Gemini 2.0 Flash SKUs):
+      * ``unitPrice`` (units + nanos) is the price per ``usageUnit``.
+      * ``baseUnitConversionFactor`` converts a usage unit into base units, so
+        ``price_per_base_unit = unitPrice / baseUnitConversionFactor``. For the
+        Gemini text SKUs the base unit is a single token (``usageUnit`` and
+        ``baseUnit`` are both "count" with factor 1), so the per-token rate is
+        simply ``unitPrice / baseUnitConversionFactor``.
+      * ``displayQuantity`` (e.g. 1,000,000) is display-only — it controls how
+        Google renders "$X per 1M" and must NOT be applied to the formula.
+
+    The formula also handles SKUs expressed per larger unit (e.g. usageUnit
+    "1M tokens" with baseUnitConversionFactor 1,000,000) without special-casing.
+    """
+    base_factor = pe.get("baseUnitConversionFactor")
+    if not base_factor or base_factor <= 0:
+        base_factor = 1
+    return price_per_unit / base_factor
+
+
+def _iter_skus(api_key: str):
+    """
+    Yield SKU dicts from the Cloud Billing Catalog API across all pages.
+
+    The Vertex AI service has >5000 SKUs, so a single page does not contain
+    every SKU (the Gemini text-output SKU lives on a later page). Following
+    ``nextPageToken`` is required to reach them. Stops early on any request
+    failure after logging it.
+    """
+    page_token = ""
+    while True:
+        url = (
+            f"https://cloudbilling.googleapis.com/v1/services/{VERTEX_AI_SERVICE_ID}/skus"
+            f"?currencyCode=USD&pageSize=5000"
+        )
+        if page_token:
+            url += f"&pageToken={page_token}"
+        try:
+            # Pass the key via header rather than the query string so it can't
+            # leak into proxy/access logs or error traces that capture the URL.
+            req = Request(
+                url,
+                headers={"Accept": "application/json", "x-goog-api-key": api_key},
+            )
+            with urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode())
+        except (URLError, HTTPError, json.JSONDecodeError, OSError) as e:
+            logger.warning("Cloud Billing Catalog API request failed: %s", e)
+            return
+
+        for sku in data.get("skus", []):
+            yield sku
+
+        page_token = data.get("nextPageToken") or ""
+        if not page_token:
+            return
 
 
 def _fetch_sku_price(api_key: str, sku_id: str) -> float | None:
     """
     Fetch price per token for a SKU from Cloud Billing Catalog API.
-    Returns USD per token, or None on failure.
+    Returns USD per token, or None on failure / not found.
     """
-    url = (
-        f"https://cloudbilling.googleapis.com/v1/services/{VERTEX_AI_SERVICE_ID}/skus"
-        f"?key={api_key}&currencyCode=USD&pageSize=5000"
-    )
-    try:
-        req = Request(url, headers={"Accept": "application/json"})
-        with urlopen(req, timeout=10) as resp:
-            data = json.loads(resp.read().decode())
-    except (URLError, HTTPError, json.JSONDecodeError, OSError) as e:
-        logger.warning("Cloud Billing Catalog API request failed: %s", e)
-        return None
-
-    skus = data.get("skus", [])
-    for sku in skus:
+    for sku in _iter_skus(api_key):
         if sku.get("skuId") != sku_id:
             continue
         pricing_info = sku.get("pricingInfo") or []
@@ -96,6 +124,15 @@ def _fetch_sku_price(api_key: str, sku_id: str) -> float | None:
         nanos = int(unit_price.get("nanos", 0) or 0)
         price_per_unit = units + nanos / 1e9
         return _parse_price_per_token(pe, price_per_unit)
+
+    # SKU IDs are hardcoded and can be deprecated/renamed by Google. If the
+    # configured SKU is missing, the caller falls back to static rates silently;
+    # log it so a stale SKU ID is visible rather than failing quietly.
+    logger.warning(
+        "SKU %s not found in Cloud Billing Catalog response for service %s",
+        sku_id,
+        VERTEX_AI_SERVICE_ID,
+    )
     return None
 
 
@@ -116,6 +153,13 @@ def get_gemini_2_flash_rates() -> Tuple[float, float]:
         input_per_token = _fetch_sku_price(api_key, GEMINI_2_FLASH_INPUT_SKU)
         output_per_token = _fetch_sku_price(api_key, GEMINI_2_FLASH_OUTPUT_SKU)
 
+    # Only cache when both rates came from the live API. Caching fallback rates
+    # would let a transient API failure (or a not-yet-set key) lock the process
+    # into fallback for its entire lifetime; instead we retry the API next call.
+    if input_per_token is not None and output_per_token is not None:
+        _cached_rates = (input_per_token, output_per_token)
+        return _cached_rates
+
     if input_per_token is None:
         input_per_token = FALLBACK_INPUT_PER_MILLION / 1_000_000
         logger.debug("Using fallback input rate: $%.6f per token", input_per_token)
@@ -123,8 +167,7 @@ def get_gemini_2_flash_rates() -> Tuple[float, float]:
         output_per_token = FALLBACK_OUTPUT_PER_MILLION / 1_000_000
         logger.debug("Using fallback output rate: $%.6f per token", output_per_token)
 
-    _cached_rates = (input_per_token, output_per_token)
-    return _cached_rates
+    return (input_per_token, output_per_token)
 
 
 def compute_cost(
@@ -160,7 +203,15 @@ def compute_cost_for_model(
     if model_name.startswith("gemini"):
         return compute_cost(input_tokens, output_tokens)
 
-    rates = MODEL_PRICING.get(model_name, MODEL_PRICING["gemini-2.0-flash"])
+    rates = MODEL_PRICING.get(model_name)
+    if rates is None:
+        # Unknown model: pricing it at Gemini's rates silently would badly
+        # mis-bill more expensive models, so make the fallback visible.
+        logger.warning(
+            "Model %r not in MODEL_PRICING; billing at Gemini 2.0 Flash rates",
+            model_name,
+        )
+        rates = MODEL_PRICING["gemini-2.0-flash"]
     input_rate = rates["input_per_million"] / 1_000_000
     output_rate = rates["output_per_million"] / 1_000_000
     return (input_tokens * input_rate) + (output_tokens * output_rate)
