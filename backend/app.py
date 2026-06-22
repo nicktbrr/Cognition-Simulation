@@ -17,7 +17,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 # from utils.cosine_sim import *
 from utils.prompts import *
 from utils.evaluate import *
-from utils.llm import get_llm, resolve_model_name
+from utils.llm import get_llm, resolve_model_name, DEFAULT_MODEL
 from utils.progress import create_progress_updater
 try:
     from utils.pricing import compute_prompt_and_eval_cost, compute_cost
@@ -576,9 +576,9 @@ class GenerateSteps(Resource):
             logger.debug(f"[{request_id}] Full prompt prepared (length: {len(full_prompt)} characters)")
             
             # Call LLM via LangChain
-            logger.info(f"[{request_id}] Calling LLM (gemini-2.0-flash) via LangChain")
+            logger.info(f"[{request_id}] Calling LLM ({DEFAULT_MODEL}) via LangChain")
             try:
-                llm = get_llm("gemini-2.0-flash", temperature=0.7)
+                llm = get_llm(DEFAULT_MODEL, temperature=0.7)
                 lc_response = llm.invoke([
                     SystemMessage(content=system_prompt),
                     HumanMessage(content=full_prompt),

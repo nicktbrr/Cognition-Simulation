@@ -24,16 +24,20 @@ class EvaluationMetrics(BaseModel):
 
 
 # Maps short/friendly names (sent from the frontend) to canonical API model IDs.
+# NOTE: gemini-2.0-flash was retired by Google (generateContent now returns 404),
+# so the legacy names are remapped to the current flash model.
 MODEL_NAME_MAP: Dict[str, str] = {
-    "gemini": "gemini-2.0-flash",
-    "gemini-flash": "gemini-2.0-flash",
-    "gemini-2.0": "gemini-2.0-flash",
+    "gemini": "gemini-2.5-flash",
+    "gemini-flash": "gemini-2.5-flash",
+    "gemini-2.0": "gemini-2.5-flash",
+    # Back-compat: experiments saved with the retired model still resolve.
+    "gemini-2.0-flash": "gemini-2.5-flash",
     # Future entries:
     # "gpt4o": "gpt-4o",
     # "claude": "claude-3-5-sonnet-20241022",
 }
 
-DEFAULT_MODEL = "gemini-2.0-flash"
+DEFAULT_MODEL = "gemini-2.5-flash"
 
 
 def resolve_model_name(model_name: str) -> str:

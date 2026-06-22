@@ -11,7 +11,7 @@ from supabase import create_client, Client
 
 from langchain_core.messages import SystemMessage, HumanMessage
 
-from .llm import invoke_structured, EvaluationMetrics, get_llm
+from .llm import invoke_structured, EvaluationMetrics, get_llm, DEFAULT_MODEL
 from .used_prompts import (
     get_persona_generation_user_prompt,
     get_evaluation_system_prompt,
@@ -52,7 +52,7 @@ def generate_persona_from_attributes(sample, key_g, supabase_client=None):
     persona_prompt = get_persona_generation_user_prompt(attributes_text)
 
     try:
-        llm = get_llm("gemini-2.0-flash", temperature=0.7)
+        llm = get_llm(DEFAULT_MODEL, temperature=0.7)
         response = llm.invoke([HumanMessage(content=persona_prompt)])
         generated_persona = response.content.strip()
 

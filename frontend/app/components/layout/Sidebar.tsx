@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Activity, Users, BarChart3, ChevronDown, LogOut, Settings } from "lucide-react";
+import { Home, Activity, Users, BarChart3, LineChart, ChevronDown, LogOut, Settings } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 
 interface UserData {
@@ -13,7 +13,7 @@ interface UserData {
 }
 
 interface SidebarProps {
-  currentPage: 'dashboard' | 'simulation' | 'measures' | 'samples' | 'account';
+  currentPage: 'dashboard' | 'simulation' | 'measures' | 'samples' | 'analysis' | 'account';
   userData?: UserData | null;
 }
 
@@ -40,6 +40,7 @@ export default function Sidebar({ currentPage, userData }: SidebarProps) {
     { id: 'samples', href: '/samples', icon: Users, label: 'Samples' },
     { id: 'measures', href: '/measures', icon: BarChart3, label: 'Measures' },
     { id: 'simulation', href: '/simulation', icon: Activity, label: 'Simulation' },
+    { id: 'analysis', href: '/analysis', icon: LineChart, label: 'Analysis' },
   ];
 
   // Keep sidebar open when navigating via sidebar links

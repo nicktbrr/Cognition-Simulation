@@ -11,7 +11,7 @@ interface UserData {
 }
 
 interface AppLayoutProps {
-  currentPage: 'dashboard' | 'simulation' | 'measures' | 'samples' | 'account';
+  currentPage: 'dashboard' | 'simulation' | 'measures' | 'samples' | 'analysis' | 'account';
   headerTitle: string;
   userData?: UserData | null;
   children: React.ReactNode;
