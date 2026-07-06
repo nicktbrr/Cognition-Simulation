@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { BarChart3, ChevronDown, SlidersHorizontal } from "lucide-react";
+import { BarChart3, ChevronDown, GitCompare, SlidersHorizontal } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { supabase } from "../utils/supabase";
 import AppLayout from "../components/layout/AppLayout";
@@ -13,12 +13,17 @@ import { Card, CardContent } from "../components/ui/card";
 import { Input } from "../../components/ui/input";
 import Multiselect from "../components/ui/multiselect";
 import AnalysisChart from "../components/analysis/AnalysisChart";
+import ComparePanel, {
+  SelectedBar,
+} from "../components/analysis/ComparePanel";
 import {
   Dataset,
   MetricsData,
   aggregate,
+  barKey,
   fetchDatasets,
   loadMetrics,
+  pairKey,
 } from "../utils/analysisData";
 
 interface UserData {
@@ -45,6 +50,12 @@ export default function AnalysisPage() {
 
   const [selectedSteps, setSelectedSteps] = useState<string[]>([]);
   const [selectedMeasures, setSelectedMeasures] = useState<string[]>([]);
+
+  // Compare mode: click bars to select (step, measure) pairs for t-test / ANOVA.
+  const [compareMode, setCompareMode] = useState(false);
+  const [selectedBars, setSelectedBars] = useState<
+    { step: string; measure: string }[]
+  >([]);
 
   // Options popover state.
   const [showOptions, setShowOptions] = useState(false);
@@ -125,6 +136,8 @@ export default function AnalysisPage() {
     setMetricsError(null);
     setSelectedSteps([]);
     setSelectedMeasures([]);
+    setCompareMode(false);
+    setSelectedBars([]);
     setLoadingMetrics(true);
     try {
       const data = await loadMetrics(dataset.url, dataset.stepLabels);
@@ -159,6 +172,41 @@ export default function AnalysisPage() {
     selectedSteps.length > 0 &&
     selectedMeasures.length > 0 &&
     !loadingMetrics;
+
+  // Only keep selected bars that are still visible (their step & measure remain
+  // selected) and carry their raw per-persona values from the loaded metrics.
+  const selectedBarData = useMemo<SelectedBar[]>(() => {
+    if (!metrics) return [];
+    return selectedBars
+      .filter(
+        (b) =>
+          selectedSteps.includes(b.step) && selectedMeasures.includes(b.measure)
+      )
+      .map((b) => ({
+        step: b.step,
+        measure: b.measure,
+        values: metrics.byPair[pairKey(b.step, b.measure)] ?? [],
+      }))
+      .filter((b) => b.values.length > 0);
+  }, [metrics, selectedBars, selectedSteps, selectedMeasures]);
+
+  const selectedKeys = selectedBarData.map((b) => barKey(b.step, b.measure));
+
+  const toggleCompareMode = () => {
+    setCompareMode((prev) => {
+      if (prev) setSelectedBars([]); // clear selection when leaving compare mode
+      return !prev;
+    });
+  };
+
+  const handleBarClick = (step: string, measure: string) => {
+    setSelectedBars((prev) => {
+      const exists = prev.some((b) => b.step === step && b.measure === measure);
+      return exists
+        ? prev.filter((b) => !(b.step === step && b.measure === measure))
+        : [...prev, { step, measure }];
+    });
+  };
 
   if (isLoading) {
     return <AuthLoading message="Loading analysis..." />;
@@ -324,15 +372,50 @@ export default function AnalysisPage() {
               ) : metrics && metrics.steps.length === 0 ? (
                 <EmptyState message="This dataset has no metric results to display." />
               ) : canShowChart ? (
-                <AnalysisChart
-                  rows={chartRows}
-                  measures={selectedMeasures}
-                  showValues={showValues}
-                  boxWhiskers={boxWhiskers}
-                  trendline={trendline}
-                  yMin={yMin}
-                  yMax={yMax}
-                />
+                <>
+                  <AnalysisChart
+                    rows={chartRows}
+                    measures={selectedMeasures}
+                    showValues={showValues}
+                    boxWhiskers={boxWhiskers}
+                    trendline={trendline}
+                    yMin={yMin}
+                    yMax={yMax}
+                    compareMode={compareMode}
+                    selectedKeys={selectedKeys}
+                    onBarClick={handleBarClick}
+                  />
+
+                  {/* Compare toggle */}
+                  <div className="mt-4 flex justify-center">
+                    <Button
+                      onClick={toggleCompareMode}
+                      className={`gap-2 ${
+                        compareMode
+                          ? "bg-red-600 hover:bg-red-700"
+                          : "bg-indigo-600 hover:bg-indigo-700"
+                      } text-white`}
+                    >
+                      <GitCompare className="h-4 w-4" />
+                      {compareMode ? "Exit compare" : "Compare"}
+                    </Button>
+                  </div>
+
+                  {compareMode && (
+                    <>
+                      <div className="mt-3 flex items-center justify-center gap-2 rounded-md bg-indigo-50 px-4 py-2 text-sm text-indigo-700">
+                        <BarChart3 className="h-4 w-4 flex-shrink-0" />
+                        Click bars to select them for comparison (2 for a t-Test,
+                        2+ for ANOVA)
+                      </div>
+                      <ComparePanel
+                        selected={selectedBarData}
+                        measures={selectedMeasures}
+                        onClear={() => setSelectedBars([])}
+                      />
+                    </>
+                  )}
+                </>
               ) : (
                 <EmptyState message="Select at least one step and one measure to render the chart." />
               )}

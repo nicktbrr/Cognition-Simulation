@@ -4,6 +4,7 @@ import React from "react";
 import {
   Bar,
   CartesianGrid,
+  Cell,
   ComposedChart,
   ErrorBar,
   Legend,
@@ -14,19 +15,14 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { ChartRow, errKey, statKey, trendKey } from "../../utils/analysisData";
-
-// Palette echoes the mockup (blue / green / orange) then cycles for extras.
-const COLORS = [
-  "#6366f1",
-  "#22c55e",
-  "#f59e0b",
-  "#ec4899",
-  "#06b6d4",
-  "#8b5cf6",
-  "#ef4444",
-  "#14b8a6",
-];
+import {
+  ChartRow,
+  CHART_COLORS as COLORS,
+  barKey,
+  errKey,
+  statKey,
+  trendKey,
+} from "../../utils/analysisData";
 
 interface AnalysisChartProps {
   rows: ChartRow[];
@@ -36,6 +32,11 @@ interface AnalysisChartProps {
   trendline: boolean;
   yMin?: number;
   yMax?: number;
+  /** When true, bars are clickable and dimmed unless selected (Compare mode). */
+  compareMode?: boolean;
+  /** Keys (barKey) of the currently selected bars. */
+  selectedKeys?: string[];
+  onBarClick?: (step: string, measure: string) => void;
 }
 
 interface TooltipEntry {
@@ -103,8 +104,12 @@ export default function AnalysisChart({
   trendline,
   yMin,
   yMax,
+  compareMode = false,
+  selectedKeys = [],
+  onBarClick,
 }: AnalysisChartProps) {
   const colorOf = (measure: string) => COLORS[measures.indexOf(measure) % COLORS.length];
+  const selectedSet = new Set(selectedKeys);
 
   // Auto Y-domain ignores error bars, so widen the top to fit whiskers when
   // box & whiskers is on and the user hasn't pinned an explicit max.
@@ -151,7 +156,34 @@ export default function AnalysisChart({
         {measures.map((measure) => {
           const color = colorOf(measure);
           return (
-            <Bar key={measure} dataKey={measure} fill={color} radius={[2, 2, 0, 0]}>
+            <Bar
+              key={measure}
+              dataKey={measure}
+              fill={color}
+              radius={[2, 2, 0, 0]}
+              cursor={compareMode ? "pointer" : undefined}
+              onClick={
+                compareMode && onBarClick
+                  ? (_data: unknown, index: number) => {
+                      const row = rows[index];
+                      if (row) onBarClick(row.step, measure);
+                    }
+                  : undefined
+              }
+            >
+              {compareMode &&
+                rows.map((row) => {
+                  const selected = selectedSet.has(barKey(row.step, measure));
+                  return (
+                    <Cell
+                      key={row.step}
+                      fill={color}
+                      fillOpacity={selected ? 1 : 0.35}
+                      stroke={selected ? "#1e293b" : "none"}
+                      strokeWidth={selected ? 2 : 0}
+                    />
+                  );
+                })}
               {boxWhiskers && (
                 <ErrorBar
                   dataKey={errKey(measure)}
