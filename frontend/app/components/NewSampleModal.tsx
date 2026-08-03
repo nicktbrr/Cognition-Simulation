@@ -3,31 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { X, ChevronDown, ChevronUp, Search, Pencil } from "lucide-react";
 import { Button } from "./ui/button";
-import otherAttributesData from "../data/attributes/other.json";
-import demographicsAttributesData from "../data/attributes/demographics.json";
-import healthAttributesData from "../data/attributes/health.json";
-import languageAttributesData from "../data/attributes/language.json";
-import workAttributesData from "../data/attributes/work.json";
-import educationAttributesData from "../data/attributes/education.json";
-import beliefsAttributesData from "../data/attributes/belief.json";
-import geographyAttributesData from "../data/attributes/geographic.json";
-import familyAttributesData from "../data/attributes/family.json";
-import shoppingAttributesData from "../data/attributes/shopping.json";
-import financeAttributesData from "../data/attributes/finance.json";
-import lifestyleAttributesData from "../data/attributes/lifestyle.json";
-import technologyAttributesData from "../data/attributes/technology.json";
-
-interface Attribute {
-  id: string;
-  label: string;
-  category: string;
-  options?: AttributeOption[];
-}
-
-interface AttributeOption {
-  id: string;
-  label: string;
-}
+import { allCategories, type Attribute, type AttributeOption } from "../data/attributeCatalog";
 
 interface AttributeSelection {
   attributeId: string;
@@ -49,56 +25,6 @@ interface NewSampleModalProps {
   readOnly?: boolean;
   onCopy?: () => void;
 }
-
-const demographicsAttributes: Attribute[] = demographicsAttributesData as Attribute[];
-
-const healthAttributes: Attribute[] = healthAttributesData as Attribute[];
-
-const workAttributes: Attribute[] = workAttributesData as Attribute[];
-
-const educationAttributes: Attribute[] = educationAttributesData as Attribute[];
-
-
-const beliefsAttributes: Attribute[] = beliefsAttributesData as Attribute[];
-
-
-const familyAttributes: Attribute[] = familyAttributesData as Attribute[];
-
-const shoppingAttributes: Attribute[] = shoppingAttributesData as Attribute[];
-
-
-const financeAttributes: Attribute[] = financeAttributesData as Attribute[];
-
-
-const lifestyleAttributes: Attribute[] = lifestyleAttributesData as Attribute[];
-
-
-const technologyAttributes: Attribute[] = technologyAttributesData as Attribute[];
-
-
-const geographicAttributes: Attribute[] = geographyAttributesData as Attribute[];
-
-const languageAttributes: Attribute[] = languageAttributesData as Attribute[];
-  
-
-
-const otherAttributes: Attribute[] = otherAttributesData as Attribute[];
-
-const allCategories = [
-  { name: "Demographics", attributes: demographicsAttributes, expanded: true },
-  { name: "Health", attributes: healthAttributes, expanded: false },
-  { name: "Work", attributes: workAttributes, expanded: false },
-  { name: "Education", attributes: educationAttributes, expanded: false },
-  { name: "Beliefs", attributes: beliefsAttributes, expanded: false },
-  { name: "Family & Relationships", attributes: familyAttributes, expanded: false },
-  { name: "Shopping and consumer habits", attributes: shoppingAttributes, expanded: false },
-  { name: "Finance", attributes: financeAttributes, expanded: false },
-  { name: "Lifestyle and Interests", attributes: lifestyleAttributes, expanded: false },
-  { name: "Technology and Online Behavior", attributes: technologyAttributes, expanded: false },
-  { name: "Geographic", attributes: geographicAttributes, expanded: false },
-  { name: "Languages", attributes: languageAttributes, expanded: false },
-  { name: "Other", attributes: otherAttributes, expanded: false },
-];
 
 export default function NewSampleModal({ isOpen, onClose, onSave, initialSample, checkNameExists, readOnly = false, onCopy }: NewSampleModalProps) {
   const [sampleName, setSampleName] = useState<string>('');

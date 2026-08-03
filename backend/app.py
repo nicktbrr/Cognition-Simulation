@@ -33,8 +33,11 @@ except ModuleNotFoundError:
         return (round(compute_cost(pi, po), 6), round(compute_cost(ei, eo), 6))
 from utils.used_prompts import (
     GENERATE_STEPS_SYSTEM_PROMPT,
-    get_generate_steps_user_prompt
+    get_generate_steps_user_prompt,
+    PARSE_PDF_SYSTEM_PROMPT,
+    get_parse_pdf_user_prompt
 )
+import base64
 import threading
 import uuid
 import random
@@ -753,6 +756,305 @@ class GenerateSteps(Resource):
             return {"status": "error", "message": f"An unexpected error occurred: {error_msg}"}, 500
 
 
+MAX_PDF_BYTES = 20 * 1024 * 1024  # 20 MB - Gemini inline data limit territory
+
+
+def _coerce_number(value, fallback):
+    """Coerce an LLM-supplied value to a number, falling back when unusable."""
+    if isinstance(value, bool):
+        return fallback
+    if isinstance(value, (int, float)):
+        return value
+    if isinstance(value, str):
+        match = re.search(r'-?\d+(\.\d+)?', value)
+        if match:
+            text = match.group(0)
+            return float(text) if '.' in text else int(text)
+    return fallback
+
+
+def normalize_parsed_studies(raw_studies):
+    """
+    Validate and normalize the studies array returned by the LLM.
+
+    Guarantees every study has a title, a sample, well-formed measures with
+    unique ids and numeric bounds, and steps whose measure_ids only reference
+    measures that exist in the same study. Studies without any usable step are
+    dropped, since they cannot become a runnable simulation.
+    """
+    normalized = []
+
+    for study_index, study in enumerate(raw_studies or []):
+        if not isinstance(study, dict):
+            continue
+
+        title = (study.get("title") or "").strip() or f"Study {study_index + 1}"
+
+        # --- measures -------------------------------------------------------
+        measures = []
+        measure_ids = set()
+        for measure_index, measure in enumerate(study.get("measures") or []):
+            if not isinstance(measure, dict):
+                continue
+            measure_title = (measure.get("title") or "").strip()
+            if not measure_title:
+                continue
+
+            measure_id = (measure.get("id") or "").strip() or f"m{measure_index + 1}"
+            while measure_id in measure_ids:
+                measure_id = f"{measure_id}x"
+            measure_ids.add(measure_id)
+
+            min_value = _coerce_number(measure.get("min_value"), 1)
+            max_value = _coerce_number(measure.get("max_value"), 7)
+            if max_value <= min_value:
+                max_value = min_value + 1
+
+            anchors = []
+            for anchor in measure.get("value_anchors") or []:
+                if not isinstance(anchor, dict):
+                    continue
+                label = (anchor.get("label") or "").strip()
+                if not label:
+                    continue
+                value = _coerce_number(anchor.get("value"), min_value)
+                value = max(min_value, min(max_value, value))
+                anchors.append({"value": value, "label": label})
+
+            if not anchors:
+                anchors = [
+                    {"value": min_value, "label": "Lowest"},
+                    {"value": max_value, "label": "Highest"},
+                ]
+
+            measures.append({
+                "id": measure_id,
+                "title": measure_title,
+                "definition": (measure.get("definition") or "").strip(),
+                "min_value": min_value,
+                "max_value": max_value,
+                "value_anchors": anchors,
+            })
+
+        # --- steps ----------------------------------------------------------
+        steps = []
+        for step_index, step in enumerate(study.get("steps") or []):
+            if not isinstance(step, dict):
+                continue
+            label = (step.get("label") or step.get("title") or "").strip()
+            instruction = (step.get("instruction") or step.get("instructions") or "").strip()
+            if not label and not instruction:
+                continue
+
+            referenced = [
+                str(measure_id)
+                for measure_id in (step.get("measure_ids") or [])
+                if str(measure_id) in measure_ids
+            ]
+
+            steps.append({
+                "id": (step.get("id") or "").strip() or f"s{step_index + 1}",
+                "label": label or f"Step {step_index + 1}",
+                "instruction": instruction,
+                "measure_ids": referenced,
+            })
+
+        steps = steps[:10]  # keep parity with the 10-step cap used elsewhere
+
+        if not steps:
+            logger.warning(f"Dropping parsed study '{title}' - no usable steps")
+            continue
+
+        # --- sample ---------------------------------------------------------
+        raw_sample = study.get("sample") if isinstance(study.get("sample"), dict) else {}
+        attributes = []
+        for attribute in raw_sample.get("attributes") or []:
+            if not isinstance(attribute, dict):
+                continue
+            name = (attribute.get("name") or "").strip()
+            value = attribute.get("value")
+            if isinstance(value, list):
+                value = ", ".join(str(item) for item in value)
+            value = (str(value) if value is not None else "").strip()
+            if name and value:
+                attributes.append({"name": name, "value": value})
+
+        normalized.append({
+            "title": title,
+            "brief_description": (study.get("brief_description") or "").strip(),
+            "study_introduction": (study.get("study_introduction") or "").strip(),
+            "sample": {
+                "name": (raw_sample.get("name") or "").strip() or f"{title} Sample",
+                "attributes": attributes,
+            },
+            "measures": measures,
+            "steps": steps,
+        })
+
+    return normalized
+
+
+class ParsePDF(Resource):
+    """
+    Resource for extracting research studies from an uploaded PDF using Gemini.
+
+    The PDF is passed to the model as inline data (no server-side text
+    extraction), so figures, tables, and multi-column layouts stay intact.
+    """
+
+    def post(self):
+        """
+        Handle POST requests for parsing a research PDF.
+
+        Request (multipart/form-data):
+        - file: The PDF file to parse
+        - user_id: Optional user id used for token accounting
+
+        Returns:
+            JSON response containing the document title and the studies found
+        """
+        request_id = datetime.now().strftime('%Y%m%d%H%M%S%f')
+        logger.info(f"[{request_id}] ParsePDF POST request received")
+
+        try:
+            uploaded = request.files.get('file')
+            if uploaded is None:
+                logger.warning(f"[{request_id}] Missing 'file' in request")
+                return {"status": "error", "message": "Missing 'file' in request"}, 400
+
+            filename = uploaded.filename or "document.pdf"
+            file_bytes = uploaded.read()
+
+            if not file_bytes:
+                logger.warning(f"[{request_id}] Uploaded file is empty")
+                return {"status": "error", "message": "The uploaded file is empty"}, 400
+
+            if len(file_bytes) > MAX_PDF_BYTES:
+                logger.warning(f"[{request_id}] Uploaded file too large: {len(file_bytes)} bytes")
+                return {
+                    "status": "error",
+                    "message": f"PDF is too large. Maximum size is {MAX_PDF_BYTES // (1024 * 1024)} MB.",
+                }, 413
+
+            if not file_bytes.startswith(b'%PDF'):
+                logger.warning(f"[{request_id}] Uploaded file is not a PDF")
+                return {"status": "error", "message": "The uploaded file is not a valid PDF"}, 400
+
+            logger.info(f"[{request_id}] Parsing '{filename}' ({len(file_bytes)} bytes)")
+
+            encoded_pdf = base64.b64encode(file_bytes).decode('utf-8')
+
+            # Call LLM via LangChain, passing the PDF as inline media
+            logger.info(f"[{request_id}] Calling LLM ({DEFAULT_MODEL}) via LangChain")
+            try:
+                llm = get_llm(DEFAULT_MODEL, temperature=0.2)
+                lc_response = llm.invoke([
+                    SystemMessage(content=PARSE_PDF_SYSTEM_PROMPT),
+                    HumanMessage(content=[
+                        {"type": "text", "text": get_parse_pdf_user_prompt(filename)},
+                        {
+                            "type": "media",
+                            "mime_type": "application/pdf",
+                            "data": encoded_pdf,
+                        },
+                    ]),
+                ])
+                raw_content = lc_response.content
+                if isinstance(raw_content, list):
+                    response_text = "".join(
+                        part.get("text", "") if isinstance(part, dict) else str(part)
+                        for part in raw_content
+                    )
+                else:
+                    response_text = raw_content or ""
+                logger.info(f"[{request_id}] LLM call successful")
+
+                # Track token usage for parse_pdf
+                try:
+                    usage_meta = lc_response.usage_metadata or {}
+                    prompt_count = usage_meta.get("input_tokens", 0) or 0
+                    output_count = usage_meta.get("output_tokens", 0) or 0
+                    total_count = usage_meta.get("total_tokens", 0) or 0
+                    auth_header = request.headers.get("Authorization")
+                    jwt = auth_header.split("Bearer ")[1] if auth_header and auth_header.startswith("Bearer ") else None
+                    supabase_client = get_supabase_client(jwt)
+                    user_id = request.form.get("user_id")
+                    if not user_id and jwt:
+                        try:
+                            user_response = supabase_client.auth.get_user()
+                            if user_response and getattr(user_response, "user", None):
+                                user_id = user_response.user.id
+                        except Exception:
+                            pass
+                    if user_id is not None:
+                        parse_prompt_cost = compute_cost(prompt_count, output_count)
+                        supabase_client.table("tokens").insert({
+                            "id": str(uuid.uuid4()),
+                            "experiment_id": None,
+                            "operation": "parse_pdf",
+                            "user_id": user_id,
+                            "prompt_input_token": prompt_count,
+                            "prompt_output_token": output_count,
+                            "prompt_total_token": total_count,
+                            "eval_input_token": 0,
+                            "eval_output_token": 0,
+                            "eval_total_token": 0,
+                            "total_tokens": total_count,
+                            "prompt_cost": parse_prompt_cost,
+                            "eval_cost": 0.0,
+                            "total_cost": parse_prompt_cost,
+                        }).execute()
+                except Exception as token_err:
+                    logger.warning(f"[{request_id}] Failed to store token usage: {token_err}")
+            except Exception as api_error:
+                error_msg = str(api_error)
+                error_type = type(api_error).__name__
+                logger.error(f"[{request_id}] Error calling LLM: {error_type}: {error_msg}", exc_info=True)
+                return {"status": "error", "message": f"Failed to call LLM: {error_msg}"}, 500
+
+            # Parse JSON response
+            try:
+                cleaned = response_text.strip()
+                if cleaned.startswith("```"):
+                    cleaned = cleaned.split("```", 2)[1]  # drop opening fence
+                    if cleaned.startswith("json"):
+                        cleaned = cleaned[4:]
+                    cleaned = cleaned.rsplit("```", 1)[0]  # drop closing fence
+                parsed_data = json.loads(cleaned.strip())
+            except json.JSONDecodeError as parse_error:
+                logger.error(f"[{request_id}] JSON decode error: {parse_error}", exc_info=True)
+                logger.error(f"[{request_id}] Response text that failed to parse: {response_text[:500]}")
+                return {
+                    "status": "error",
+                    "message": "The document could not be parsed into studies. Please try a different PDF.",
+                }, 500
+
+            if not isinstance(parsed_data, dict):
+                logger.error(f"[{request_id}] Invalid response format: expected dict, got {type(parsed_data)}")
+                return {"status": "error", "message": "Invalid response format: expected a JSON object"}, 500
+
+            studies = normalize_parsed_studies(parsed_data.get("studies"))
+            document_title = (parsed_data.get("document_title") or "").strip()
+
+            logger.info(f"[{request_id}] Parsed {len(studies)} study/studies from '{filename}'")
+
+            return jsonify({
+                "status": "success",
+                "data": {
+                    "document_title": document_title,
+                    "studies": studies,
+                },
+            })
+
+        except Exception as e:
+            error_msg = str(e)
+            error_type = type(e).__name__
+            logger.error(f"[{request_id}] Unexpected error in ParsePDF: {error_type}: {error_msg}", exc_info=True)
+            import traceback
+            logger.error(f"[{request_id}] Traceback: {traceback.format_exc()}")
+            return {"status": "error", "message": f"An unexpected error occurred: {error_msg}"}, 500
+
+
 class Checkout(Resource):
     """
     Create a Stripe Checkout Session for purchasing simulation credits.
@@ -860,6 +1162,7 @@ class CheckoutVerify(Resource):
 api.add_resource(Evaluation, "/evaluate")
 api.add_resource(Progress, "/progress")
 api.add_resource(GenerateSteps, "/generate-steps")
+api.add_resource(ParsePDF, "/parse-pdf")
 api.add_resource(Checkout, "/checkout")
 api.add_resource(CheckoutVerify, "/checkout/verify")
 

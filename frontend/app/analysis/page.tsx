@@ -142,8 +142,8 @@ export default function AnalysisPage() {
     try {
       const data = await loadMetrics(dataset.url, dataset.stepLabels);
       setMetrics(data);
-      // Preselect first 3 steps and all measures so a chart renders immediately.
-      setSelectedSteps(data.steps.slice(0, 3));
+      // Preselect all steps and all measures so a chart renders immediately.
+      setSelectedSteps(data.steps);
       setSelectedMeasures(data.measures);
     } catch (err) {
       console.error("Error loading metrics:", err);

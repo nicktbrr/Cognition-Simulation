@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Play, Trash2, Folder, FolderPlus } from "lucide-react";
+import { Play, Trash2, Folder, FolderPlus, FileUp } from "lucide-react";
 import { createPortal } from "react-dom";
 import { supabase } from "../utils/supabase";
 import { useAuth } from "../hooks/useAuth";
@@ -13,6 +13,8 @@ import AppLayout from "../components/layout/AppLayout";
 import SubHeader from "../components/layout/SubHeader";
 import ProjectsTable from "../components/ProjectsTable";
 import Spinner from "../components/ui/spinner";
+import PDFImportModal, { ParsedStudy } from "../components/PDFImportModal";
+import { toSampleAttributesJson } from "../data/attributeCatalog";
 
 interface SimulationHistoryItem {
   created_at: string;
@@ -101,6 +103,7 @@ export default function DashboardHistory() {
   const [projectToRunAgain, setProjectToRunAgain] = useState<string | null>(null);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [showNewFolderModal, setShowNewFolderModal] = useState(false);
+  const [showPDFImportModal, setShowPDFImportModal] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [showMoveToFolderModal, setShowMoveToFolderModal] = useState(false);
@@ -329,6 +332,188 @@ export default function DashboardHistory() {
       alert("Error creating folder. Please try again.");
     } finally {
       setIsCreatingFolder(false);
+    }
+  };
+
+  // Pick a name that isn't already used, appending a numeric suffix if needed.
+  // `taken` holds lowercased names and is updated so a single import batch
+  // doesn't collide with itself.
+  const claimUniqueName = (base: string, taken: Set<string>): string => {
+    const fallback = base.trim() || "Untitled";
+    let candidate = fallback;
+    let counter = 1;
+    while (taken.has(candidate.toLowerCase())) {
+      counter++;
+      candidate = `${fallback} (${counter})`;
+    }
+    taken.add(candidate.toLowerCase());
+    return candidate;
+  };
+
+  // Turn the studies reviewed in the PDF import modal into real records: one
+  // dashboard folder, plus a sample, a set of measures, and a draft simulation
+  // per study. Samples and measures are written as their own rows so the
+  // imported drafts open in the simulation editor with everything wired up.
+  const handlePDFImport = async (importFolderName: string, studies: ParsedStudy[]) => {
+    if (!user) return;
+    const userId = user.user_id;
+
+    try {
+      const [sampleRowsResult, measureRowsResult] = await Promise.all([
+        supabase.from("samples").select("name").eq("user_id", userId),
+        supabase.from("measures").select("title").eq("user_id", userId),
+      ]);
+
+      const takenSampleNames = new Set(
+        (sampleRowsResult.data || []).map((row: { name: string }) => (row.name || "").toLowerCase())
+      );
+      const takenMeasureTitles = new Set(
+        (measureRowsResult.data || []).map((row: { title: string }) => (row.title || "").toLowerCase())
+      );
+      const takenFolderNames = new Set(folders.map((folder) => folder.folder_name.toLowerCase()));
+      const takenSimulationNames = new Set(projects.map((project) => project.name.toLowerCase()));
+
+      const folderName = claimUniqueName(importFolderName || "Imported Studies", takenFolderNames);
+      const folderId = crypto.randomUUID();
+
+      const { error: folderError } = await supabase.from("folders").insert({
+        folder_id: folderId,
+        folder_name: folderName,
+        user_id: userId,
+        folder_type: "dashboard",
+      });
+
+      if (folderError) {
+        console.error("Error creating folder for PDF import:", folderError);
+        alert("Error creating the folder for this import. Please try again.");
+        return;
+      }
+
+      const failedStudies: string[] = [];
+      let importedCount = 0;
+
+      for (const study of studies) {
+        try {
+          // 1. Sample row - attributes use the shape the samples page writes
+          const sampleName = claimUniqueName(
+            study.sample.name || `${study.title} Sample`,
+            takenSampleNames
+          );
+          const { data: sampleRow, error: sampleError } = await supabase
+            .from("samples")
+            .insert({
+              name: sampleName,
+              user_id: userId,
+              attributes: toSampleAttributesJson(study.sample.attributes),
+            })
+            .select()
+            .single();
+
+          if (sampleError || !sampleRow) {
+            throw sampleError || new Error("Sample could not be created");
+          }
+
+          // 2. Measure rows - keyed by the id the parser used inside this study
+          const measuresByParsedId = new Map<
+            string,
+            { id: string; title: string; description: string; range: string; desiredValues: Array<{ value: number; label: string }> }
+          >();
+
+          for (const measure of study.measures) {
+            if (!measure.title.trim()) continue;
+
+            const measureTitle = claimUniqueName(measure.title, takenMeasureTitles);
+            const { data: measureRow, error: measureError } = await supabase
+              .from("measures")
+              .insert({
+                user_id: userId,
+                title: measureTitle,
+                definition: measure.definition,
+                min: measure.minValue,
+                max: measure.maxValue,
+                desired_values: measure.valueAnchors,
+              })
+              .select()
+              .single();
+
+            if (measureError || !measureRow) {
+              throw measureError || new Error("Measure could not be created");
+            }
+
+            measuresByParsedId.set(measure.id, {
+              id: measureRow.id,
+              title: measureRow.title,
+              description: measureRow.definition,
+              range: `${measureRow.min} - ${measureRow.max}`,
+              desiredValues: measureRow.desired_values || [],
+            });
+          }
+
+          // 3. Draft simulation referencing the rows created above
+          const simulationTitle = claimUniqueName(study.title, takenSimulationNames);
+          const experimentData = {
+            seed: "no-seed",
+            steps: study.steps.map((step) => ({
+              label: step.label,
+              instructions: step.instruction,
+              // The review slider uses the 1-100 scale of the step editor;
+              // experiment_data stores temperature as a 0-1 fraction.
+              temperature: (step.temperature ?? 50) / 100,
+              measures: step.measureIds
+                .map((measureId) => measuresByParsedId.get(measureId))
+                .filter(Boolean),
+            })),
+            iters: 10,
+            temperature: 0.5,
+            user_id: userId,
+            title: simulationTitle,
+            description: study.briefDescription,
+            study_introduction: study.studyIntroduction,
+            model: "gemini",
+            sample: {
+              id: sampleRow.id,
+              name: sampleRow.name,
+              user_id: sampleRow.user_id,
+              created_at: sampleRow.created_at,
+              attributes: sampleRow.attributes,
+              persona: sampleRow.persona || "",
+            },
+          };
+
+          const { error: experimentError } = await supabase.from("experiments").insert({
+            experiment_id: crypto.randomUUID(),
+            user_id: userId,
+            experiment_data: experimentData,
+            status: "Draft",
+            sample_name: sampleRow.name,
+            folder_id: folderId,
+            created_at: new Date().toISOString(),
+          });
+
+          if (experimentError) {
+            throw experimentError;
+          }
+
+          importedCount++;
+        } catch (studyError) {
+          console.error(`Error importing study "${study.title}":`, studyError);
+          failedStudies.push(study.title);
+        }
+      }
+
+      await Promise.all([getProjects(userId), getFolders(userId)]);
+
+      if (failedStudies.length > 0) {
+        alert(
+          `Imported ${importedCount} of ${studies.length} studies into "${folderName}".\n\n` +
+            `These could not be imported:\n${failedStudies.join("\n")}`
+        );
+      }
+    } catch (error) {
+      console.error("Error importing studies from PDF:", error);
+      alert(
+        `Error importing studies: ${error instanceof Error ? error.message : "Unknown error"}. Please try again.`
+      );
     }
   };
 
@@ -1362,7 +1547,14 @@ export default function DashboardHistory() {
         description="Manage and monitor your simulation projects"
       >
         <div className="flex gap-3">
-          <Button 
+          <Button
+            onClick={() => setShowPDFImportModal(true)}
+            className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg flex items-center gap-2"
+          >
+            <FileUp className="w-4 h-4" />
+            Import PDF
+          </Button>
+          <Button
             onClick={() => setShowNewFolderModal(true)}
             className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-lg flex items-center gap-2"
           >
@@ -1419,6 +1611,13 @@ export default function DashboardHistory() {
           </div>
         )}
       </div>
+
+      {/* PDF Import Modal */}
+      <PDFImportModal
+        isOpen={showPDFImportModal}
+        onClose={() => setShowPDFImportModal(false)}
+        onImport={handlePDFImport}
+      />
 
       {/* Replicate Modal */}
       {showReplicateModal && createPortal(

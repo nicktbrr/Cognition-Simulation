@@ -166,6 +166,84 @@ IMPORTANT:
 - DO NOT default to middle values - use the full range appropriately"""
 
 
+# System prompt for extracting studies from an uploaded PDF (from app.py - ParsePDF)
+PARSE_PDF_SYSTEM_PROMPT = """Act as a cognitive science researcher who is an expert in reading empirical research papers and reconstructing the studies they report as runnable simulations.
+
+You will be given a research document (typically a journal article, preprint, or report). Your job is to identify every distinct empirical study reported in the document and convert each one into a structured simulation specification.
+
+### What counts as a study
+
+A study is a distinct empirical investigation with its own participants and procedure - usually labelled "Study 1", "Experiment 2", "Pilot Study", etc. If the document reports only one study, return exactly one. Do NOT return meta-analyses of the paper's own studies, literature reviews, or general discussion sections as studies. If the document contains no empirical studies at all, return an empty "studies" array.
+
+### For each study, extract
+
+1. title: A short descriptive title (3-10 words). Prefer the paper's own label plus its topic (e.g. "Study 1: Social Media and Well-being").
+2. brief_description: One or two sentences summarizing what the study investigates and with whom. This is shown to the user when they choose which studies to import.
+3. study_introduction: 2-5 sentences written FOR THE PARTICIPANT, explaining the purpose and context of the study before they begin. Write it in plain language, not academic prose.
+4. sample: The population studied.
+   - name: A short label for the sample (e.g. "Undergraduate Students", "US Adults").
+   - attributes: The participant characteristics reported (age range, gender, location, occupation, recruitment source, relevant screening criteria, etc.). Each attribute is a name/value pair where the value describes the range or category actually reported. Include only attributes the document reports; do not invent demographics.
+5. measures: The variables the study measures.
+   - title: The measure name as used in the paper.
+   - definition: What the measure captures, in one or two sentences.
+   - min_value / max_value: The numeric bounds of the response scale. If the paper reports a Likert scale, use its endpoints. If no scale is reported for a measure that is clearly quantitative, use a sensible default of 1 to 7 and keep the definition faithful.
+   - value_anchors: Labelled points on the scale (at minimum the two endpoints, plus a midpoint when the paper gives one). Each anchor has a numeric value within min/max and a short text label.
+6. steps: The procedure the participant goes through, in order.
+   - label: A one-or-two-word step title.
+   - instruction: Clear instructions addressed to the participant for that step.
+   - measure_ids: The ids of the measures collected at that step (may be empty for steps that only present material).
+
+### Rules
+
+- Assign each measure an id of the form "m1", "m2", ... and each step an id of the form "s1", "s2", ... unique WITHIN a study.
+- Every id listed in a step's measure_ids MUST refer to a measure id defined in that same study's measures array.
+- Steps must be discrete, atomic, and logically ordered. Do NOT create an introduction step - the introduction is captured separately in study_introduction.
+- Generate no more than 10 steps per study.
+- Ground everything in the document. Where the document is vague, use your expertise to fill in the minimum detail needed for the study to be runnable, but never contradict what the document states.
+- Numeric fields must be numbers, not strings.
+
+### Output format
+
+Return ONLY valid JSON (no markdown fences, no commentary) with this EXACT structure:
+{
+  "document_title": "Title of the overall document",
+  "studies": [
+    {
+      "title": "Study title",
+      "brief_description": "One or two sentence summary",
+      "study_introduction": "Participant-facing introduction",
+      "sample": {
+        "name": "Sample label",
+        "attributes": [
+          {"name": "Age Range", "value": "18-25"}
+        ]
+      },
+      "measures": [
+        {
+          "id": "m1",
+          "title": "Measure name",
+          "definition": "What this measure captures",
+          "min_value": 1,
+          "max_value": 7,
+          "value_anchors": [
+            {"value": 1, "label": "Not at all"},
+            {"value": 7, "label": "Extremely"}
+          ]
+        }
+      ],
+      "steps": [
+        {
+          "id": "s1",
+          "label": "Step title",
+          "instruction": "Instructions for the participant",
+          "measure_ids": ["m1"]
+        }
+      ]
+    }
+  ]
+}"""
+
+
 # ============================================================================
 # USER PROMPTS
 # ============================================================================
@@ -334,4 +412,28 @@ Measures to use for evaluation:
 {step_measures_list}
 
 Please evaluate this response against the measures defined for this step. Provide scores that accurately reflect the quality of the response relative to the step instructions and measure criteria. Use the full range of scores available - do not default to middle values."""
+
+
+# User prompt for extracting studies from a PDF (from app.py - ParsePDF)
+def get_parse_pdf_user_prompt(filename: str = '') -> str:
+    """
+    Generate the user prompt that accompanies the uploaded PDF.
+
+    Args:
+        filename: Optional name of the uploaded file, used as weak context only
+
+    Returns:
+        str: Formatted user prompt
+    """
+    prompt = "Read the attached research document and extract every empirical study it reports."
+
+    if filename and filename.strip():
+        prompt += f"\n\nUploaded file name: {filename.strip()}"
+
+    prompt += (
+        "\n\nReturn the studies as JSON in the exact structure described in your instructions. "
+        "Return only the JSON object - no markdown fences and no commentary."
+    )
+
+    return prompt
 

@@ -1,7 +1,15 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
-import { User, CreditCard, Pencil, Coins, Download } from "lucide-react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import {
+  User,
+  CreditCard,
+  Pencil,
+  Coins,
+  Download,
+  ChevronDown,
+  Cpu,
+} from "lucide-react";
 import { supabase } from "../utils/supabase";
 import { useAuth } from "../hooks/useAuth";
 import AuthLoading from "../components/auth-loading";
@@ -9,6 +17,10 @@ import AppLayout from "../components/layout/AppLayout";
 import SubHeader from "../components/layout/SubHeader";
 import { Button } from "../components/ui/button";
 import { startCheckout, verifyCheckout } from "../utils/stripe";
+import {
+  SimulationCharge,
+  fetchSimulationCharges,
+} from "../utils/billingData";
 
 interface UserData {
   user_email: string;
@@ -54,6 +66,25 @@ interface BillingData {
   balance: number;
   transactions: Transaction[];
 }
+
+// A single row in the merged Transaction History: either a credit purchase
+// (positive) or a simulation charge (negative, expandable to a token breakdown).
+type HistoryItem =
+  | {
+      kind: "purchase";
+      id: string;
+      label: string;
+      date: string;
+      amount: number;
+      sortTs: number;
+    }
+  | {
+      kind: "simulation";
+      id: string;
+      date: string;
+      charge: SimulationCharge;
+      sortTs: number;
+    };
 
 const formatDate = (d: Date) =>
   d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -133,7 +164,46 @@ export default function AccountPage() {
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [pendingAmount, setPendingAmount] = useState<number | null>(null);
   const [customAmount, setCustomAmount] = useState("");
+  // Per-simulation charges (token usage + cost) pulled from the tokens table.
+  const [simCharges, setSimCharges] = useState<SimulationCharge[]>([]);
+  const [expandedCharge, setExpandedCharge] = useState<string | null>(null);
   const hasLoadedRef = useRef(false);
+
+  const loadSimCharges = async (userId: string) => {
+    try {
+      setSimCharges(await fetchSimulationCharges(userId));
+    } catch (err) {
+      console.error("Error loading simulation charges:", err);
+      setSimCharges([]);
+    }
+  };
+
+  // Total spent running simulations and the balance after subtracting it.
+  const simulationSpent = useMemo(
+    () => simCharges.reduce((sum, c) => sum + c.totalCost, 0),
+    [simCharges]
+  );
+  const availableBalance = Math.round((billing.balance - simulationSpent) * 100) / 100;
+
+  // Unified, newest-first history: credit purchases (+) and simulation debits (−).
+  const historyItems = useMemo<HistoryItem[]>(() => {
+    const purchases: HistoryItem[] = billing.transactions.map((t) => ({
+      kind: "purchase",
+      id: t.id,
+      label: t.label,
+      date: t.date,
+      amount: t.amount,
+      sortTs: new Date(t.date).getTime() || 0,
+    }));
+    const sims: HistoryItem[] = simCharges.map((c) => ({
+      kind: "simulation",
+      id: c.id,
+      date: c.date,
+      charge: c,
+      sortTs: c.createdAt ? new Date(c.createdAt).getTime() : 0,
+    }));
+    return [...purchases, ...sims].sort((a, b) => b.sortTs - a.sortTs);
+  }, [billing.transactions, simCharges]);
 
   const getUserData = async (userId: string) => {
     const { data, error } = await supabase
@@ -159,6 +229,7 @@ export default function AccountPage() {
     if (user && isAuthenticated && !hasLoadedRef.current) {
       hasLoadedRef.current = true;
       getUserData(user.user_id);
+      loadSimCharges(user.user_id);
 
       // Seed the form with what we already know from auth, then layer any
       // previously saved edits on top.
@@ -183,6 +254,7 @@ export default function AccountPage() {
       setProfile(emptyProfile);
       setDraft(emptyProfile);
       setBilling(defaultBilling);
+      setSimCharges([]);
       setIsEditing(false);
     }
   }, [user?.user_id, isAuthenticated]);
@@ -483,10 +555,25 @@ export default function AccountPage() {
 
               {/* Credit Balance */}
               <div className="bg-white rounded-xl border border-gray-200 p-6">
-                <p className="text-sm text-gray-500">Credit Balance</p>
+                <p className="text-sm text-gray-500">Available Balance</p>
                 <div className="flex items-center gap-2 mt-1">
                   <Coins className="w-6 h-6 text-blue-600" />
-                  <span className="text-3xl font-bold text-blue-600">${billing.balance.toFixed(2)}</span>
+                  <span className="text-3xl font-bold text-blue-600">${availableBalance.toFixed(2)}</span>
+                </div>
+                {/* Credits purchased minus what simulations have cost so far. */}
+                <div className="mt-4 grid grid-cols-2 gap-4 border-t border-gray-100 pt-4">
+                  <div>
+                    <p className="text-xs text-gray-400">Credits added</p>
+                    <p className="text-sm font-semibold text-gray-900">
+                      ${billing.balance.toFixed(2)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400">Spent on simulations</p>
+                    <p className="text-sm font-semibold text-red-600">
+                      -${simulationSpent.toFixed(2)}
+                    </p>
+                  </div>
                 </div>
                 <p className="text-sm text-gray-500 mt-3">
                   Credits are used for running simulations. Add funds anytime.
@@ -569,32 +656,50 @@ export default function AccountPage() {
               {/* Transaction History */}
               <div className="bg-white rounded-xl border border-gray-200 p-6 mt-6">
                 <h4 className="text-sm font-semibold text-blue-600">Transaction History</h4>
-                <p className="text-sm text-gray-500 mt-0.5 mb-2">Recent credit purchases</p>
-                {billing.transactions.length === 0 ? (
+                <p className="text-sm text-gray-500 mt-0.5 mb-2">
+                  Credit purchases and simulation charges
+                </p>
+                {historyItems.length === 0 ? (
                   <p className="text-sm text-gray-400 py-4">No transactions yet.</p>
                 ) : (
                   <div className="divide-y divide-gray-100">
-                    {billing.transactions.map((t) => (
-                      <div key={t.id} className="flex items-center justify-between py-3">
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">{t.label}</p>
-                          <p className="text-xs text-gray-400 mt-0.5">{t.date}</p>
+                    {historyItems.map((item) =>
+                      item.kind === "purchase" ? (
+                        <div
+                          key={item.id}
+                          className="flex items-center justify-between py-3"
+                        >
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{item.label}</p>
+                            <p className="text-xs text-gray-400 mt-0.5">{item.date}</p>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <span className="text-xs font-medium text-green-600 bg-green-50 px-2.5 py-1 rounded-md">
+                              +${item.amount.toFixed(2)}
+                            </span>
+                            <button
+                              type="button"
+                              title="Invoice downloads coming soon"
+                              className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 transition-colors"
+                            >
+                              <Download className="w-4 h-4" />
+                              Invoice
+                            </button>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-4">
-                          <span className="text-xs font-medium text-green-600 bg-green-50 px-2.5 py-1 rounded-md">
-                            +${t.amount.toFixed(2)}
-                          </span>
-                          <button
-                            type="button"
-                            title="Invoice downloads coming soon"
-                            className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 transition-colors"
-                          >
-                            <Download className="w-4 h-4" />
-                            Invoice
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                      ) : (
+                        <SimulationRow
+                          key={item.id}
+                          charge={item.charge}
+                          expanded={expandedCharge === item.id}
+                          onToggle={() =>
+                            setExpandedCharge((prev) =>
+                              prev === item.id ? null : item.id
+                            )
+                          }
+                        />
+                      )
+                    )}
                   </div>
                 )}
               </div>
@@ -603,5 +708,102 @@ export default function AccountPage() {
         </div>
       </div>
     </AppLayout>
+  );
+}
+
+// A simulation charge row: collapsed shows title/date and the amount debited;
+// expanded reveals the input/output token counts and the cost breakdown
+// (token cost from the tokens table + flat server fee).
+function SimulationRow({
+  charge,
+  expanded,
+  onToggle,
+}: {
+  charge: SimulationCharge;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const inputTokens = charge.promptInputToken + charge.evalInputToken;
+  const outputTokens = charge.promptOutputToken + charge.evalOutputToken;
+  const fmtTokens = (n: number) => n.toLocaleString("en-US");
+  const fmtUsd = (n: number) => `$${n.toFixed(4)}`;
+
+  return (
+    <div className="py-3">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-center justify-between text-left"
+        aria-expanded={expanded}
+      >
+        <div className="flex items-center gap-2">
+          <ChevronDown
+            className={`h-4 w-4 text-gray-400 transition-transform ${
+              expanded ? "rotate-180" : ""
+            }`}
+          />
+          <div>
+            <p className="flex items-center gap-1.5 text-sm font-medium text-gray-900">
+              <Cpu className="h-3.5 w-3.5 text-indigo-500" />
+              {charge.title}
+            </p>
+            <p className="mt-0.5 text-xs text-gray-400">
+              {charge.date || "Simulation"} · {fmtTokens(charge.totalTokens)} tokens
+            </p>
+          </div>
+        </div>
+        <span className="text-xs font-medium text-red-600 bg-red-50 px-2.5 py-1 rounded-md">
+          -{fmtUsd(charge.totalCost)}
+        </span>
+      </button>
+
+      {expanded && (
+        <div className="mt-3 ml-6 rounded-lg border border-gray-100 bg-gray-50 p-4">
+          {/* Token breakdown */}
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+            Tokens
+          </p>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
+            <span className="text-gray-500">Input tokens</span>
+            <span className="text-right font-medium text-gray-900">
+              {fmtTokens(inputTokens)}
+            </span>
+            <span className="text-gray-500">Output tokens</span>
+            <span className="text-right font-medium text-gray-900">
+              {fmtTokens(outputTokens)}
+            </span>
+            <span className="text-gray-400 pl-3 text-xs">Prompt (in / out)</span>
+            <span className="text-right text-xs text-gray-400">
+              {fmtTokens(charge.promptInputToken)} / {fmtTokens(charge.promptOutputToken)}
+            </span>
+            <span className="text-gray-400 pl-3 text-xs">Evaluation (in / out)</span>
+            <span className="text-right text-xs text-gray-400">
+              {fmtTokens(charge.evalInputToken)} / {fmtTokens(charge.evalOutputToken)}
+            </span>
+          </div>
+
+          {/* Cost breakdown */}
+          <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-gray-400">
+            Cost
+          </p>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
+            <span className="text-gray-500">Cost of tokens</span>
+            <span className="text-right font-medium text-gray-900">
+              {fmtUsd(charge.tokenCost)}
+            </span>
+            <span className="text-gray-500">Server cost</span>
+            <span className="text-right font-medium text-gray-900">
+              {fmtUsd(charge.serverCost)}
+            </span>
+            <span className="mt-1 border-t border-gray-200 pt-1.5 font-semibold text-gray-900">
+              Total
+            </span>
+            <span className="mt-1 border-t border-gray-200 pt-1.5 text-right font-semibold text-gray-900">
+              {fmtUsd(charge.totalCost)}
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

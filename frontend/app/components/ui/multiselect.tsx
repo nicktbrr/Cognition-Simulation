@@ -34,6 +34,8 @@ interface MultiselectProps {
   selectedValues: string[]
   onSelectionChange: (selectedIds: string[]) => void
   placeholder?: string
+  searchPlaceholder?: string
+  emptyLabel?: string
   loading?: boolean
   className?: string
 }
@@ -43,6 +45,8 @@ export default function Multiselect({
   selectedValues,
   onSelectionChange,
   placeholder = "Select options...",
+  searchPlaceholder = "Search measures...",
+  emptyLabel = "No measures found",
   loading = false,
   className = ""
 }: MultiselectProps) {
@@ -190,7 +194,7 @@ export default function Multiselect({
               <Input
                 ref={inputRef}
                 type="text"
-                placeholder="Search measures..."
+                placeholder={searchPlaceholder}
                 value={searchQuery}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
                 className="pl-8 h-8 text-sm"
@@ -218,7 +222,7 @@ export default function Multiselect({
               </div>
             ) : filteredOptions.length === 0 ? (
               <div className="p-3 text-sm text-gray-500 text-center">
-                {searchQuery ? "No measures found" : "No options available"}
+                {searchQuery ? emptyLabel : "No options available"}
               </div>
             ) : (
               <div className="py-1">

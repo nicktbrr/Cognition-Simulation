@@ -143,50 +143,88 @@ function fDistributionPValue(f: number, df1: number, df2: number): number {
   return betaIncomplete(df2 / 2, df1 / 2, x);
 }
 
-/** Series approximation of the regularized incomplete beta function. */
+/**
+ * Regularized incomplete beta function I_x(a, b), evaluated with the
+ * continued-fraction expansion (Numerical Recipes `betai`/`betacf`). Returns a
+ * value in [0, 1]; used to get the tail probability of the t and F statistics.
+ */
 function betaIncomplete(a: number, b: number, x: number): number {
-  if (x === 0) return 1;
-  if (x === 1) return 0;
+  if (x <= 0) return 0;
+  if (x >= 1) return 1;
 
-  const maxIterations = 200;
-  const epsilon = 1e-10;
+  const front = Math.exp(
+    logGamma(a + b) -
+      logGamma(a) -
+      logGamma(b) +
+      a * Math.log(x) +
+      b * Math.log(1 - x)
+  );
 
-  let result = 0;
-  let term = 1;
-
-  for (let n = 0; n < maxIterations; n++) {
-    if (n === 0) {
-      term = (x ** a * (1 - x) ** b) / a;
-    } else {
-      term *= ((a + n - 1) * x) / n;
-    }
-    result += term;
-    if (Math.abs(term) < epsilon) break;
+  // The continued fraction converges quickly on one side of the symmetry point;
+  // use the reflection I_x(a,b) = 1 - I_{1-x}(b,a) on the other side.
+  if (x < (a + 1) / (a + b + 2)) {
+    return (front * betaContinuedFraction(a, b, x)) / a;
   }
-
-  const beta = (gamma(a) * gamma(b)) / gamma(a + b);
-  return 1 - result / beta;
+  return 1 - (front * betaContinuedFraction(b, a, 1 - x)) / b;
 }
 
-/** Lanczos approximation of the gamma function. */
-function gamma(n: number): number {
-  if (n === 1) return 1;
-  if (n === 0.5) return Math.sqrt(Math.PI);
-  if (n < 0.5) return Math.PI / (Math.sin(Math.PI * n) * gamma(1 - n));
+/** Lentz's algorithm for the continued fraction of the incomplete beta function. */
+function betaContinuedFraction(a: number, b: number, x: number): number {
+  const maxIterations = 200;
+  const epsilon = 1e-12;
+  const tiny = 1e-30;
 
-  n -= 1;
-  const g = 7;
-  const c = [
-    0.99999999999980993, 676.5203681218851, -1259.1392167224028,
-    771.32342877765313, -176.61502916214059, 12.507343278686905,
-    -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7,
-  ];
+  const qab = a + b;
+  const qap = a + 1;
+  const qam = a - 1;
 
-  let x = c[0];
-  for (let i = 1; i < g + 2; i++) {
-    x += c[i] / (n + i);
+  let c = 1;
+  let d = 1 - (qab * x) / qap;
+  if (Math.abs(d) < tiny) d = tiny;
+  d = 1 / d;
+  let h = d;
+
+  for (let m = 1; m <= maxIterations; m++) {
+    const m2 = 2 * m;
+
+    // Even step.
+    let numerator = (m * (b - m) * x) / ((qam + m2) * (a + m2));
+    d = 1 + numerator * d;
+    if (Math.abs(d) < tiny) d = tiny;
+    c = 1 + numerator / c;
+    if (Math.abs(c) < tiny) c = tiny;
+    d = 1 / d;
+    h *= d * c;
+
+    // Odd step.
+    numerator = (-(a + m) * (qab + m) * x) / ((a + m2) * (qap + m2));
+    d = 1 + numerator * d;
+    if (Math.abs(d) < tiny) d = tiny;
+    c = 1 + numerator / c;
+    if (Math.abs(c) < tiny) c = tiny;
+    d = 1 / d;
+    const delta = d * c;
+    h *= delta;
+
+    if (Math.abs(delta - 1) < epsilon) break;
   }
 
-  const t = n + g + 0.5;
-  return Math.sqrt(2 * Math.PI) * t ** (n + 0.5) * Math.exp(-t) * x;
+  return h;
+}
+
+/** Log-gamma via the Lanczos approximation (stable for large arguments). */
+function logGamma(x: number): number {
+  const cof = [
+    76.18009172947146, -86.50532032941677, 24.01409824083091,
+    -1.231739572450155, 0.1208650973866179e-2, -0.5395239384953e-5,
+  ];
+  let y = x;
+  let tmp = x + 5.5;
+  tmp -= (x + 0.5) * Math.log(tmp);
+  let ser = 1.000000000190015;
+  for (let j = 0; j < 6; j++) {
+    y += 1;
+    ser += cof[j] / y;
+  }
+  return -tmp + Math.log((2.5066282746310005 * ser) / x);
 }
