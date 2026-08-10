@@ -124,10 +124,26 @@ def dataframe_to_excel(df_response, df_gemini, steps=None):
     with pd.ExcelWriter(fn, engine='openpyxl') as writer:
         # Add simulation steps as the first sheet if steps are provided
         if steps:
+            # Report the graph by label so the previous/next columns join
+            # directly against the Responses and Metrics column headers.
+            label_by_id = {
+                step.get('id'): step.get('label', '')
+                for step in steps if step.get('id') is not None
+            }
+
+            def labels_for(ids):
+                return ', '.join(
+                    label_by_id.get(step_id, str(step_id)) for step_id in (ids or [])
+                )
+
             steps_data = []
             for step in steps:
                 step_info = {
-                    'label': step['label'], 
+                    'id': step.get('id', ''),
+                    'label': step['label'],
+                    'previous': labels_for(step.get('previous')),
+                    'next': labels_for(step.get('next')),
+                    'sample_proportion': step.get('sample_proportion', 100),
                     'instructions': step['instructions'],
                     'temperature': step.get('temperature', 'N/A')
                 }
@@ -137,7 +153,7 @@ def dataframe_to_excel(df_response, df_gemini, steps=None):
                     measures_info.append(f"{measure['title']}: {measure['description']} (Range: {measure['range']})")
                 step_info['measures'] = '; '.join(measures_info)
                 steps_data.append(step_info)
-            
+
             steps_df = pd.DataFrame(steps_data)
             steps_df.to_excel(writer, sheet_name='Simulation Steps', index=False)
         
@@ -224,8 +240,10 @@ def dataframe_to_excel(df_response, df_gemini, steps=None):
             for col in df_gemini_with_id.columns:
                 if col == 'ID':
                     continue
+                # An empty list means the persona never reached that step, so
+                # leave the cell blank rather than writing "[]".
                 df_gemini_with_id[col] = df_gemini_with_id[col].apply(
-                    lambda x: x[0] if isinstance(x, list) and len(x) > 0 else x
+                    lambda x: (x[0] if len(x) > 0 else None) if isinstance(x, list) else x
                 )
             df_gemini_with_id.to_excel(writer, sheet_name='Metrics', index=False)
     
@@ -265,17 +283,30 @@ def process_row(row_idx, df_row, steps, model_name, progress_callback=None):
                 step_metric_name = f"{step_label}_{measure.get('title', '')}"
                 row_scores[step_metric_name] = []
     
+    # Match columns to steps by label rather than by position: under a
+    # branching design a persona only fills the columns on its own path, so
+    # column position no longer lines up with the steps array.
+    step_by_label = {}
+    for step_idx, step in enumerate(steps or []):
+        step_by_label[step.get('label', f'Step_{step_idx + 1}')] = step
+
     # Process each column individually
     print(f"[process_row {row_idx}] len(df_row)={len(df_row)}, has_callback={progress_callback is not None}", flush=True)
     for col in range(1, len(df_row)):
         step_label = df_row.index[col]
         step_output = df_row.iloc[col]  # This is the actual output/response
-        
-        # Get the step index (col - 1 because first column is usually ID)
-        step_idx = col - 1
-        
-        if step_idx < len(steps):
-            current_step = steps[step_idx]
+
+        current_step = step_by_label.get(step_label)
+
+        # Blank means this persona was routed down a different branch, so
+        # there is nothing to score for this step.
+        is_blank = (
+            step_output is None
+            or (isinstance(step_output, float) and pd.isna(step_output))
+            or (isinstance(step_output, str) and step_output.strip() == "")
+        )
+
+        if current_step is not None and not is_blank:
             current_measures = current_step.get('measures', [])
             step_instructions = current_step.get('instructions', '')  # Get actual step instructions from steps
             

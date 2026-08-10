@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { Save, Download, HelpCircle, Sparkles, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "../utils/supabase";
+import { solveEdgeFlows, flowGraphToSteps } from "../utils/stepGraph";
 import { useAuth } from "../hooks/useAuth";
 import { useExperimentProgress } from "../hooks/useExperimentProgress";
 import AuthLoading from "../components/auth-loading";
@@ -46,6 +47,22 @@ interface Measure {
   description: string;
   range: string;
   desiredValues: DesiredValue[];
+}
+
+/**
+ * A step in the process graph. `id`/`previous`/`next`/`sample_proportion`
+ * describe the branching structure; steps saved before branching existed have
+ * none of them and are read back as a straight chain at 100%.
+ */
+interface Step {
+  id: string;
+  previous: string[];
+  next: string[];
+  sample_proportion: number;
+  label: string;
+  instructions: string;
+  temperature: number;
+  measures: Measure[];
 }
 
 // Helper: should we restore simulation fields from localStorage? (only when not modify/new and on client)
@@ -272,12 +289,7 @@ function SimulationPageContent() {
         // Extract generated introduction if present
         const newIntroduction = stepsData.introduction || "";
         
-        const convertedSteps: Array<{
-          label: string;
-          instructions: string;
-          temperature: number;
-          measures: Measure[];
-        }> = [];
+        const convertedSteps: any[] = [];
 
         // Extract all step keys (step01, step02, etc.) and sort them
         const stepKeys = Object.keys(stepsData)
@@ -289,20 +301,48 @@ function SimulationPageContent() {
             return numA - numB;
           });
 
-        // Convert each step to the expected format
-        stepKeys.forEach((stepKey, index) => {
+        // Keep only the steps we can actually build a node from, then map the
+        // backend's "step01" keys onto the numeric node ids the canvas uses.
+        const usableKeys = stepKeys.filter((stepKey) => {
           const step = stepsData[stepKey];
-          
-          if (step && step.title && step.instructions) {
-            convertedSteps.push({
-              label: step.title,
-              instructions: step.instructions,
-              temperature: 0.5, // Default temperature
-              measures: [], // Empty measures array - user can add measures later
-            });
-          } else {
-            console.warn(`[${requestId}] Skipping invalid step ${stepKey}:`, step);
-          }
+          if (step && step.title && step.instructions) return true;
+          console.warn(`[${requestId}] Skipping invalid step ${stepKey}:`, step);
+          return false;
+        });
+        const nodeIdByKey = new Map<string, string>(
+          usableKeys.map((stepKey, index) => [stepKey, `${index + 1}`])
+        );
+
+        // A branching design arrives with "next" on the steps; without it the
+        // steps are a straight line and are chained in order.
+        const isBranching = usableKeys.some(
+          (stepKey) => Array.isArray(stepsData[stepKey].next) && stepsData[stepKey].next.length > 0
+        );
+
+        usableKeys.forEach((stepKey, index) => {
+          const step = stepsData[stepKey];
+          const nodeId = nodeIdByKey.get(stepKey)!;
+
+          const nextIds = isBranching
+            ? ((step.next || []) as string[])
+                .map((target: string) => nodeIdByKey.get(target))
+                .filter((target): target is string => Boolean(target))
+            : (index < usableKeys.length - 1 ? [`${index + 2}`] : []);
+
+          convertedSteps.push({
+            id: nodeId,
+            next: nextIds,
+            // normalize_graph on the backend fills `previous` in from `next`;
+            // convertStepsToFlow does the same when rebuilding the canvas.
+            previous: [],
+            sample_proportion: typeof step.sample_proportion === 'number'
+              ? step.sample_proportion
+              : 100,
+            label: step.title,
+            instructions: step.instructions,
+            temperature: 0.5, // Default temperature
+            measures: [], // Empty measures array - user can add measures later
+          });
         });
 
         if (convertedSteps.length > 0) {
@@ -620,64 +660,10 @@ function SimulationPageContent() {
     loadedModifyExperimentIdRef.current = null;
   };
 
-  const convertFlowNodesToSteps = (nodes: Node[], edges: Edge[]) => {
-    const orderedSteps: Array<{ 
-      label: string; 
-      instructions: string; 
-      temperature: number;
-      measures: Measure[];
-    }> = [];
-    
-    if (nodes.length === 0) return orderedSteps;
-    
-    // Find the starting node (no incoming edges)
-    const targetNodes = new Set(edges.map(edge => edge.target));
-    const startingNodes = nodes.filter(node => !targetNodes.has(node.id));
-    
-    if (startingNodes.length === 0) {
-      // If no clear starting node, just use the first node
-      const firstNode = nodes[0];
-      const selectedMeasureIds = (firstNode.data?.selectedMeasures as string[]) || [];
-      const selectedMeasures = measures.filter(measure => selectedMeasureIds.includes(measure.id));
-      
-      orderedSteps.push({
-        label: (firstNode.data?.title as string) || `Step ${firstNode.id}`,
-        instructions: (firstNode.data?.description as string) || '',
-        temperature: (firstNode.data?.sliderValue as number) ? (firstNode.data.sliderValue as number) / 100 : 0.5,
-        measures: selectedMeasures
-      });
-    } else {
-      // Traverse from the starting node
-      const visited = new Set<string>();
-      const traverse = (nodeId: string) => {
-        if (visited.has(nodeId)) return;
-        visited.add(nodeId);
-        
-        const node = nodes.find(n => n.id === nodeId);
-        if (node) {
-          const selectedMeasureIds = (node.data?.selectedMeasures as string[]) || [];
-          const selectedMeasures = measures.filter(measure => selectedMeasureIds.includes(measure.id));
-          
-          orderedSteps.push({
-            label: (node.data?.title as string) || `Step ${node.id}`,
-            instructions: (node.data?.description as string) || '',
-            temperature: (node.data?.sliderValue as number) ? (node.data.sliderValue as number) / 100 : 0.5,
-            measures: selectedMeasures
-          });
-          
-          // Find outgoing edges and traverse them
-          const outgoingEdges = edges.filter(edge => edge.source === nodeId);
-          for (const edge of outgoingEdges) {
-            traverse(edge.target);
-          }
-        }
-      };
-      
-      traverse(startingNodes[0].id);
-    }
-    
-    return orderedSteps;
-  };
+  const convertFlowNodesToSteps = (nodes: Node[], edges: Edge[]): Step[] =>
+    flowGraphToSteps(nodes, edges, (selectedMeasureIds) =>
+      measures.filter(measure => selectedMeasureIds.includes(measure.id))
+    ) as Step[];
 
   // Helper function to compare two experiment data objects
   // Returns true if they are identical (same title, sample.id, and steps)
@@ -704,10 +690,16 @@ function SimulationPageContent() {
       const origStep = originalSteps[i];
       const newStep = newSteps[i];
 
+      const sameBranching =
+        JSON.stringify(origStep.previous || []) === JSON.stringify(newStep.previous || []) &&
+        JSON.stringify(origStep.next || []) === JSON.stringify(newStep.next || []) &&
+        (origStep.sample_proportion ?? 100) === (newStep.sample_proportion ?? 100);
+
       if (
         (origStep.label || '') !== (newStep.label || '') ||
         (origStep.instructions || '') !== (newStep.instructions || '') ||
-        (origStep.temperature || 0) !== (newStep.temperature || 0)
+        (origStep.temperature || 0) !== (newStep.temperature || 0) ||
+        !sameBranching
       ) {
         return false;
       }
@@ -737,12 +729,26 @@ function SimulationPageContent() {
       errors.push(`Node(s) are missing descriptions`);
     }
     
-    // 2. Check connectivity - find starting node and ensure all nodes are in one linear sequence
-    if (flowNodes.length > 1) {
-      const targetNodes = new Set(flowEdges.map(edge => edge.target));
-      const startingNodes = flowNodes.filter(node => !targetNodes.has(node.id));
-      const getNodeLabel = (node: Node) => (node.data?.title as string)?.trim() || `"${node.id}"`;
+    // 2. Check the graph: one first step, everything reachable, no loops, and
+    // sample proportions that add up.
+    const getNodeLabel = (node: Node) => (node.data?.title as string)?.trim() || `"${node.id}"`;
+    const nodeById = new Map(flowNodes.map(node => [node.id, node]));
+    const proportionOf = (nodeId: string) => {
+      const value = nodeById.get(nodeId)?.data?.sampleProportion;
+      return typeof value === 'number' ? value : 100;
+    };
 
+    const childrenOf = new Map<string, string[]>(flowNodes.map(node => [node.id, []]));
+    const parentsOf = new Map<string, string[]>(flowNodes.map(node => [node.id, []]));
+    for (const edge of flowEdges) {
+      if (!nodeById.has(edge.source) || !nodeById.has(edge.target)) continue;
+      childrenOf.get(edge.source)!.push(edge.target);
+      parentsOf.get(edge.target)!.push(edge.source);
+    }
+
+    const startingNodes = flowNodes.filter(node => parentsOf.get(node.id)!.length === 0);
+
+    if (flowNodes.length > 1) {
       if (startingNodes.length === 0) {
         errors.push(
           "Flow must have one first step with no arrow pointing into it. " +
@@ -753,24 +759,19 @@ function SimulationPageContent() {
         const more = startingNodes.length > 5 ? ` and ${startingNodes.length - 5} more` : "";
         errors.push(
           `There are ${startingNodes.length} steps with no arrow pointing into them (${names}${more}). ` +
-          "The flow must be one linear sequence with a single first step. "
+          "A simulation must have exactly one first step - connect the extras into the flow. "
         );
       } else {
-        // Traverse from starting node to check connectivity
+        // Traverse from the starting node to check every step is reachable
         const visited = new Set<string>();
         const queue = [startingNodes[0].id];
 
         while (queue.length > 0) {
           const currentNodeId = queue.shift()!;
           if (visited.has(currentNodeId)) continue;
-
           visited.add(currentNodeId);
-
-          const outgoingEdges = flowEdges.filter(edge => edge.source === currentNodeId);
-          for (const edge of outgoingEdges) {
-            if (!visited.has(edge.target)) {
-              queue.push(edge.target);
-            }
+          for (const childId of childrenOf.get(currentNodeId)!) {
+            if (!visited.has(childId)) queue.push(childId);
           }
         }
 
@@ -779,13 +780,61 @@ function SimulationPageContent() {
           const labels = unvisitedNodes.slice(0, 5).map(getNodeLabel).join(", ");
           const more = unvisitedNodes.length > 5 ? ` and ${unvisitedNodes.length - 5} more` : "";
           errors.push(
-            `${unvisitedNodes.length} step(s) are not in the sequence: ${labels}${more}. ` +
+            `${unvisitedNodes.length} step(s) cannot be reached: ${labels}${more}. ` +
             "Every step must be reachable by following arrows from the first step. "
           );
         }
       }
     }
-    
+
+    // 3. Sample proportions
+    if (startingNodes.length === 1 && Math.abs(proportionOf(startingNodes[0].id) - 100) > 0.01) {
+      errors.push(
+        `The first step (${getNodeLabel(startingNodes[0])}) must use 100% of the sample, ` +
+        `but is set to ${proportionOf(startingNodes[0].id)}%. `
+      );
+    }
+
+    for (const node of flowNodes) {
+      const proportion = proportionOf(node.id);
+      if (proportion <= 0 || proportion > 100) {
+        errors.push(
+          `${getNodeLabel(node)} has a sample proportion of ${proportion}%. ` +
+          "It must be greater than 0% and at most 100%. "
+        );
+      }
+    }
+
+    // Solve the actual flow along each arrow, exactly as the backend does, so
+    // the canvas never accepts a design the backend would reject.
+    const { unusedSupply, unmetDemand } = solveEdgeFlows(
+      flowNodes.map(node => ({ id: node.id, sampleProportion: proportionOf(node.id) })),
+      flowEdges.map(edge => ({ source: edge.source, target: edge.target }))
+    );
+
+    for (const [nodeId, leftover] of unusedSupply.entries()) {
+      const node = nodeById.get(nodeId);
+      if (!node) continue;
+      const names = childrenOf.get(nodeId)!.map(id => getNodeLabel(nodeById.get(id)!)).join(", ");
+      errors.push(
+        `The steps after ${getNodeLabel(node)} (${names}) take ` +
+        `${Math.round((proportionOf(nodeId) - leftover) * 100) / 100}% of the sample, but ` +
+        `${getNodeLabel(node)} passes on ${proportionOf(nodeId)}%. ` +
+        `${Math.round(leftover * 100) / 100}% has nowhere to go - raise the sample proportion of a following step. `
+      );
+    }
+
+    for (const [nodeId, shortfall] of unmetDemand.entries()) {
+      if (unusedSupply.has(nodeId)) continue;
+      const node = nodeById.get(nodeId);
+      if (!node) continue;
+      errors.push(
+        `${getNodeLabel(node)} is set to ${proportionOf(nodeId)}% of the sample but only ` +
+        `${Math.round((proportionOf(nodeId) - shortfall) * 100) / 100}% reaches it from the steps before it. ` +
+        "Lower its sample proportion or raise the steps feeding into it. "
+      );
+    }
+
     return {
       isValid: errors.length === 0,
       errors
@@ -1026,6 +1075,15 @@ function SimulationPageContent() {
     );
   }, []);
 
+  const handleSampleProportionChange = useCallback((nodeId: string, value: number) => {
+    const clamped = Math.max(0, Math.min(100, value));
+    setFlowNodes((nds: Node[]) =>
+      nds.map((node: Node) =>
+        node.id === nodeId ? { ...node, data: { ...node.data, sampleProportion: clamped } } : node
+      )
+    );
+  }, []);
+
   const handleMeasuresChange = useCallback((nodeId: string, selectedMeasures: string[]) => {
     setFlowNodes((nds: Node[]) =>
       nds.map((node: Node) =>
@@ -1037,25 +1095,88 @@ function SimulationPageContent() {
   const convertStepsToFlow = (steps: any[]): { nodes: Node[], edges: Edge[] } => {
     const nodes: Node[] = [];
     const edges: Edge[] = [];
-    
+
+    if (!steps || steps.length === 0) return { nodes, edges };
+
     const nodeWidth = 400; // Default node width
     const gapBetweenNodes = 50; // Gap between nodes to show arrows
     const nodeSpacing = nodeWidth + gapBetweenNodes; // Total spacing (450 pixels)
-    const startY = 200; // Y position for all nodes
+    const rowSpacing = 700; // Vertical gap between parallel branches
+    const startY = 200; // Y position for the first branch
     const startX = 100; // Starting X position
-    
+
+    // Steps saved before branching existed carry no graph keys, so read them
+    // back as the straight chain they were.
+    const hasGraph = steps.some(
+      (step) => step?.id !== undefined && step?.id !== null
+    );
+
+    const idFor = (step: any, index: number) =>
+      hasGraph ? String(step.id) : `${index + 1}`;
+
+    const stepIds = steps.map(idFor);
+    const knownIds = new Set(stepIds);
+
+    const parentsOf = new Map<string, string[]>();
+    const childrenOf = new Map<string, string[]>();
+    for (const id of stepIds) {
+      parentsOf.set(id, []);
+      childrenOf.set(id, []);
+    }
+
+    const addEdgeBetween = (sourceId: string, targetId: string) => {
+      if (!knownIds.has(sourceId) || !knownIds.has(targetId)) return;
+      if (childrenOf.get(sourceId)!.includes(targetId)) return;
+      childrenOf.get(sourceId)!.push(targetId);
+      parentsOf.get(targetId)!.push(sourceId);
+    };
+
     steps.forEach((step, index) => {
-      const nodeId = `${index + 1}`;
-      
-      // Create node with all required callbacks
+      const nodeId = stepIds[index];
+      if (hasGraph) {
+        // Read both directions; either one alone is enough to rebuild an edge.
+        for (const parentId of (step.previous || [])) addEdgeBetween(String(parentId), nodeId);
+        for (const childId of (step.next || [])) addEdgeBetween(nodeId, String(childId));
+      } else if (index < steps.length - 1) {
+        addEdgeBetween(nodeId, stepIds[index + 1]);
+      }
+    });
+
+    // Lay out by depth: each step sits one column right of its deepest parent,
+    // and parallel branches stack vertically.
+    const depthOf = new Map<string, number>();
+    const indegree = new Map<string, number>(
+      stepIds.map(id => [id, parentsOf.get(id)!.length])
+    );
+    const queue = stepIds.filter(id => indegree.get(id) === 0);
+    queue.forEach(id => depthOf.set(id, 0));
+    const visitOrder: string[] = [];
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      visitOrder.push(current);
+      for (const childId of childrenOf.get(current)!) {
+        depthOf.set(childId, Math.max(depthOf.get(childId) ?? 0, (depthOf.get(current) ?? 0) + 1));
+        indegree.set(childId, indegree.get(childId)! - 1);
+        if (indegree.get(childId) === 0) queue.push(childId);
+      }
+    }
+
+    const rowInDepth = new Map<number, number>();
+    steps.forEach((step, index) => {
+      const nodeId = stepIds[index];
+      const depth = depthOf.get(nodeId) ?? 0;
+      const row = rowInDepth.get(depth) ?? 0;
+      rowInDepth.set(depth, row + 1);
+
       nodes.push({
         id: nodeId,
         type: 'custom',
-        position: { x: startX + (index * nodeSpacing), y: startY },
+        position: { x: startX + (depth * nodeSpacing), y: startY + (row * rowSpacing) },
         data: {
           title: step.label || '',
           description: step.instructions || '',
           sliderValue: (step.temperature || 0.5) * 100,
+          sampleProportion: typeof step.sample_proportion === 'number' ? step.sample_proportion : 100,
           numDescriptionsChars: 500,
           selectedMeasures: step.measures?.map((m: any) => m.id) || [],
           measures: measures,
@@ -1064,16 +1185,18 @@ function SimulationPageContent() {
           onTitleChange: handleTitleChange,
           onDescriptionChange: handleDescriptionChange,
           onSliderChange: handleSliderChange,
+          onSampleProportionChange: handleSampleProportionChange,
           onMeasuresChange: handleMeasuresChange,
         }
       });
-      
-      // Create edge to next node (if not last node)
-      if (index < steps.length - 1) {
+    });
+
+    for (const [sourceId, targets] of childrenOf.entries()) {
+      for (const targetId of targets) {
         edges.push({
-          id: `edge-${nodeId}-${index + 2}`,
-          source: nodeId,
-          target: `${index + 2}`,
+          id: `edge-${sourceId}-${targetId}`,
+          source: sourceId,
+          target: targetId,
           style: { stroke: '#3b82f6', strokeWidth: 2 },
           markerEnd: {
             type: 'ArrowClosed' as any,
@@ -1081,8 +1204,8 @@ function SimulationPageContent() {
           },
         });
       }
-    });
-    
+    }
+
     return { nodes, edges };
   };
 
@@ -1098,21 +1221,44 @@ function SimulationPageContent() {
     const nodeWidth = 400; // Default node width
     const gapBetweenNodes = 50; // Gap between nodes to show arrows
     const nodeSpacing = nodeWidth + gapBetweenNodes; // Total spacing (450 pixels)
-    const startY = 200; // Y position for all nodes
+    const rowSpacing = 700; // Vertical gap between parallel branches
+    const startY = 200; // Y position for the first branch
     const startX = 100; // Starting X position
 
-    // Sort nodes by their ID (which should be numeric strings like "1", "2", etc.)
-    const sortedNodes = [...flowNodes].sort((a, b) => {
-      const aNum = parseInt(a.id) || 0;
-      const bNum = parseInt(b.id) || 0;
-      return aNum - bNum;
-    });
+    // Lay out by depth so parallel branches sit in their own rows rather than
+    // being stacked on top of each other.
+    const childrenOf = new Map<string, string[]>(flowNodes.map(node => [node.id, []]));
+    const indegree = new Map<string, number>(flowNodes.map(node => [node.id, 0]));
+    for (const edge of flowEdges) {
+      if (!childrenOf.has(edge.source) || !indegree.has(edge.target)) continue;
+      childrenOf.get(edge.source)!.push(edge.target);
+      indegree.set(edge.target, indegree.get(edge.target)! + 1);
+    }
 
-    // Reposition all nodes to default arrangement
-    const realignedNodes = sortedNodes.map((node, index) => ({
-      ...node,
-      position: { x: startX + (index * nodeSpacing), y: startY }
-    }));
+    const depthOf = new Map<string, number>();
+    const queue = flowNodes.filter(node => indegree.get(node.id) === 0).map(node => node.id);
+    queue.forEach(id => depthOf.set(id, 0));
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      for (const childId of childrenOf.get(current)!) {
+        depthOf.set(childId, Math.max(depthOf.get(childId) ?? 0, (depthOf.get(current) ?? 0) + 1));
+        indegree.set(childId, indegree.get(childId)! - 1);
+        if (indegree.get(childId) === 0) queue.push(childId);
+      }
+    }
+
+    const rowInDepth = new Map<number, number>();
+    const realignedNodes = [...flowNodes]
+      .sort((a, b) => (depthOf.get(a.id) ?? 0) - (depthOf.get(b.id) ?? 0))
+      .map((node) => {
+        const depth = depthOf.get(node.id) ?? 0;
+        const row = rowInDepth.get(depth) ?? 0;
+        rowInDepth.set(depth, row + 1);
+        return {
+          ...node,
+          position: { x: startX + (depth * nodeSpacing), y: startY + (row * rowSpacing) }
+        };
+      });
 
     // Update nodes state
     setFlowNodes(realignedNodes);

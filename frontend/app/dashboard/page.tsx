@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Play, Trash2, Folder, FolderPlus, FileUp } from "lucide-react";
 import { createPortal } from "react-dom";
 import { supabase } from "../utils/supabase";
+import { flowGraphToSteps } from "../utils/stepGraph";
 import { useAuth } from "../hooks/useAuth";
 import { useExperimentsProgress } from "../hooks/useExperimentsProgress";
 import AuthLoading from "../components/auth-loading";
@@ -453,7 +454,13 @@ export default function DashboardHistory() {
           const simulationTitle = claimUniqueName(study.title, takenSimulationNames);
           const experimentData = {
             seed: "no-seed",
-            steps: study.steps.map((step) => ({
+            // Imported studies are linear, so chain the steps and give every
+            // one the whole sample.
+            steps: study.steps.map((step, stepIndex) => ({
+              id: `${stepIndex + 1}`,
+              previous: stepIndex > 0 ? [`${stepIndex}`] : [],
+              next: stepIndex < study.steps.length - 1 ? [`${stepIndex + 2}`] : [],
+              sample_proportion: 100,
               label: step.label,
               instructions: step.instruction,
               // The review slider uses the 1-100 scale of the step editor;
@@ -736,7 +743,12 @@ export default function DashboardHistory() {
     const stepsKey = JSON.stringify(steps.map((s: any) => ({
       label: s.label,
       instructions: s.instructions,
-      temperature: s.temperature
+      temperature: s.temperature,
+      // Two runs that differ only in how the sample is split across branches
+      // are different configurations, not replicates of the same one.
+      previous: s.previous || [],
+      next: s.next || [],
+      sample_proportion: s.sample_proportion ?? 100
     })));
     return `${title}::${sampleId}::${stepsKey}`;
   };
@@ -1096,34 +1108,13 @@ export default function DashboardHistory() {
       const sampleSizeStr = localStorage.getItem('simulation-sample-size') || '10';
       const sampleSize = Math.min(50, Math.max(10, parseInt(sampleSizeStr, 10) || 10));
 
-      // Convert flow nodes to steps
-      const steps: Array<{ label: string; instructions: string; temperature: number; measures: any[] }> = [];
+      // Convert flow nodes to steps, keeping the branching structure
+      let steps: any[] = [];
       try {
         const flowData = localStorage.getItem('simulation-flow');
         if (flowData) {
           const flow = JSON.parse(flowData);
-          const nodes: any[] = flow?.nodes || [];
-          const edges: any[] = flow?.edges || [];
-          if (nodes.length > 0) {
-            const targetNodeIds = new Set(edges.map((e: any) => e.target));
-            const startingNodes = nodes.filter((n: any) => !targetNodeIds.has(n.id));
-            const visited = new Set<string>();
-            const traverse = (nodeId: string) => {
-              if (visited.has(nodeId)) return;
-              visited.add(nodeId);
-              const node = nodes.find((n: any) => n.id === nodeId);
-              if (node) {
-                steps.push({
-                  label: node.data?.title || `Step ${node.id}`,
-                  instructions: node.data?.description || '',
-                  temperature: node.data?.sliderValue ? node.data.sliderValue / 100 : 0.5,
-                  measures: [],
-                });
-                edges.filter((e: any) => e.source === nodeId).forEach((e: any) => traverse(e.target));
-              }
-            };
-            (startingNodes.length > 0 ? startingNodes : [nodes[0]]).forEach((n: any) => traverse(n.id));
-          }
+          steps = flowGraphToSteps(flow?.nodes || [], flow?.edges || []);
         }
       } catch {}
 

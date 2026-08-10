@@ -23,12 +23,54 @@ import { Button } from '@/components/ui/button'
 import { Plus, Maximize2, Minimize2 } from 'lucide-react'
 
 import CustomNode from './react-flow/node'
+import { outflowByNode } from '../utils/stepGraph'
 
 const nodeTypes = {
   custom: CustomNode as any,
 }
 
 const flowKey = 'simulation-flow';
+
+const getSampleProportion = (node: Node) =>
+  typeof node.data?.sampleProportion === 'number' ? node.data.sampleProportion : 100;
+
+/**
+ * Split each listed step's sample evenly across its branches.
+ *
+ * Only children with a single parent are touched - once branches merge, the
+ * split is ambiguous, so those proportions are left for the user to set and
+ * validation guides them.
+ */
+const rebalanceChildren = (nodes: Node[], edges: Edge[], parentIds: Array<string | null>) => {
+  const updates = new Map<string, number>();
+
+  for (const parentId of parentIds) {
+    if (!parentId) continue;
+    const parent = nodes.find((node) => node.id === parentId);
+    if (!parent) continue;
+
+    const childIds = edges.filter((edge) => edge.source === parentId).map((edge) => edge.target);
+    if (childIds.length === 0) continue;
+
+    const allSingleParent = childIds.every(
+      (childId) => edges.filter((edge) => edge.target === childId).length === 1
+    );
+    if (!allSingleParent) continue;
+
+    const share = Math.round((getSampleProportion(parent) / childIds.length) * 100) / 100;
+    for (const childId of childIds) {
+      updates.set(childId, share);
+    }
+  }
+
+  if (updates.size === 0) return nodes;
+
+  return nodes.map((node) =>
+    updates.has(node.id)
+      ? { ...node, data: { ...node.data, sampleProportion: updates.get(node.id) } }
+      : node
+  );
+};
 
 interface Measure {
   id: string;
@@ -349,15 +391,20 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
   );
 
   const onConnect = useCallback(
-    (params: Connection) => setEdges((eds: Edge[]) => addEdge({
-      ...params,
-      style: { stroke: '#3b82f6', strokeWidth: 2 },
-      markerEnd: {
-        type: MarkerType.ArrowClosed,
-        color: '#3b82f6',
-      },
-    }, eds)),
-    [setEdges]
+    (params: Connection) => {
+      const nextEdges = addEdge({
+        ...params,
+        style: { stroke: '#3b82f6', strokeWidth: 2 },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color: '#3b82f6',
+        },
+      }, edges)
+      setEdges(nextEdges)
+      // Splitting a step into two branches should default to an even split.
+      setNodes((nds: Node[]) => rebalanceChildren(nds, nextEdges, [params.source]))
+    },
+    [edges, setEdges, setNodes]
   )
 
   const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
@@ -385,9 +432,22 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
   }, [])
 
   const handleNodeDelete = useCallback((nodeId: string) => {
-    setNodes((nds: Node[]) => nds.filter((node: Node) => node.id !== nodeId))
-    setEdges((eds: Edge[]) => eds.filter((edge: Edge) => edge.source !== nodeId && edge.target !== nodeId))
-  }, [setNodes, setEdges])
+    // Parents of the deleted step lose a branch, so re-split what's left.
+    const affectedParents = edges
+      .filter((edge: Edge) => edge.target === nodeId)
+      .map((edge: Edge) => edge.source)
+    const nextEdges = edges.filter(
+      (edge: Edge) => edge.source !== nodeId && edge.target !== nodeId
+    )
+    setEdges(nextEdges)
+    setNodes((nds: Node[]) =>
+      rebalanceChildren(
+        nds.filter((node: Node) => node.id !== nodeId),
+        nextEdges,
+        affectedParents
+      )
+    )
+  }, [edges, setNodes, setEdges])
 
   const handleTitleChange = useCallback((nodeId: string, title: string) => {
     isEditingTextRef.current = true
@@ -427,6 +487,15 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
     setNodes((nds: Node[]) =>
       nds.map((node: Node) =>
         node.id === nodeId ? { ...node, data: { ...node.data, sliderValue: value } } : node
+      )
+    )
+  }, [setNodes])
+
+  const handleSampleProportionChange = useCallback((nodeId: string, value: number) => {
+    const clamped = Math.max(0, Math.min(100, value))
+    setNodes((nds: Node[]) =>
+      nds.map((node: Node) =>
+        node.id === nodeId ? { ...node, data: { ...node.data, sampleProportion: clamped } } : node
       )
     )
   }, [setNodes])
@@ -503,6 +572,7 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
         title: '',
         description: '',
         sliderValue: 50,
+        sampleProportion: 100,
         numDescriptionsChars: 500,
         selectedMeasures: [],
         measures: measures,
@@ -513,12 +583,13 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
         onTitleChange: handleTitleChange,
         onDescriptionChange: handleDescriptionChange,
         onSliderChange: handleSliderChange,
+        onSampleProportionChange: handleSampleProportionChange,
         onMeasuresChange: handleMeasuresChange,
         onResize: handleResize,
       },
     }
     setNodes((nds: Node[]) => [...nds, newNode])
-  }, [setNodes, handleNodeDelete, handleTitleChange, handleDescriptionChange, handleSliderChange, handleMeasuresChange, handleResize, nodes, getNextNodeId, measures, loadingMeasures])
+  }, [setNodes, handleNodeDelete, handleTitleChange, handleDescriptionChange, handleSliderChange, handleSampleProportionChange, handleMeasuresChange, handleResize, nodes, getNextNodeId, measures, loadingMeasures])
 
   // Handle fullscreen toggle
   const toggleFullscreen = useCallback(() => {
@@ -603,6 +674,19 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
   }, [])
 
   // Update node data with handlers and highlighting
+  // How much of each step's sample actually reaches its branches. Uses the
+  // same solver as validation, so the badge never contradicts the run check.
+  const outflow = outflowByNode(
+    nodes.map((node: Node) => ({ id: node.id, sampleProportion: getSampleProportion(node) })),
+    edges.map((edge: Edge) => ({ source: edge.source, target: edge.target }))
+  )
+  const childAllocationByNode = new Map<string, number>()
+  for (const node of nodes) {
+    const hasChildren = edges.some((edge: Edge) => edge.source === node.id)
+    if (!hasChildren) continue
+    childAllocationByNode.set(node.id, Math.round((outflow.get(node.id) ?? 0) * 100) / 100)
+  }
+
   const nodesWithHandlers = nodes.map((node: Node) => ({
     ...node,
     width: (typeof node.width === 'number' ? node.width : (typeof node.data?.width === 'number' ? node.data.width : 400)) as number,
@@ -612,6 +696,8 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
       measures: measures,
       loadingMeasures: loadingMeasures,
       selectedMeasures: node.data?.selectedMeasures || [],
+      sampleProportion: getSampleProportion(node),
+      childAllocated: childAllocationByNode.has(node.id) ? childAllocationByNode.get(node.id) : undefined,
       width: (typeof node.width === 'number' ? node.width : (typeof node.data?.width === 'number' ? node.data.width : 400)) as number,
       height: (typeof node.height === 'number' ? node.height : (typeof node.data?.height === 'number' ? node.data.height : 600)) as number, // Default height to prevent auto-sizing
       onDelete: handleNodeDelete,
@@ -620,6 +706,7 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
       onDescriptionChange: handleDescriptionChange,
       onDescriptionBlur: handleDescriptionBlur,
       onSliderChange: handleSliderChange,
+      onSampleProportionChange: handleSampleProportionChange,
       onMeasuresChange: handleMeasuresChange,
       onResize: handleResize,
     },

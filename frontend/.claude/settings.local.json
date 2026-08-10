@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" http://localhost:3199/account)",
+      "Bash(grep -n \"Coins\\\\|credit\\\\|Credit\\\\|CreditCard\\\\|Buy\\\\|buy\\\\|purchase\\\\|Purchase\\\\|amount\\\\|Amount\\\\|payment\\\\|Payment\\\\|\\\\\\\\$\\\\|usd\\\\|USD\\\\|token\" app/account/page.tsx)",
+      "Read(//Users/nicholasbarsi-rhyne/Projects/Cognition-Simulation/backend/**)",
+      "Bash(npm install *)",
+      "Bash(python3 -c \"import stripe; print\\('stripe', stripe.VERSION\\)\")",
+      "Bash(conda env *)",
+      "Bash(conda info *)"
+    ]
+  }
+}

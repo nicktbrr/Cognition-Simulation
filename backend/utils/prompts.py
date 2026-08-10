@@ -11,12 +11,34 @@ import random
 from langchain_core.messages import SystemMessage, HumanMessage
 
 from .llm import invoke_structured, BaseResponse
+from .graph import assign_persona_paths
 from .personas import personas
 from .used_prompts import (
     BASELINE_SYSTEM_PROMPT,
     get_baseline_first_column_user_prompt,
     get_baseline_subsequent_column_user_prompt
 )
+
+
+def resolve_temperature(value, default=0.5):
+    """
+    Return a step's temperature as a 0-1 fraction.
+
+    Steps are saved as a fraction (the editor's 1-100 slider is divided by 100
+    before storage), so the value is used as-is. Anything above 1 is read as a
+    step that was saved on the raw slider scale.
+    """
+    try:
+        temperature = float(value)
+    except (TypeError, ValueError):
+        return default
+
+    if temperature != temperature:  # NaN
+        return default
+    if temperature > 1.0:
+        temperature = temperature / 100.0
+
+    return max(0.0, min(1.0, temperature))
 
 
 def persona_dict_to_string(persona):
@@ -44,10 +66,15 @@ def persona_dict_to_string(persona):
     return str(persona)
 
 
-def process_row_with_chat(row_idx, df, prompt, model_name, system_prompt, persona):
+def process_row_with_chat(row_idx, df, prompt, model_name, system_prompt, persona,
+                          path_step_ids=None, steps_by_id=None, study_introduction=""):
     """
     Process a single row of data using the Gemini AI model with chat-based interaction.
-    
+
+    Under a branching design each persona travels exactly one path through the
+    graph, so this only runs the steps on that persona's path. Columns for
+    steps the persona never reached are left blank.
+
     Args:
         row_idx (int): Index of the row to process
         df (pd.DataFrame): DataFrame containing the data to process
@@ -55,7 +82,11 @@ def process_row_with_chat(row_idx, df, prompt, model_name, system_prompt, person
         model_name (str): LLM model identifier (e.g. "gemini-2.0-flash")
         system_prompt (str): System-level instructions for the AI model
         persona (dict or str): The persona to use for this row (can be dict or string)
-    
+        path_step_ids (list): Ids of the steps this persona travels, in order
+        steps_by_id (dict): Step id -> step dict
+        study_introduction (str): Participant-facing study introduction, stated
+            once in the first prompt and carried through the rest of the path
+
     Returns:
         tuple: (row_data, tokens_dict) where:
             - row_data (dict): Processed response data for the row
@@ -63,19 +94,25 @@ def process_row_with_chat(row_idx, df, prompt, model_name, system_prompt, person
     """
     # Convert persona to string if it's a dictionary
     persona_str = persona_dict_to_string(persona)
-    
+
     # Initialize row data based on whether seed column exists
     if "seed" in df.columns:
         row_data = {'seed': df.iloc[row_idx]['seed']}
-        seed_value = df.iloc[row_idx]['seed']
     else:
         row_data = {}
-        seed_value = "no-seed"  # Default value when seed is not included
 
-    # Get the steps array from the prompt
-    steps = prompt['steps']
+    # Every step column starts blank; only the ones on this persona's path are
+    # filled in. Blank cells are what tell the Excel report and the analysis
+    # page that this persona was routed down a different branch.
+    for col_name in df.columns:
+        if col_name != 'seed':
+            row_data[col_name] = ""
 
-    prompt_list = []
+    steps_by_id = steps_by_id or {}
+    path_step_ids = path_step_ids or []
+
+    base_prompt = None
+    path_history = []
 
     # Initialize token usage tracking
     tokens_dict = {
@@ -84,65 +121,67 @@ def process_row_with_chat(row_idx, df, prompt, model_name, system_prompt, person
         'total_tokens': 0
     }
 
-    # Process each column in the row
-    for col_idx in range(0, df.shape[1]):
-        col_name = df.columns[col_idx]
+    # Walk this persona's own path through the graph
+    for step_id in path_step_ids:
+        matching_step = steps_by_id.get(step_id)
+        if not matching_step:
+            continue
 
-        # Find the matching step by label
-        matching_step = next(
-            (step for step in steps if step['label'] == col_name), None)
+        col_name = matching_step['label']
+        instructions = matching_step['instructions']
+        temperature = resolve_temperature(matching_step.get('temperature'))
 
-        if matching_step:
-            instructions = matching_step['instructions']
-            temperature = matching_step['temperature']
-
-            # Handle first processed step differently (initial prompt with persona)
-            # Check if this is the first step we're processing (prompt_list is empty)
-            if len(prompt_list) == 0:
-                llm_prompt = get_baseline_first_column_user_prompt(persona_str, col_name, instructions)
-                prompt_list.append(llm_prompt)
-            else:
-                # Build prompt including previous steps and responses
-                # Use the first prompt (which includes persona) as the base
-                llm_prompt = get_baseline_subsequent_column_user_prompt(
-                    prompt_list[0],
-                    list(df.columns),
-                    steps,
-                    row_data,
-                    col_idx,
-                    col_name,
-                    instructions
-                )
-
-            # Invoke the LLM with structured output via LangChain
-            messages = [
-                SystemMessage(content=system_prompt),
-                HumanMessage(content=llm_prompt),
-            ]
-            parsed, usage = invoke_structured(
-                model_name, BaseResponse, messages, temperature=temperature / 100.0
+        # Handle the first step on the path differently (it carries the persona
+        # and the study introduction)
+        if base_prompt is None:
+            llm_prompt = get_baseline_first_column_user_prompt(
+                persona_str, col_name, instructions, study_introduction
+            )
+            base_prompt = llm_prompt
+        else:
+            # Build prompt from the steps this persona actually went through
+            llm_prompt = get_baseline_subsequent_column_user_prompt(
+                base_prompt,
+                path_history,
+                col_name,
+                instructions
             )
 
-            # Track token usage
-            tokens_dict['prompt_tokens'] += usage['input_tokens']
-            tokens_dict['response_tokens'] += usage['output_tokens']
-            tokens_dict['total_tokens'] += usage['total_tokens']
+        # Invoke the LLM with structured output via LangChain
+        messages = [
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=llm_prompt),
+        ]
+        parsed, usage = invoke_structured(
+            model_name, BaseResponse, messages, temperature=temperature
+        )
 
-            # Process the response
-            if parsed is not None:
-                row_data[col_name] = parsed.response
-            else:
-                row_data[col_name] = "Error processing row ignore in simulation"
+        # Track token usage
+        tokens_dict['prompt_tokens'] += usage['input_tokens']
+        tokens_dict['response_tokens'] += usage['output_tokens']
+        tokens_dict['total_tokens'] += usage['total_tokens']
+
+        # Process the response
+        if parsed is not None:
+            response = parsed.response
         else:
-            row_data[col_name] = "No matching instructions found"
-    
+            response = "Error processing row ignore in simulation"
+
+        row_data[col_name] = response
+        path_history.append({
+            'label': col_name,
+            'instructions': instructions,
+            'response': response,
+        })
+
     # Add persona information to the row data (store the original persona, not the string version)
     row_data['persona'] = persona
 
     return row_data, tokens_dict
 
 
-def baseline_prompt(prompt, model_name, sample=None, progress_callback=None):
+def baseline_prompt(prompt, model_name, sample=None, progress_callback=None,
+                    parents=None, children=None):
     """
     Process multiple rows in parallel using threading and combine results into a DataFrame.
 
@@ -151,7 +190,9 @@ def baseline_prompt(prompt, model_name, sample=None, progress_callback=None):
         model_name (str): LLM model identifier (e.g. "gemini-2.0-flash")
         sample (dict): Sample data containing persona array (list of 10 persona dicts)
         progress_callback (callable, optional): Called after each row completes for progress tracking
-    
+        parents (dict): Step id -> parent ids, from normalize_graph
+        children (dict): Step id -> child ids, from normalize_graph
+
     Returns:
         tuple: (final_df, tokens_ls) where:
             - final_df (pd.DataFrame): DataFrame containing all processed responses
@@ -162,6 +203,11 @@ def baseline_prompt(prompt, model_name, sample=None, progress_callback=None):
 
     seed = prompt['seed']
     iterations = prompt['iters']
+    # The researcher's setup for the participant. The steps refer back to it,
+    # so it has to reach the model or they ask about material nobody was given.
+    # Older records store it under 'introduction', as the loader on the
+    # simulation page also allows for.
+    study_introduction = prompt.get('study_introduction') or prompt.get('introduction') or ''
 
     # Get the persona array from the sample (should be a list of 10 persona dicts)
     sample_persona_array = sample.get('persona', []) if sample else []
@@ -177,17 +223,20 @@ def baseline_prompt(prompt, model_name, sample=None, progress_callback=None):
     while len(selected_personas) < iterations:
         selected_personas.append(sample_persona_array[-1] if sample_persona_array else {})
 
-    # Extract labels from the steps array
+    # Steps arrive already normalized and topologically ordered, so array order
+    # still defines column order.
     steps = prompt['steps']
+    step_parents = parents or {}
+    step_children = children or {}
 
     repeated_steps = {}
     cols = []
-    
+
     # First pass: count occurrences of each label
     for step in steps:
         label = step['label']
         repeated_steps[label] = repeated_steps.get(label, 0) + 1
-    
+
     # Second pass: create unique labels and update steps
     label_counts = {}
     for i, step in enumerate(steps):
@@ -201,6 +250,10 @@ def baseline_prompt(prompt, model_name, sample=None, progress_callback=None):
         else:
             # This label appears only once, keep as is
             cols.append(original_label)
+
+    # Route each persona down its own path through the branching graph.
+    step_lookup = {step['id']: step for step in steps}
+    persona_paths = assign_persona_paths(steps, step_parents, step_children, iterations)
 
     # Add seed column if specified
     if seed != "no-seed":
@@ -225,7 +278,14 @@ def baseline_prompt(prompt, model_name, sample=None, progress_callback=None):
     # Process rows in parallel
     results = []
     with concurrent.futures.ThreadPoolExecutor() as executor:
-        futures = {executor.submit(process_row_with_chat, row_idx, df, prompt, model_name, system_prompt, selected_personas[row_idx]): row_idx for row_idx in range(df.shape[0])}
+        futures = {
+            executor.submit(
+                process_row_with_chat, row_idx, df, prompt, model_name, system_prompt,
+                selected_personas[row_idx], persona_paths.get(row_idx, []), step_lookup,
+                study_introduction
+            ): row_idx
+            for row_idx in range(df.shape[0])
+        }
         tokens_ls = []
 
         for future in concurrent.futures.as_completed(futures):

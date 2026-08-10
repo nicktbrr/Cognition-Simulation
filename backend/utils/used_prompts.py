@@ -34,6 +34,24 @@ Generate a set of steps with the following characteristics:
   - Remember your main goal is to convert the user input into a sequence of steps representing a cognitive model or process for participants to follow
   - CRITICAL: NEVER generate an introduction step. The introduction is handled separately and is not part of the step sequence.
 
+### Branching (experimental manipulations)
+
+The steps form a flow chart. By default it is a single straight line, but the study may split participants into groups that are given DIFFERENT treatments, then compare them. Use branching ONLY when the user's description calls for it - for example when they mention conditions, groups, arms, a control vs treatment comparison, an A/B test, or randomly assigning participants to different versions of a task.
+
+To branch, give a step a "next" field listing the steps that follow it, and give each step a "sample_proportion" saying what percent of all participants pass through it:
+  - "next": an array of step keys, e.g. ["step03", "step05"]. Two or more entries means the participants split there. Omit "next" on the final step of a path.
+  - "sample_proportion": a number from 1 to 100. It is the percent of the WHOLE sample, not of the parent step.
+
+Rules for branching:
+  - There must be exactly ONE first step - the step no other step points to. It must have "sample_proportion": 100.
+  - The proportions of the steps listed in a step's "next" must add up to that step's own sample_proportion. If step01 is 100 and splits two ways, its two branches might be 50 and 50, or 70 and 30.
+  - Branches may rejoin later. If step04 and step06 both list "next": ["step07"], then step07 is a merge and its sample_proportion is the sum of what flows into it.
+  - Arrows must always move forward. Never point a step back at an earlier step - loops are not allowed.
+  - Every step must be reachable from the first step.
+  - Each branch should be a genuinely different treatment, not the same task written twice. The steps after the branches rejoin are where the groups get compared.
+
+If the study does NOT involve comparing groups, omit "next" and "sample_proportion" entirely and the steps will run as one straight line in the order given.
+
 If an introduction is provided in the context, you MUST also generate an improved introduction. The generated introduction should:
   - Be concise (2-4 sentences)
   - Clearly explain the purpose and context of the study
@@ -55,6 +73,35 @@ Generate the output in JSON format with the following EXACT structure (use "inst
   ...
 }
 
+For a branching study, add "next" and "sample_proportion" to the steps. This example splits the sample in half after step01, gives each half a different task, then brings them back together to be compared:
+{
+  "title": "...",
+  "introduction": "...",
+  "step01": {
+    "title": "Read Scenario",
+    "instructions": "...",
+    "sample_proportion": 100,
+    "next": ["step02", "step03"]
+  },
+  "step02": {
+    "title": "Time Pressure",
+    "instructions": "... decide within 30 seconds ...",
+    "sample_proportion": 50,
+    "next": ["step04"]
+  },
+  "step03": {
+    "title": "No Pressure",
+    "instructions": "... take as long as you need ...",
+    "sample_proportion": 50,
+    "next": ["step04"]
+  },
+  "step04": {
+    "title": "Justify Choice",
+    "instructions": "...",
+    "sample_proportion": 100
+  }
+}
+
 CRITICAL RULES - MUST FOLLOW:
 1. All steps must use "instructions" (not "description") as the field name AND no more than 10 steps.
 2. If the user specifies the number of steps, you must generate the exact number of steps specified.
@@ -67,6 +114,7 @@ CRITICAL RULES - MUST FOLLOW:
 VALIDATION: Before returning your response, verify that:
 - No step has a title related to introduction, welcome, overview, or context
 - All steps are actual tasks/activities that participants will perform
+- If you used branching: exactly one step has no other step pointing to it, that step's sample_proportion is 100, every "next" entry names a step key that exists, no step points backwards, and each set of branches adds up to the sample_proportion of the step they came from
 - If an introduction was provided in context, you have included an "introduction" field with an improved version
 - If no introduction was provided, you have included an "introduction" field with a newly generated introduction
 - If no study title was provided in the context, you have included a "title" field with a concise study title (3-8 words) that describes the study"""
@@ -297,20 +345,39 @@ def get_generate_steps_user_prompt(user_prompt: str, title: str = '', introducti
 
 
 # User prompt for first column in baseline prompt (from utils/prompts.py - process_row_with_chat)
-def get_baseline_first_column_user_prompt(persona_str: str, col_name: str, instructions: str) -> str:
+def get_baseline_first_column_user_prompt(
+    persona_str: str,
+    col_name: str,
+    instructions: str,
+    study_introduction: str = ""
+) -> str:
     """
     Generate the user prompt for the first column in baseline prompt processing.
-    
+
     Args:
         persona_str: String representation of the persona
         col_name: Name of the current column/step
         instructions: Instructions for this step
-    
+        study_introduction: The participant-facing study introduction. This is
+            the researcher's setup - the scenario, task or brief the steps
+            refer back to - so without it the steps ask about material the
+            participant was never given.
+
     Returns:
         str: Formatted user prompt for first column
     """
-    return f"""You are {persona_str}, participating in a psychology study on cognitive processes. 
+    # Every later step builds on this prompt, so the introduction stated here
+    # stays in context for the whole path.
+    introduction_block = ""
+    if study_introduction and study_introduction.strip():
+        introduction_block = f"""
+                Here is the introduction to the study you are taking part in. Every step refers back to it:
+                {study_introduction.strip()}
+"""
+
+    return f"""You are {persona_str}, participating in a psychology study on cognitive processes.
                 Your task is to generate concise and structured responses for a step in the process, which is based on instructions from a researcher and may build on previous steps and responses.
+{introduction_block}
                 Use judgement that is highly critical, focusing on direct and well-established semantic links, and disregard superficial or weak connections.
                 Please respond with ONLY the response and absolutely no additional text or explanation. Do not use any newline characters or separate your answer with new lines.
                 Provide the response in plain text format as a single continuous paragraph.
@@ -318,46 +385,45 @@ def get_baseline_first_column_user_prompt(persona_str: str, col_name: str, instr
                 The current step is: {str.upper(col_name)}
                 Please respond to the following: {instructions}
 
-                Please respond with ONLY the question and absolutely no additional text or explanation."""
+                Answer the step yourself - do not repeat or rephrase the instructions back.
+                Please respond with ONLY your response and absolutely no additional text or explanation."""
 
 
 # User prompt for subsequent columns in baseline prompt (from utils/prompts.py - process_row_with_chat)
 def get_baseline_subsequent_column_user_prompt(
     base_prompt: str,
-    df_columns: list,
-    steps: list,
-    row_data: dict,
-    col_idx: int,
+    path_history: list,
     col_name: str,
     instructions: str
 ) -> str:
     """
     Generate the user prompt for subsequent columns in baseline prompt processing.
-    
+
     Args:
         base_prompt: The base prompt from the first column
-        df_columns: List of DataFrame column names
-        steps: List of step dictionaries
-        row_data: Dictionary containing previous step responses
-        col_idx: Current column index
+        path_history: Steps this persona has already been through, in order.
+            Each entry is a dict with 'label', 'instructions' and 'response'.
+            Under a branching design a persona only travels one path, so this
+            is that persona's own history rather than every earlier step.
         col_name: Name of the current column/step
         instructions: Instructions for this step
-    
+
     Returns:
         str: Formatted user prompt for subsequent columns
     """
     llm_prompt = base_prompt
     llm_prompt += "Given the previous steps with responses:"
-    for i in range(col_idx):
+    for entry in path_history:
         llm_prompt += (f"""
-                      Prompt:{df_columns[i]}: {steps[i]['instructions']}
-                      Response:{row_data[df_columns[i]]}
+                      Prompt:{entry['label']}: {entry['instructions']}
+                      Response:{entry['response']}
                 """)
     llm_prompt += (f"""
                     The current step is: {str.upper(col_name)}
                     Please respond to the following: {instructions}
 
-                Please respond with ONLY the question and absolutely no additional text or explanation. The structure should include the following fields:
+                Answer the step yourself - do not repeat or rephrase the instructions back.
+                Please respond with ONLY your response and absolutely no additional text or explanation.
                 """)
     return llm_prompt
 

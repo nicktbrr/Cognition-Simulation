@@ -14,6 +14,8 @@ export interface CustomNodeData {
   title: string
   description: string
   sliderValue: number
+  /** Percent of the full persona sample routed through this step. */
+  sampleProportion: number
   numDescriptionsChars: number
   selectedMeasures: string[]
   measures: Array<{ id: string; title: string; description: string }>
@@ -26,6 +28,7 @@ export interface CustomNodeData {
   onDescriptionChange: (id: string, description: string) => void
   onDescriptionBlur?: () => void
   onSliderChange: (id: string, value: number) => void
+  onSampleProportionChange: (id: string, value: number) => void
   onMeasuresChange: (id: string, selectedMeasures: string[]) => void
   onResize?: (id: string, width: number, height: number) => void
 }
@@ -70,7 +73,8 @@ const CustomNode = memo(({ id, data, selected, width, height }: NodeProps) => {
           }
         }}
       />
-      <CustomHandle type="target" position={Position.Left} connectionCount={1} />
+      {/* Unlimited connections: many in lets branches merge, many out lets a step branch */}
+      <CustomHandle type="target" position={Position.Left} />
       
       <div 
         className="rounded-lg p-6 transition-all duration-300 overflow-visible flex flex-col h-full w-full"
@@ -125,6 +129,39 @@ const CustomNode = memo(({ id, data, selected, width, height }: NodeProps) => {
           />
         </div>
 
+        {/* Sample proportion - what share of the personas travel through this step */}
+        <div className="flex-shrink-0">
+          <label className="text-base font-medium text-muted-foreground mb-1.5 block">
+            Sample Proportion
+          </label>
+          <div className="flex items-center gap-2">
+            <Input
+              type="number"
+              min={0.01}
+              max={100}
+              step={1}
+              value={(data as any).sampleProportion ?? 100}
+              onChange={(e) => {
+                const parsed = parseFloat(e.target.value)
+                ;(data as any).onSampleProportionChange?.(id, Number.isNaN(parsed) ? 0 : parsed)
+              }}
+              className="text-base"
+            />
+            <span className="text-base text-muted-foreground">%</span>
+          </div>
+          {typeof (data as any).childAllocated === "number" && (
+            <div
+              className={`text-sm mt-1 ${
+                Math.abs((data as any).childAllocated - ((data as any).sampleProportion ?? 100)) < 0.01
+                  ? "text-muted-foreground"
+                  : "text-amber-600"
+              }`}
+            >
+              Next steps take {(data as any).childAllocated}% of {(data as any).sampleProportion ?? 100}%
+            </div>
+          )}
+        </div>
+
         {/* Measures Selection */}
         <div className="flex-shrink-0 overflow-visible">
           <label className="text-base font-medium text-muted-foreground mb-1.5 block">Measures</label>
@@ -153,7 +190,7 @@ const CustomNode = memo(({ id, data, selected, width, height }: NodeProps) => {
       </div>
       </div>
       
-      <CustomHandle type="source" position={Position.Right} connectionCount={1} />
+      <CustomHandle type="source" position={Position.Right} />
     </>
   )
 })

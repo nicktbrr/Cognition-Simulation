@@ -17,6 +17,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 # from utils.cosine_sim import *
 from utils.prompts import *
 from utils.evaluate import *
+from utils.graph import normalize_graph, validate_graph
 from utils.llm import get_llm, resolve_model_name, DEFAULT_MODEL
 from utils.progress import create_progress_updater
 try:
@@ -275,6 +276,14 @@ def run_evaluation(uuid, data, model_name, jwt=None):
         # Create a new Supabase client for this request
         supabase = get_supabase_client(jwt)
 
+        # Resolve the step graph before doing any work. Legacy experiments have
+        # no graph keys and normalize into a straight chain.
+        ordered_steps, step_parents, step_children = normalize_graph(data.get('steps', []))
+        graph_errors = validate_graph(ordered_steps, step_parents, step_children)
+        if graph_errors:
+            raise ValueError("Invalid simulation design: " + " ".join(graph_errors))
+        data = {**data, 'steps': ordered_steps}
+
         # Number of sample rows (personas) to use for this run: from request, clamped to 10-50
         num_samples = data.get('iters', 10)
         try:
@@ -336,7 +345,10 @@ def run_evaluation(uuid, data, model_name, jwt=None):
             uuid, supabase, 10, 30, num_samples,
             get_client=get_supabase_client, jwt=jwt, no_throttle=True
         )
-        df, prompt_tokens = baseline_prompt(data, model_name, sample, progress_callback=on_baseline_row)
+        df, prompt_tokens = baseline_prompt(
+            data, model_name, sample, progress_callback=on_baseline_row,
+            parents=step_parents, children=step_children
+        )
 
         # Evaluate responses and get token usage (progress 30-80% via per-column callback, write every call)
         steps = data.get('steps', [])
@@ -697,33 +709,86 @@ class GenerateSteps(Resource):
             # Normalize any steps that use "description" instead of "instructions"
             # Also filter out introduction steps
             introduction_keywords = ['introduction', 'welcome', 'overview', 'context', 'background', 'purpose']
-            filtered_steps = {}
-            step_counter = 1
-            
-            for step_key in sorted(step_keys):  # Sort to maintain order
+            ordered_keys = sorted(step_keys)
+            kept_keys = []
+            dropped_keys = []
+
+            for step_key in ordered_keys:
                 step = steps_data[step_key]
-                if isinstance(step, dict):
-                    # Normalize "description" to "instructions"
-                    if "description" in step and "instructions" not in step:
-                        logger.warning(f"[{request_id}] Step {step_key} uses 'description' instead of 'instructions', normalizing...")
-                        step["instructions"] = step.pop("description")
-                    elif "description" in step and "instructions" in step:
-                        logger.warning(f"[{request_id}] Step {step_key} has both 'description' and 'instructions', removing 'description'")
-                        step.pop("description")
-                    
-                    # Check if this is an introduction step and filter it out
-                    step_title = step.get('title', '').lower().strip()
-                    is_introduction_step = any(keyword in step_title for keyword in introduction_keywords)
-                    
-                    if is_introduction_step:
-                        logger.warning(f"[{request_id}] Filtering out introduction step: {step_key} with title '{step.get('title', '')}'")
-                        continue  # Skip this step
-                    
-                    # Renumber the step
-                    new_step_key = f"step{step_counter:02d}"
-                    filtered_steps[new_step_key] = step
-                    step_counter += 1
-            
+                if not isinstance(step, dict):
+                    continue
+                # Normalize "description" to "instructions"
+                if "description" in step and "instructions" not in step:
+                    logger.warning(f"[{request_id}] Step {step_key} uses 'description' instead of 'instructions', normalizing...")
+                    step["instructions"] = step.pop("description")
+                elif "description" in step and "instructions" in step:
+                    logger.warning(f"[{request_id}] Step {step_key} has both 'description' and 'instructions', removing 'description'")
+                    step.pop("description")
+
+                # Check if this is an introduction step and filter it out
+                step_title = step.get('title', '').lower().strip()
+                if any(keyword in step_title for keyword in introduction_keywords):
+                    logger.warning(f"[{request_id}] Filtering out introduction step: {step_key} with title '{step.get('title', '')}'")
+                    dropped_keys.append(step_key)
+                    continue
+
+                kept_keys.append(step_key)
+
+            # Resolve each step's branches against the steps that survived. A
+            # dropped step is spliced out rather than cutting the flow: whoever
+            # pointed at it now points at whatever it pointed at.
+            def resolve_next(step_key, seen=None):
+                seen = seen or set()
+                if step_key in seen:
+                    return []
+                seen.add(step_key)
+                raw_next = steps_data.get(step_key, {}).get('next')
+                if raw_next is None:
+                    return []
+                if not isinstance(raw_next, list):
+                    raw_next = [raw_next]
+                resolved = []
+                for target in raw_next:
+                    target = str(target).strip()
+                    if target in kept_keys:
+                        if target not in resolved:
+                            resolved.append(target)
+                    elif target in dropped_keys:
+                        for spliced in resolve_next(target, seen):
+                            if spliced not in resolved:
+                                resolved.append(spliced)
+                    else:
+                        logger.warning(f"[{request_id}] Step {step_key} points at unknown step '{target}', dropping that branch")
+                return resolved
+
+            # Only treat this as a branching design if at least one step
+            # actually points somewhere. A "next" that is present but empty
+            # everywhere would otherwise leave every step disconnected.
+            declared_branching = any(resolve_next(key) for key in kept_keys)
+
+            # Renumber survivors, remapping the branch references as we go
+            key_remap = {key: f"step{i + 1:02d}" for i, key in enumerate(kept_keys)}
+            filtered_steps = {}
+            for original_key in kept_keys:
+                step = dict(steps_data[original_key])
+                new_key = key_remap[original_key]
+                if declared_branching:
+                    step['next'] = [key_remap[t] for t in resolve_next(original_key)]
+                    step['sample_proportion'] = _coerce_number(
+                        step.get('sample_proportion'), 100
+                    )
+                else:
+                    # No branching declared: keep the straight line the steps
+                    # were generated in.
+                    step.pop('next', None)
+                    step.pop('sample_proportion', None)
+                filtered_steps[new_key] = step
+
+            if declared_branching and filtered_steps:
+                filtered_steps = _validate_generated_branching(
+                    filtered_steps, request_id
+                )
+
             if not filtered_steps:
                 logger.error(f"[{request_id}] All steps were filtered out as introduction steps")
                 return {"status": "error", "message": "No valid steps generated. Please ensure your prompt describes actual tasks, not just an introduction."}, 500
@@ -757,6 +822,43 @@ class GenerateSteps(Resource):
 
 
 MAX_PDF_BYTES = 20 * 1024 * 1024  # 20 MB - Gemini inline data limit territory
+
+
+def _validate_generated_branching(filtered_steps, request_id):
+    """
+    Check a generated branching design and fall back to a straight line if it
+    does not hold up.
+
+    The model can produce a graph that loops, has two starting points, or has
+    proportions that don't add up. Rather than failing the request, hand back
+    the same steps in a straight line - the researcher gets a usable design on
+    the canvas and can add the branches themselves.
+    """
+    ordered_keys = list(filtered_steps.keys())
+    graph_steps = [
+        {
+            'id': key,
+            'label': filtered_steps[key].get('title', key),
+            'next': filtered_steps[key].get('next', []),
+            'sample_proportion': filtered_steps[key].get('sample_proportion', 100),
+        }
+        for key in ordered_keys
+    ]
+
+    normalized, parents, children = normalize_graph(graph_steps)
+    errors = validate_graph(normalized, parents, children)
+
+    if not errors:
+        return filtered_steps
+
+    logger.warning(
+        f"[{request_id}] Generated branching design was invalid, falling back to a "
+        f"linear flow. Problems: {' '.join(errors)}"
+    )
+    for key in ordered_keys:
+        filtered_steps[key].pop('next', None)
+        filtered_steps[key].pop('sample_proportion', None)
+    return filtered_steps
 
 
 def _coerce_number(value, fallback):
