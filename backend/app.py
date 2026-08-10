@@ -15,7 +15,7 @@ from supabase import create_client, Client
 from pathlib import Path
 from langchain_core.messages import SystemMessage, HumanMessage
 # from utils.cosine_sim import *
-from utils.prompts import *
+from utils.simulation import *
 from utils.evaluate import *
 from utils.graph import normalize_graph, validate_graph
 from utils.llm import get_llm, resolve_model_name, DEFAULT_MODEL
@@ -32,7 +32,7 @@ except ModuleNotFoundError:
         # model_name accepted for signature parity with the real implementation;
         # the fallback only supports Gemini rates.
         return (round(compute_cost(pi, po), 6), round(compute_cost(ei, eo), 6))
-from utils.used_prompts import (
+from utils.prompts import (
     GENERATE_STEPS_SYSTEM_PROMPT,
     get_generate_steps_user_prompt,
     PARSE_PDF_SYSTEM_PROMPT,

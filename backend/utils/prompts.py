@@ -1,309 +1,583 @@
 """
-This module provides functionality for generating and processing AI responses using Google's Generative AI (Gemini) model.
-It includes utilities for handling persona-based responses and parallel processing of multiple prompts.
+Every system prompt and user prompt the backend sends, in one place.
+
+This is the single source of truth for prompt text: nothing outside this module
+should build a prompt string. Callers import the constant or the get_*_prompt()
+builder they need - utils/simulation.py for the simulation run, utils/evaluate.py
+for scoring and persona generation, app.py for step generation and PDF parsing.
 """
 
-import pandas as pd
-import json
-import concurrent.futures
-import random
+# ============================================================================
+# SYSTEM PROMPTS
+# ============================================================================
 
-from langchain_core.messages import SystemMessage, HumanMessage
+# System prompt for generating simulation steps (from app.py - GenerateSteps)
+GENERATE_STEPS_SYSTEM_PROMPT = """Act as a cognitive science researcher who is an expert in building and testing human cognition processes. You design experiments and analyze data to understand the underlying mechanisms of cognition. You are a world expert in simulation research, allowing you to contribute to advancements in many fields of social science.
 
-from .llm import invoke_structured, BaseResponse
-from .graph import assign_persona_paths
-from .personas import personas
-from .used_prompts import (
-    BASELINE_SYSTEM_PROMPT,
-    get_baseline_first_column_user_prompt,
-    get_baseline_subsequent_column_user_prompt
-)
+Cognitive processes are the mental operations that allow people to acquire, process, store, and use information. Cognitive researchers often build computer models that mimic or simulate human cognition. Core purpose: To design and test theories of how cognition might work systematically.
+
+Your goal: Receive a description as user input and convert it into a more specific and detailed cognitive model that matches the level of rigor typically found in the field of cognition. You do this by generating a sequence of steps that guide the participants of a study to perform a set of instructions for each step, which will generate data for the said study.
+
+### Input specifications:
+
+The input should be a description of a cognitive task, behavior, or goal to accomplish. It may be poorly worded, theoretically incomplete, or overly general, in which case you should use your expertise as a cognitive scientist to add more detail and rigor.
+
+If a study title or introduction is provided as context, these help you understand the study's purpose. If an introduction is provided, you should also generate an improved or alternative introduction based on the study description and context.
+
+### Output specifications:
+
+Generate a set of steps with the following characteristics:
+  - Each step should have a one-or-two-word title
+  - Each step should have a set of clear instructions for the participant to follow
+  - Step instruction should be aligned with the title of the step
+  - The steps should be logically ordered and build on each other
+  - Each step should be concise and clear, avoiding unnecessary jargon or complexity
+  - There's no limit to the number of steps unless the user specifies the number of steps, and each step should represent one discrete and atomic activity at a time until it reaches the end goal
+  - Remember your main goal is to convert the user input into a sequence of steps representing a cognitive model or process for participants to follow
+  - CRITICAL: NEVER generate an introduction step. The introduction is handled separately and is not part of the step sequence.
+
+### Branching (experimental manipulations)
+
+The steps form a flow chart. By default it is a single straight line, but the study may split participants into groups that are given DIFFERENT treatments, then compare them. Use branching ONLY when the user's description calls for it - for example when they mention conditions, groups, arms, a control vs treatment comparison, an A/B test, or randomly assigning participants to different versions of a task.
+
+To branch, give a step a "next" field listing the steps that follow it, and give each step a "sample_proportion" saying what percent of all participants pass through it:
+  - "next": an array of step keys, e.g. ["step03", "step05"]. Two or more entries means the participants split there. Omit "next" on the final step of a path.
+  - "sample_proportion": a number from 1 to 100. It is the percent of the WHOLE sample, not of the parent step.
+
+Rules for branching:
+  - There must be exactly ONE first step - the step no other step points to. It must have "sample_proportion": 100.
+  - The proportions of the steps listed in a step's "next" must add up to that step's own sample_proportion. If step01 is 100 and splits two ways, its two branches might be 50 and 50, or 70 and 30.
+  - Branches may rejoin later. If step04 and step06 both list "next": ["step07"], then step07 is a merge and its sample_proportion is the sum of what flows into it.
+  - Arrows must always move forward. Never point a step back at an earlier step - loops are not allowed.
+  - Every step must be reachable from the first step.
+  - Each branch should be a genuinely different treatment, not the same task written twice. The steps after the branches rejoin are where the groups get compared.
+
+If the study does NOT involve comparing groups, omit "next" and "sample_proportion" entirely and the steps will run as one straight line in the order given.
+
+If an introduction is provided in the context, you MUST also generate an improved introduction. The generated introduction should:
+  - Be concise (2-4 sentences)
+  - Clearly explain the purpose and context of the study
+  - Be appropriate for participants to read before starting the simulation
+  - Align with the generated steps and study description
+
+Generate the output in JSON format with the following EXACT structure (use "instructions" not "description" for steps):
+{
+  "title": "Short study title, 3-8 words (REQUIRED when no study title was provided in the context; omit or leave empty if the user already provided a study title)",
+  "introduction": "generated introduction text (only include this field if an introduction was provided in the context)",
+  "step01": {
+    "title": "step title (one or two words)",
+    "instructions": "instructions for participants to follow in this step"
+  },
+  "step02": {
+    "title": "step title (one or two words)",
+    "instructions": "instructions for participants to follow in this step"
+  }
+  ...
+}
+
+For a branching study, add "next" and "sample_proportion" to the steps. This example splits the sample in half after step01, gives each half a different task, then brings them back together to be compared:
+{
+  "title": "...",
+  "introduction": "...",
+  "step01": {
+    "title": "Read Scenario",
+    "instructions": "...",
+    "sample_proportion": 100,
+    "next": ["step02", "step03"]
+  },
+  "step02": {
+    "title": "Time Pressure",
+    "instructions": "... decide within 30 seconds ...",
+    "sample_proportion": 50,
+    "next": ["step04"]
+  },
+  "step03": {
+    "title": "No Pressure",
+    "instructions": "... take as long as you need ...",
+    "sample_proportion": 50,
+    "next": ["step04"]
+  },
+  "step04": {
+    "title": "Justify Choice",
+    "instructions": "...",
+    "sample_proportion": 100
+  }
+}
+
+CRITICAL RULES - MUST FOLLOW:
+1. All steps must use "instructions" (not "description") as the field name AND no more than 10 steps.
+2. If the user specifies the number of steps, you must generate the exact number of steps specified.
+3. NEVER, UNDER ANY CIRCUMSTANCES, generate an introduction step. The introduction is handled separately and must NEVER appear as a step in the output.
+4. Do NOT create steps with titles like "Introduction", "Welcome", "Overview", "Context", or any variation that suggests introducing the study. These are NOT steps.
+5. Start directly with the first actual task/activity step. The introduction is handled separately and is not part of the step sequence.
+6. If an introduction is provided in the context, you MUST include an "introduction" field in your JSON response with an improved version.
+7. If no introduction is provided in the context, you should still generate an introduction and include it in the "introduction" field.
+
+VALIDATION: Before returning your response, verify that:
+- No step has a title related to introduction, welcome, overview, or context
+- All steps are actual tasks/activities that participants will perform
+- If you used branching: exactly one step has no other step pointing to it, that step's sample_proportion is 100, every "next" entry names a step key that exists, no step points backwards, and each set of branches adds up to the sample_proportion of the step they came from
+- If an introduction was provided in context, you have included an "introduction" field with an improved version
+- If no introduction was provided, you have included an "introduction" field with a newly generated introduction
+- If no study title was provided in the context, you have included a "title" field with a concise study title (3-8 words) that describes the study"""
 
 
-def resolve_temperature(value, default=0.5):
+# System prompt for the baseline simulation (from utils/simulation.py - baseline_prompt)
+BASELINE_SYSTEM_PROMPT = """You are role-playing a single human participant in a psychology study on cognitive processes. You will be given a persona, the study introduction, every step of the study you have already completed together with the answers you gave, and one current step to complete.
+
+How to answer:
+- Stay in character as the persona for the whole study. Answer as that person would - with their knowledge, vocabulary, reasoning ability, and blind spots - not as a neutral or expert assistant.
+- Your answers are one continuous run through the study, so each answer is conditional on the ones before it. Build on what you already said, stay consistent with it, and only revise an earlier position if the current step asks you to reconsider.
+- Complete the CURRENT step only. Do the task it asks for - produce the judgement, list, rating, choice or description it requests. Do not preview later steps, and do not repeat, summarize or rephrase your earlier answers except where the current step needs them.
+- Never restate or paraphrase the instructions back, never comment on the study or on being an AI, and never explain what you are about to do. Give the answer itself.
+- Use judgement that is highly critical, focusing on direct and well-established semantic links, and disregard superficial or weak connections.
+- Respond with plain text only: one continuous paragraph, no newline characters, no bullet points, no headings, no labels, no markdown."""
+
+
+# System prompt for evaluation (from utils/evaluate.py - process_row)
+def get_evaluation_system_prompt(measures: str) -> str:
     """
-    Return a step's temperature as a 0-1 fraction.
-
-    Steps are saved as a fraction (the editor's 1-100 slider is divided by 100
-    before storage), so the value is used as-is. Anything above 1 is read as a
-    step that was saved on the raw slider scale.
-    """
-    try:
-        temperature = float(value)
-    except (TypeError, ValueError):
-        return default
-
-    if temperature != temperature:  # NaN
-        return default
-    if temperature > 1.0:
-        temperature = temperature / 100.0
-
-    return max(0.0, min(1.0, temperature))
-
-
-def persona_dict_to_string(persona):
-    """
-    Convert a persona dictionary to a readable string format.
+    Generate the evaluation system prompt with specific measures.
     
     Args:
-        persona (dict or str): The persona data to convert
+        measures: Formatted string containing measure descriptions, ranges, and reference points
     
     Returns:
-        str: A formatted string representation of the persona
-    
-    Example:
-        Input: {'Age': '42', 'Nationality (UK)': 'Northern Ireland', 'First Language': 'Somali'}
-        Output: "a person with Age: 42, Nationality (UK): Northern Ireland, First Language: Somali"
+        str: Complete system prompt for evaluation
     """
-    if isinstance(persona, str):
-        return persona
-    
-    if isinstance(persona, dict):
-        # Create a readable string from the dictionary
-        attributes = ", ".join([f"{key}: {value}" for key, value in persona.items()])
-        return f"a person with {attributes}"
-    
-    return str(persona)
+    return f"""# Instruction
+You are an expert evaluator. Your task is to evaluate the quality of responses based on specific simulation steps and their associated measures.
+
+You will be provided with:
+1. The simulation step title and instructions
+2. The actual response/output for that step
+3. Specific measures with their ranges and reference points for evaluation
+
+Your task is to evaluate how well the response aligns with the step requirements and meets the specified measures.
+
+# Measures used for evaluation
+{measures}
+
+## Scoring Rubric - CRITICAL INSTRUCTIONS
+
+For each measure, you MUST:
+
+1. **Use the FULL range of scores available** - The range shows the minimum and maximum possible scores. Scores should vary based on actual quality assessment.
+
+2. **Interpret the range correctly**:
+   - The minimum value represents the lowest quality (e.g., completely missing requirements, off-topic, or poor quality)
+   - The maximum value represents the highest quality (e.g., exceeds requirements, excellent quality, fully addresses the measure)
+   - Intermediate values represent gradations of quality
+
+3. **Use Reference Points as Anchors** (if provided):
+   - Reference points show what specific score values represent in terms of quality levels
+   - Use these as anchor points to guide your scoring
+   - If the response quality falls between reference points, interpolate appropriately
+   - If no reference points are provided, use your judgment to assign scores across the full range
+
+4. **Score Differentiation**:
+   - Different responses should receive different scores based on their actual quality
+   - If a response is excellent, use the higher end of the range
+   - If a response is poor, use the lower end of the range
+   - If a response is average, use middle values
+   - DO NOT assign the same score to all measures or all responses unless they are genuinely equivalent in quality
+
+## Evaluation Process
+
+For each measure, follow these steps:
+
+STEP 1: Analyze the response against the step instructions
+- Does the response follow the step instructions?
+- Does it address what the step asked for?
+- Is it relevant and on-topic?
+
+STEP 2: Evaluate against the measure criteria
+- How well does the response meet the measure's description?
+- Compare against any provided reference points
+- Identify specific strengths and weaknesses
+
+STEP 3: Assign a score
+- Determine where the response falls within the range
+- Use reference points as anchors if provided
+- Assign a specific numeric score that reflects the quality
+- Ensure scores vary appropriately based on quality differences
+
+STEP 4: Verify your score
+- Does this score accurately reflect the quality?
+- Is it using the appropriate part of the range?
+- Would a different response receive a different score?
+
+## Output Format
+
+Provide a JSON response with:
+- "metric": array of measure titles in the exact order they appear
+- "score": array of numeric scores (one per measure) within the specified ranges
+
+IMPORTANT: 
+- Each measure MUST have a score
+- Scores MUST be within the specified range for each measure
+- Scores MUST vary based on actual quality assessment
+- If a measure is truly not applicable, score it as the minimum value (not 0 unless that's the minimum)
+- DO NOT default to middle values - use the full range appropriately"""
 
 
-def process_row_with_chat(row_idx, df, prompt, model_name, system_prompt, persona,
-                          path_step_ids=None, steps_by_id=None, study_introduction=""):
-    """
-    Process a single row of data using the Gemini AI model with chat-based interaction.
+# System prompt for extracting studies from an uploaded PDF (from app.py - ParsePDF)
+PARSE_PDF_SYSTEM_PROMPT = """Act as a cognitive science researcher who is an expert in reading empirical research papers and reconstructing the studies they report as runnable simulations.
 
-    Under a branching design each persona travels exactly one path through the
-    graph, so this only runs the steps on that persona's path. Columns for
-    steps the persona never reached are left blank.
+You will be given a research document (typically a journal article, preprint, or report). Your job is to identify every distinct empirical study reported in the document and convert each one into a structured simulation specification.
 
-    Args:
-        row_idx (int): Index of the row to process
-        df (pd.DataFrame): DataFrame containing the data to process
-        prompt (list): List containing prompt configuration and steps
-        model_name (str): LLM model identifier (e.g. "gemini-2.0-flash")
-        system_prompt (str): System-level instructions for the AI model
-        persona (dict or str): The persona to use for this row (can be dict or string)
-        path_step_ids (list): Ids of the steps this persona travels, in order
-        steps_by_id (dict): Step id -> step dict
-        study_introduction (str): Participant-facing study introduction, stated
-            once in the first prompt and carried through the rest of the path
+### What counts as a study
 
-    Returns:
-        tuple: (row_data, tokens_dict) where:
-            - row_data (dict): Processed response data for the row
-            - tokens_dict (dict): Token usage statistics
-    """
-    # Convert persona to string if it's a dictionary
-    persona_str = persona_dict_to_string(persona)
+A study is a distinct empirical investigation with its own participants and procedure - usually labelled "Study 1", "Experiment 2", "Pilot Study", etc. If the document reports only one study, return exactly one. Do NOT return meta-analyses of the paper's own studies, literature reviews, or general discussion sections as studies. If the document contains no empirical studies at all, return an empty "studies" array.
 
-    # Initialize row data based on whether seed column exists
-    if "seed" in df.columns:
-        row_data = {'seed': df.iloc[row_idx]['seed']}
-    else:
-        row_data = {}
+### For each study, extract
 
-    # Every step column starts blank; only the ones on this persona's path are
-    # filled in. Blank cells are what tell the Excel report and the analysis
-    # page that this persona was routed down a different branch.
-    for col_name in df.columns:
-        if col_name != 'seed':
-            row_data[col_name] = ""
+1. title: A short descriptive title (3-10 words). Prefer the paper's own label plus its topic (e.g. "Study 1: Social Media and Well-being").
+2. brief_description: One or two sentences summarizing what the study investigates and with whom. This is shown to the user when they choose which studies to import.
+3. study_introduction: 2-5 sentences written FOR THE PARTICIPANT, explaining the purpose and context of the study before they begin. Write it in plain language, not academic prose.
+4. sample: The population studied.
+   - name: A short label for the sample (e.g. "Undergraduate Students", "US Adults").
+   - attributes: The participant characteristics reported (age range, gender, location, occupation, recruitment source, relevant screening criteria, etc.). Each attribute is a name/value pair where the value describes the range or category actually reported. Include only attributes the document reports; do not invent demographics.
+5. measures: The variables the study measures.
+   - title: The measure name as used in the paper.
+   - definition: What the measure captures, in one or two sentences.
+   - min_value / max_value: The numeric bounds of the response scale. If the paper reports a Likert scale, use its endpoints. If no scale is reported for a measure that is clearly quantitative, use a sensible default of 1 to 7 and keep the definition faithful.
+   - value_anchors: Labelled points on the scale (at minimum the two endpoints, plus a midpoint when the paper gives one). Each anchor has a numeric value within min/max and a short text label.
+6. steps: The procedure the participant goes through, in order.
+   - label: A one-or-two-word step title.
+   - instruction: Clear instructions addressed to the participant for that step.
+   - measure_ids: The ids of the measures collected at that step (may be empty for steps that only present material).
 
-    steps_by_id = steps_by_id or {}
-    path_step_ids = path_step_ids or []
+### Rules
 
-    base_prompt = None
-    path_history = []
+- Assign each measure an id of the form "m1", "m2", ... and each step an id of the form "s1", "s2", ... unique WITHIN a study.
+- Every id listed in a step's measure_ids MUST refer to a measure id defined in that same study's measures array.
+- Steps must be discrete, atomic, and logically ordered. Do NOT create an introduction step - the introduction is captured separately in study_introduction.
+- Generate no more than 10 steps per study.
+- Ground everything in the document. Where the document is vague, use your expertise to fill in the minimum detail needed for the study to be runnable, but never contradict what the document states.
+- Numeric fields must be numbers, not strings.
 
-    # Initialize token usage tracking
-    tokens_dict = {
-        'prompt_tokens': 0,
-        'response_tokens': 0,
-        'total_tokens': 0
-    }
+### Output format
 
-    # Walk this persona's own path through the graph
-    for step_id in path_step_ids:
-        matching_step = steps_by_id.get(step_id)
-        if not matching_step:
-            continue
-
-        col_name = matching_step['label']
-        instructions = matching_step['instructions']
-        temperature = resolve_temperature(matching_step.get('temperature'))
-
-        # Handle the first step on the path differently (it carries the persona
-        # and the study introduction)
-        if base_prompt is None:
-            llm_prompt = get_baseline_first_column_user_prompt(
-                persona_str, col_name, instructions, study_introduction
-            )
-            base_prompt = llm_prompt
-        else:
-            # Build prompt from the steps this persona actually went through
-            llm_prompt = get_baseline_subsequent_column_user_prompt(
-                base_prompt,
-                path_history,
-                col_name,
-                instructions
-            )
-
-        # Invoke the LLM with structured output via LangChain
-        messages = [
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=llm_prompt),
+Return ONLY valid JSON (no markdown fences, no commentary) with this EXACT structure:
+{
+  "document_title": "Title of the overall document",
+  "studies": [
+    {
+      "title": "Study title",
+      "brief_description": "One or two sentence summary",
+      "study_introduction": "Participant-facing introduction",
+      "sample": {
+        "name": "Sample label",
+        "attributes": [
+          {"name": "Age Range", "value": "18-25"}
         ]
-        parsed, usage = invoke_structured(
-            model_name, BaseResponse, messages, temperature=temperature
+      },
+      "measures": [
+        {
+          "id": "m1",
+          "title": "Measure name",
+          "definition": "What this measure captures",
+          "min_value": 1,
+          "max_value": 7,
+          "value_anchors": [
+            {"value": 1, "label": "Not at all"},
+            {"value": 7, "label": "Extremely"}
+          ]
+        }
+      ],
+      "steps": [
+        {
+          "id": "s1",
+          "label": "Step title",
+          "instruction": "Instructions for the participant",
+          "measure_ids": ["m1"]
+        }
+      ]
+    }
+  ]
+}"""
+
+
+# ============================================================================
+# USER PROMPTS
+# ============================================================================
+
+# User prompt for generating simulation steps (from app.py - GenerateSteps)
+def get_generate_steps_user_prompt(user_prompt: str, title: str = '', introduction: str = '') -> str:
+    """
+    Generate the user prompt for simulation step generation.
+    
+    Args:
+        user_prompt: The user's description of a cognitive task, behavior, or goal
+        title: Optional study title for context only
+        introduction: Optional study introduction for context only
+    
+    Returns:
+        str: Formatted user prompt with context
+    """
+    context_parts = []
+    
+    # Add title as context if provided
+    if title and title.strip():
+        context_parts.append(f"Study Title: {title.strip()}")
+    
+    # Add introduction as context if provided
+    if introduction and introduction.strip():
+        context_parts.append(f"Study Introduction: {introduction.strip()}")
+    
+    # Build the prompt
+    prompt = "Given the following user input, generate simulation steps"
+    
+    if context_parts:
+        prompt += " (use the following context for reference):\n\n"
+        prompt += "\n\n".join(context_parts)
+        prompt += "\n\n"
+    else:
+        prompt += ":\n\n"
+    
+    prompt += f"User Input: {user_prompt}"
+    
+    # When no title provided, ask the model to generate one
+    if not title or not title.strip():
+        prompt += "\n\nNo study title was provided. You MUST include a \"title\" field in your JSON with a short, descriptive study title (3-8 words) based on the user input."
+    
+    # Add instruction about introduction generation
+    if introduction and introduction.strip():
+        prompt += "\n\nIMPORTANT: An introduction has been provided above. Please generate an improved or alternative introduction based on the study description and context. Include this in the 'introduction' field of your JSON response. Do NOT generate an introduction step - only generate the actual simulation steps."
+    else:
+        prompt += "\n\nIMPORTANT: Please generate a study introduction (2-4 sentences) that explains the purpose and context of the study. Include this in the 'introduction' field of your JSON response. Do NOT generate an introduction step - only generate the actual simulation steps."
+    
+    return prompt
+
+
+# Persona/study preamble shared by every step of a baseline run
+# (from utils/simulation.py - process_row_with_chat)
+def get_baseline_persona_preamble(persona_str: str, study_introduction: str = "") -> str:
+    """
+    Build the block that opens every step prompt on a persona's path.
+
+    This is the persona's identity and the researcher's setup. It is built once
+    per row and prepended to every step so the persona and the study material
+    stay in context for the whole path - the model is called statelessly per
+    step, so anything left out here is genuinely unknown to it.
+
+    Args:
+        persona_str: String representation of the persona
+        study_introduction: The participant-facing study introduction. This is
+            the researcher's setup - the scenario, task or brief the steps
+            refer back to - so without it the steps ask about material the
+            participant was never given.
+
+    Returns:
+        str: The persona/study preamble, ending in a blank line
+    """
+    preamble = (
+        f"YOUR PERSONA\n"
+        f"You are {persona_str}. You are taking part in a psychology study on "
+        f"cognitive processes, and you answer every step of it as this person.\n"
+    )
+
+    if study_introduction and study_introduction.strip():
+        preamble += (
+            f"\nSTUDY INTRODUCTION\n"
+            f"This is the introduction you were given at the start of the study. "
+            f"Every step refers back to it:\n"
+            f"{study_introduction.strip()}\n"
         )
 
-        # Track token usage
-        tokens_dict['prompt_tokens'] += usage['input_tokens']
-        tokens_dict['response_tokens'] += usage['output_tokens']
-        tokens_dict['total_tokens'] += usage['total_tokens']
-
-        # Process the response
-        if parsed is not None:
-            response = parsed.response
-        else:
-            response = "Error processing row ignore in simulation"
-
-        row_data[col_name] = response
-        path_history.append({
-            'label': col_name,
-            'instructions': instructions,
-            'response': response,
-        })
-
-    # Add persona information to the row data (store the original persona, not the string version)
-    row_data['persona'] = persona
-
-    return row_data, tokens_dict
+    return preamble
 
 
-def baseline_prompt(prompt, model_name, sample=None, progress_callback=None,
-                    parents=None, children=None):
+# The current-step block, identical for the first step and every step after it,
+# so the model is never told twice which step it is on.
+def _get_baseline_current_step_block(
+    col_name: str,
+    instructions: str,
+    has_history: bool = False
+) -> str:
     """
-    Process multiple rows in parallel using threading and combine results into a DataFrame.
+    Build the closing block that states the step to complete now.
 
     Args:
-        prompt (list): List containing prompt configuration including seed, steps, and iterations
-        model_name (str): LLM model identifier (e.g. "gemini-2.0-flash")
-        sample (dict): Sample data containing persona array (list of 10 persona dicts)
-        progress_callback (callable, optional): Called after each row completes for progress tracking
-        parents (dict): Step id -> parent ids, from normalize_graph
-        children (dict): Step id -> child ids, from normalize_graph
+        col_name: Name of the current column/step
+        instructions: Instructions for this step
+        has_history: Whether earlier steps were replayed above. The first step
+            on a path has no answers to be consistent with, so it is not asked
+            to be.
 
     Returns:
-        tuple: (final_df, tokens_ls) where:
-            - final_df (pd.DataFrame): DataFrame containing all processed responses
-            - tokens_ls (list): List of token usage dictionaries for each row
+        str: The current-step block
     """
-    # System-level instructions for the AI model
-    system_prompt = BASELINE_SYSTEM_PROMPT
+    consistency = (
+        " and consistently with the answers you have already given"
+        if has_history else ""
+    )
 
-    seed = prompt['seed']
-    iterations = prompt['iters']
-    # The researcher's setup for the participant. The steps refer back to it,
-    # so it has to reach the model or they ask about material nobody was given.
-    # Older records store it under 'introduction', as the loader on the
-    # simulation page also allows for.
-    study_introduction = prompt.get('study_introduction') or prompt.get('introduction') or ''
+    return (
+        f"\nCURRENT STEP: {str.upper(col_name)}\n"
+        f"The researcher's instructions for this step are:\n"
+        f"{instructions}\n"
+        f"\nComplete this step now, as your persona{consistency}. Carry out the "
+        f"instructions yourself - do not repeat, rephrase or acknowledge them, "
+        f"and do not answer any other step. Respond with ONLY your answer to "
+        f"this step: plain text, one continuous paragraph, no newline "
+        f"characters and no additional text or explanation."
+    )
 
-    # Get the persona array from the sample (should be a list of 10 persona dicts)
-    sample_persona_array = sample.get('persona', []) if sample else []
+
+# User prompt for the first step on a persona's path
+# (from utils/simulation.py - process_row_with_chat)
+def get_baseline_first_column_user_prompt(
+    persona_str: str,
+    col_name: str,
+    instructions: str,
+    study_introduction: str = ""
+) -> str:
+    """
+    Generate the user prompt for the first step on a persona's path.
+
+    There is no history yet, so this is the preamble plus the current step.
+
+    Args:
+        persona_str: String representation of the persona
+        col_name: Name of the current column/step
+        instructions: Instructions for this step
+        study_introduction: The participant-facing study introduction
+
+    Returns:
+        str: Formatted user prompt for the first step
+    """
+    return (
+        get_baseline_persona_preamble(persona_str, study_introduction)
+        + _get_baseline_current_step_block(col_name, instructions, has_history=False)
+    )
+
+
+# User prompt for every step after the first on a persona's path
+# (from utils/simulation.py - process_row_with_chat)
+def get_baseline_subsequent_column_user_prompt(
+    preamble: str,
+    path_history: list,
+    col_name: str,
+    instructions: str
+) -> str:
+    """
+    Generate the user prompt for a step that follows other steps.
+
+    Every step the persona has already completed is replayed here - the step
+    title, the researcher's instructions, and the answer this persona gave -
+    so the answer to the current step is conditional on the persona's own run
+    through the study rather than on the current instructions alone.
+
+    Under a branching design a persona travels exactly one root-to-leaf path,
+    so path_history is that persona's own ancestry through the graph: every
+    parent step it passed through, and nothing from the branches it never
+    entered.
+
+    Args:
+        preamble: The persona/study block from get_baseline_persona_preamble
+        path_history: Steps this persona has already been through, in order.
+            Each entry is a dict with 'label', 'instructions' and 'response'.
+        col_name: Name of the current column/step
+        instructions: Instructions for this step
+
+    Returns:
+        str: Formatted user prompt for a subsequent step
+    """
+    history_block = (
+        "\nSTEPS YOU HAVE ALREADY COMPLETED\n"
+        "These are the earlier steps of this study, in the order you did them, "
+        "with the answers you gave. They are your own answers - treat them as "
+        "what you think, and build on them:\n"
+    )
+
+    for position, entry in enumerate(path_history, start=1):
+        history_block += (
+            f"\nStep {position} - {str.upper(entry['label'])}\n"
+            f"Instructions you were given: {entry['instructions']}\n"
+            f"Your answer: {entry['response']}\n"
+        )
+
+    return (
+        preamble
+        + history_block
+        + _get_baseline_current_step_block(col_name, instructions, has_history=True)
+    )
+
+
+# User prompt for persona generation (from utils/evaluate.py - generate_persona_from_attributes)
+def get_persona_generation_user_prompt(attributes_text: str) -> str:
+    """
+    Generate the user prompt for persona generation from attributes.
     
-    # If persona is not an array or is empty, create default personas
-    if not isinstance(sample_persona_array, list) or len(sample_persona_array) == 0:
-        sample_persona_array = [{}] * iterations
+    Args:
+        attributes_text: Formatted string containing attribute information
     
-    # Ensure we have enough personas for the iterations (should always be 10)
-    selected_personas = sample_persona_array[:iterations]
+    Returns:
+        str: Formatted user prompt for persona generation
+    """
+    return f"""Based on the following demographic and attribute information, create a detailed persona description that captures the personality, background, and characteristics of this individual.
+
+Attributes:
+{attributes_text}
+
+Please create a persona that:
+1. Is 3-4 sentences long
+2. Captures the key demographic and lifestyle characteristics
+3. Reflects the person's likely personality traits based on their attributes
+4. Is written in third person
+5. Sounds natural and human-like
+
+Respond with ONLY the persona description, no additional text or formatting."""
+
+
+# User prompt for evaluation (from utils/evaluate.py - process_row)
+def get_evaluation_user_prompt(step_label: str, step_instructions: str, step_output: str, step_measures_list: str) -> str:
+    """
+    Generate the user prompt for evaluation.
     
-    # If we don't have enough personas, repeat the last one or use empty dict
-    while len(selected_personas) < iterations:
-        selected_personas.append(sample_persona_array[-1] if sample_persona_array else {})
-
-    # Steps arrive already normalized and topologically ordered, so array order
-    # still defines column order.
-    steps = prompt['steps']
-    step_parents = parents or {}
-    step_children = children or {}
-
-    repeated_steps = {}
-    cols = []
-
-    # First pass: count occurrences of each label
-    for step in steps:
-        label = step['label']
-        repeated_steps[label] = repeated_steps.get(label, 0) + 1
-
-    # Second pass: create unique labels and update steps
-    label_counts = {}
-    for i, step in enumerate(steps):
-        original_label = step['label']
-        if repeated_steps[original_label] > 1:
-            # This label appears multiple times, need to make it unique
-            label_counts[original_label] = label_counts.get(original_label, 0) + 1
-            unique_label = f"{original_label}_{label_counts[original_label]}"
-            step['label'] = unique_label
-            cols.append(unique_label)
-        else:
-            # This label appears only once, keep as is
-            cols.append(original_label)
-
-    # Route each persona down its own path through the branching graph.
-    step_lookup = {step['id']: step for step in steps}
-    persona_paths = assign_persona_paths(steps, step_parents, step_children, iterations)
-
-    # Add seed column if specified
-    if seed != "no-seed":
-        cols.insert(0, "seed")
-
-    # Initialize DataFrame
-    df = pd.DataFrame(columns=cols)
-
-    # Create rows based on iteration count
-    for i in range(iterations):
-        if seed != "no-seed":
-            new_row = {'seed': seed}
-            # Special handling for problem representation column
-            for col in cols:
-                if col == "problem or task representation":
-                    new_row[col] = seed
-        else:
-            new_row = {}
-
-        df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-
-    # Process rows in parallel
-    results = []
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        futures = {
-            executor.submit(
-                process_row_with_chat, row_idx, df, prompt, model_name, system_prompt,
-                selected_personas[row_idx], persona_paths.get(row_idx, []), step_lookup,
-                study_introduction
-            ): row_idx
-            for row_idx in range(df.shape[0])
-        }
-        tokens_ls = []
-
-        for future in concurrent.futures.as_completed(futures):
-            try:
-                row_data, tokens_dict = future.result()
-                results.append(row_data)
-                tokens_ls.append(tokens_dict)
-                if progress_callback:
-                    progress_callback()
-            except Exception:
-                pass
-
-    # Convert results to DataFrame
-    final_df = pd.DataFrame(results)
+    Args:
+        step_label: Title/label of the step being evaluated
+        step_instructions: Instructions for the step
+        step_output: The actual response/output for that step
+        step_measures_list: Numbered list of measures to evaluate
     
-    # Reorder columns to make persona the first column
-    if 'persona' in final_df.columns:
-        cols = ['persona'] + [col for col in final_df.columns if col != 'persona']
-        final_df = final_df[cols]
+    Returns:
+        str: Formatted user prompt for evaluation
+    """
+    return f"""Step Title: {step_label}
 
-    return final_df, tokens_ls
+Step Instructions: {step_instructions}
+
+Output/Response: {step_output}
+
+Measures to use for evaluation: 
+{step_measures_list}
+
+Please evaluate this response against the measures defined for this step. Provide scores that accurately reflect the quality of the response relative to the step instructions and measure criteria. Use the full range of scores available - do not default to middle values."""
+
+
+# User prompt for extracting studies from a PDF (from app.py - ParsePDF)
+def get_parse_pdf_user_prompt(filename: str = '') -> str:
+    """
+    Generate the user prompt that accompanies the uploaded PDF.
+
+    Args:
+        filename: Optional name of the uploaded file, used as weak context only
+
+    Returns:
+        str: Formatted user prompt
+    """
+    prompt = "Read the attached research document and extract every empirical study it reports."
+
+    if filename and filename.strip():
+        prompt += f"\n\nUploaded file name: {filename.strip()}"
+
+    prompt += (
+        "\n\nReturn the studies as JSON in the exact structure described in your instructions. "
+        "Return only the JSON object - no markdown fences and no commentary."
+    )
+
+    return prompt
+

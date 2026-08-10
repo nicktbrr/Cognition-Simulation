@@ -12,7 +12,7 @@ from supabase import create_client, Client
 from langchain_core.messages import SystemMessage, HumanMessage
 
 from .llm import invoke_structured, EvaluationMetrics, get_llm, DEFAULT_MODEL
-from .used_prompts import (
+from .prompts import (
     get_persona_generation_user_prompt,
     get_evaluation_system_prompt,
     get_evaluation_user_prompt
