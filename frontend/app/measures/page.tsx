@@ -1435,7 +1435,24 @@ export default function MeasuresPage() {
             right: dropdownPosition.right
           }}
         >
-          {/* 1. Rename */}
+          {/* 1. Edit (only while the measure is unlocked) */}
+          {!measures.find(m => m.id === openDropdown)?.isLocked && (
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleEditMeasure(openDropdown);
+              }}
+              onMouseDown={(e) => {
+                e.stopPropagation();
+              }}
+              className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+            >
+              <Edit className="w-4 h-4 mr-3" />
+              Edit
+            </button>
+          )}
+          {/* 2. Rename */}
           <button
             onClick={(e) => {
               e.preventDefault();
@@ -1450,7 +1467,7 @@ export default function MeasuresPage() {
             <Edit2 className="w-4 h-4 mr-3" />
             Rename
           </button>
-          {/* 2. Copy */}
+          {/* 3. Copy */}
           <button
             onClick={(e) => {
               e.preventDefault();

@@ -1,13 +1,13 @@
 "use client";
 
-import React, { useEffect, useState, useRef, useCallback, Suspense } from "react";
+import React, { useEffect, useState, useRef, useCallback, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Save, Download, HelpCircle, Sparkles, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "../utils/supabase";
-import { solveEdgeFlows, flowGraphToSteps } from "../utils/stepGraph";
+import { analyzeSampleBalance, defaultProportions, solveEdgeFlows, flowGraphToSteps } from "../utils/stepGraph";
 import { useAuth } from "../hooks/useAuth";
 import { useExperimentProgress } from "../hooks/useExperimentProgress";
 import AuthLoading from "../components/auth-loading";
@@ -337,12 +337,27 @@ function SimulationPageContent() {
             previous: [],
             sample_proportion: typeof step.sample_proportion === 'number'
               ? step.sample_proportion
-              : 100,
+              : null,
             label: step.title,
             instructions: step.instructions,
             temperature: 0.5, // Default temperature
             measures: [], // Empty measures array - user can add measures later
           });
+        });
+
+        // A branching design the model didn't put proportions on falls back to
+        // an even split at every branch, so the whole sample is always used.
+        const generatedEdges = convertedSteps.flatMap((step) =>
+          (step.next as string[]).map((target) => ({ source: step.id as string, target }))
+        );
+        const evenSplit = defaultProportions(
+          convertedSteps.map((step) => step.id as string),
+          generatedEdges
+        );
+        convertedSteps.forEach((step) => {
+          if (typeof step.sample_proportion !== 'number') {
+            step.sample_proportion = evenSplit.get(step.id) ?? 100;
+          }
         });
 
         if (convertedSteps.length > 0) {
@@ -707,6 +722,22 @@ function SimulationPageContent() {
 
     return true;
   };
+
+  // Does every step's share of the sample add up? The canvas highlights the
+  // steps that don't, and the run button stays greyed out until they do.
+  const sampleBalance = useMemo(
+    () =>
+      analyzeSampleBalance(
+        flowNodes.map(node => ({
+          id: node.id,
+          sampleProportion:
+            typeof node.data?.sampleProportion === 'number' ? node.data.sampleProportion : 100,
+        })),
+        flowEdges.map(edge => ({ source: edge.source, target: edge.target }))
+      ),
+    [flowNodes, flowEdges]
+  );
+  const sampleIsUnbalanced = flowNodes.length > 0 && !sampleBalance.isBalanced;
 
   const validateFlow = () => {
     const errors: string[] = [];
@@ -1529,7 +1560,12 @@ function SimulationPageContent() {
         description="Design and visualize your simulation flow"
       >
         <div className="flex items-center gap-3">
-          <Button 
+          {!simulationHasBeenRun && sampleIsUnbalanced && (
+            <span className="text-xs text-red-600 max-w-[16rem] text-right leading-tight">
+              The steps don’t use exactly 100% of the sample.
+            </span>
+          )}
+          <Button
             type="button"
             onClick={handleSaveDraft}
             variant="outline"
@@ -1554,12 +1590,18 @@ function SimulationPageContent() {
               disabled={
                 isSimulationRunning ||
                 !!titleError ||
+                sampleIsUnbalanced ||
                 (isSampleSizeFocused
                   ? sampleSizeInput.trim() === "" ||
                     Number.isNaN(parseInt(sampleSizeInput.trim(), 10)) ||
                     parseInt(sampleSizeInput.trim(), 10) < 10 ||
                     parseInt(sampleSizeInput.trim(), 10) > 50
                   : !!sampleSizeError)
+              }
+              title={
+                sampleIsUnbalanced
+                  ? "The steps don't use exactly 100% of the sample. Fix their sample proportions to run the simulation."
+                  : undefined
               }
               className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >

@@ -23,7 +23,7 @@ import { Button } from '@/components/ui/button'
 import { Plus, Maximize2, Minimize2 } from 'lucide-react'
 
 import CustomNode from './react-flow/node'
-import { outflowByNode } from '../utils/stepGraph'
+import { analyzeSampleBalance, edgeKey, splitEvenly, splitProportion } from '../utils/stepGraph'
 
 const nodeTypes = {
   custom: CustomNode as any,
@@ -34,15 +34,68 @@ const flowKey = 'simulation-flow';
 const getSampleProportion = (node: Node) =>
   typeof node.data?.sampleProportion === 'number' ? node.data.sampleProportion : 100;
 
+/** Trim the rounding tail so 33.34 reads as 33.34 and 50.00 reads as 50. */
+const formatPercent = (value: number) => `${Math.round(value * 100) / 100}%`;
+
 /**
- * Split each listed step's sample evenly across its branches.
+ * Push a set of new proportions down through the steps that follow them.
+ *
+ * Every step must hand its whole sample to the steps after it, so changing one
+ * proportion changes everything downstream of it. Each step's children are
+ * re-split across the step's new proportion, keeping whatever ratio the user
+ * had set between them (an untouched even split stays even), and the split is
+ * done in hundredths so the parts add back up exactly.
  *
  * Only children with a single parent are touched - once branches merge, the
  * split is ambiguous, so those proportions are left for the user to set and
  * validation guides them.
  */
+const applyProportions = (nodes: Node[], edges: Edge[], seeds: Map<string, number>) => {
+  const updates = new Map(seeds);
+  const proportionOf = (nodeId: string) => {
+    if (updates.has(nodeId)) return updates.get(nodeId)!;
+    const node = nodes.find((candidate) => candidate.id === nodeId);
+    return node ? getSampleProportion(node) : 100;
+  };
+
+  const queue = [...seeds.keys()];
+  const visited = new Set<string>();
+  while (queue.length > 0) {
+    const parentId = queue.shift()!;
+    if (visited.has(parentId)) continue;
+    visited.add(parentId);
+
+    const childIds = edges.filter((edge) => edge.source === parentId).map((edge) => edge.target);
+    if (childIds.length === 0) continue;
+
+    const allSingleParent = childIds.every(
+      (childId) => edges.filter((edge) => edge.target === childId).length === 1
+    );
+    if (!allSingleParent) continue;
+
+    const shares = splitProportion(proportionOf(parentId), childIds.map(proportionOf));
+    childIds.forEach((childId, index) => {
+      updates.set(childId, shares[index]);
+      queue.push(childId);
+    });
+  }
+
+  const changed = [...updates.entries()].filter(([nodeId, value]) => {
+    const node = nodes.find((candidate) => candidate.id === nodeId);
+    return node && getSampleProportion(node) !== value;
+  });
+  if (changed.length === 0) return nodes;
+
+  return nodes.map((node) =>
+    updates.has(node.id)
+      ? { ...node, data: { ...node.data, sampleProportion: updates.get(node.id) } }
+      : node
+  );
+};
+
+/** Split each listed step's sample evenly across its branches, then cascade. */
 const rebalanceChildren = (nodes: Node[], edges: Edge[], parentIds: Array<string | null>) => {
-  const updates = new Map<string, number>();
+  const seeds = new Map<string, number>();
 
   for (const parentId of parentIds) {
     if (!parentId) continue;
@@ -57,19 +110,12 @@ const rebalanceChildren = (nodes: Node[], edges: Edge[], parentIds: Array<string
     );
     if (!allSingleParent) continue;
 
-    const share = Math.round((getSampleProportion(parent) / childIds.length) * 100) / 100;
-    for (const childId of childIds) {
-      updates.set(childId, share);
-    }
+    const shares = splitEvenly(getSampleProportion(parent), childIds.length);
+    childIds.forEach((childId, index) => seeds.set(childId, shares[index]));
   }
 
-  if (updates.size === 0) return nodes;
-
-  return nodes.map((node) =>
-    updates.has(node.id)
-      ? { ...node, data: { ...node.data, sampleProportion: updates.get(node.id) } }
-      : node
-  );
+  if (seeds.size === 0) return nodes;
+  return applyProportions(nodes, edges, seeds);
 };
 
 interface Measure {
@@ -103,6 +149,9 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
+  // The step whose sample proportion was changed last - the only one called
+  // out in red when the sample stops adding up.
+  const [lastEditedNodeId, setLastEditedNodeId] = useState<string | null>(null)
   const reactFlowInstance = useRef<ReactFlowInstance<Node, Edge> | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
@@ -293,6 +342,7 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
       setNodes([])
       setEdges([])
       setSelectedNodeId(null)
+      setLastEditedNodeId(null)
       setViewport({ x: 0, y: 0, zoom: 1 })
       localStorage.removeItem(flowKey)
       setHistory([])
@@ -304,6 +354,7 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
       isUndoRedoRef.current = true // Don't track this as a history change
       setNodes(newNodes)
       setEdges(newEdges)
+      setLastEditedNodeId(null)
       // Reset history when setting nodes/edges externally (e.g., from generate steps)
       const clonedState = cloneState(newNodes, newEdges)
       setHistory([clonedState])
@@ -407,6 +458,24 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
     [edges, setEdges, setNodes]
   )
 
+  // Removing an arrow leaves the step that fed it with a sample to re-split.
+  const handleEdgesChange = useCallback(
+    (changes: any[]) => {
+      const removedIds = changes
+        .filter((change) => change.type === 'remove')
+        .map((change) => change.id)
+      onEdgesChange(changes)
+
+      if (removedIds.length === 0) return
+      const affectedParents = edges
+        .filter((edge: Edge) => removedIds.includes(edge.id))
+        .map((edge: Edge) => edge.source)
+      const nextEdges = edges.filter((edge: Edge) => !removedIds.includes(edge.id))
+      setNodes((nds: Node[]) => rebalanceChildren(nds, nextEdges, affectedParents))
+    },
+    [edges, onEdgesChange, setNodes]
+  )
+
   const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
     setSelectedNodeId(node.id)
     
@@ -493,12 +562,18 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
 
   const handleSampleProportionChange = useCallback((nodeId: string, value: number) => {
     const clamped = Math.max(0, Math.min(100, value))
+    setLastEditedNodeId(nodeId)
+    // The steps after this one carry its sample, so they move with it.
     setNodes((nds: Node[]) =>
-      nds.map((node: Node) =>
-        node.id === nodeId ? { ...node, data: { ...node.data, sampleProportion: clamped } } : node
+      applyProportions(
+        nds.map((node: Node) =>
+          node.id === nodeId ? { ...node, data: { ...node.data, sampleProportion: clamped } } : node
+        ),
+        edges,
+        new Map([[nodeId, clamped]])
       )
     )
-  }, [setNodes])
+  }, [edges, setNodes])
 
   const handleMeasuresChange = useCallback((nodeId: string, selectedMeasures: string[]) => {
     setNodes((nds: Node[]) =>
@@ -674,17 +749,90 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
   }, [])
 
   // Update node data with handlers and highlighting
-  // How much of each step's sample actually reaches its branches. Uses the
-  // same solver as validation, so the badge never contradicts the run check.
-  const outflow = outflowByNode(
+  // How each step's share of the sample travels through the flow. Uses the
+  // same solver as validation, so the canvas never contradicts the run check.
+  const balance = analyzeSampleBalance(
     nodes.map((node: Node) => ({ id: node.id, sampleProportion: getSampleProportion(node) })),
     edges.map((edge: Edge) => ({ source: edge.source, target: edge.target }))
   )
-  const childAllocationByNode = new Map<string, number>()
-  for (const node of nodes) {
-    const hasChildren = edges.some((edge: Edge) => edge.source === node.id)
-    if (!hasChildren) continue
-    childAllocationByNode.set(node.id, Math.round((outflow.get(node.id) ?? 0) * 100) / 100)
+
+  // Every arrow carries a share of the sample - show it on the arrow.
+  const edgesWithFlow = edges.map((edge: Edge) => {
+    const flow = balance.flows.get(edgeKey(edge.source, edge.target))
+    if (flow === undefined) return edge
+    return {
+      ...edge,
+      label: formatPercent(flow),
+      labelShowBg: true,
+      labelBgPadding: [6, 3] as [number, number],
+      labelBgBorderRadius: 4,
+      labelBgStyle: {
+        fill: '#ffffff',
+        stroke: '#3b82f6',
+        strokeWidth: 1,
+      },
+      labelStyle: {
+        fill: '#1d4ed8',
+        fontSize: 12,
+        fontWeight: 600,
+      },
+    }
+  })
+
+  // Only the step the user changed last is called out, so a single edit
+  // doesn't light up half the canvas.
+  const highlightedNodeId =
+    !balance.isBalanced && lastEditedNodeId && balance.byNode.has(lastEditedNodeId)
+      ? lastEditedNodeId
+      : null
+
+  const sampleWarningFor = (nodeId: string) => {
+    if (nodeId !== highlightedNodeId) return undefined
+    const nodeBalance = balance.byNode.get(nodeId)!
+    const { proportion, inflow, outflow, shortfall, status } = nodeBalance
+
+    if (inflow === null && Math.abs(proportion - 100) > 0.01) {
+      return 'The first step must use 100% of the sample.'
+    }
+    if (proportion <= 0) {
+      return 'Must be more than 0% of the sample.'
+    }
+    if (outflow !== null && outflow > proportion + 0.005) {
+      return 'The next steps take more sample than this step passes on.'
+    }
+    if (outflow !== null && outflow < proportion - 0.005) {
+      return 'The next steps don’t use all of this step’s sample.'
+    }
+    if (shortfall > 0.005) {
+      return 'Less of the sample reaches this step than it is set to use.'
+    }
+    // The edit landed elsewhere in the flow - say so rather than nothing.
+    return status === 'ok'
+      ? 'This change leaves the flow using less or more than the whole sample.'
+      : 'This step’s share of the sample doesn’t add up.'
+  }
+
+  // A short read-out of where a step's sample comes from and goes to.
+  const sampleMessageFor = (nodeId: string) => {
+    const nodeBalance = balance.byNode.get(nodeId)
+    if (!nodeBalance) return undefined
+    const { proportion, inflow, outflow, shortfall } = nodeBalance
+
+    if (inflow === null && Math.abs(proportion - 100) > 0.01) {
+      return `First step must use 100% of the sample, not ${formatPercent(proportion)}`
+    }
+    if (proportion <= 0) {
+      return 'Sample proportion must be greater than 0%'
+    }
+    // What this step hands on is the more useful reading when both ends are
+    // off, since fixing the split fixes the steps that follow it too.
+    if (outflow !== null) {
+      return `Next steps take ${formatPercent(outflow)} of ${formatPercent(proportion)}`
+    }
+    if (shortfall > 0.005 && inflow !== null) {
+      return `Only ${formatPercent(inflow)} of the sample reaches this step, but it is set to ${formatPercent(proportion)}`
+    }
+    return undefined
   }
 
   const nodesWithHandlers = nodes.map((node: Node) => ({
@@ -697,7 +845,16 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
       loadingMeasures: loadingMeasures,
       selectedMeasures: node.data?.selectedMeasures || [],
       sampleProportion: getSampleProportion(node),
-      childAllocated: childAllocationByNode.has(node.id) ? childAllocationByNode.get(node.id) : undefined,
+      // The highlighted step is always marked, even when the gap it opened up
+      // shows on a step further along.
+      sampleStatus:
+        node.id === highlightedNodeId
+          ? (balance.byNode.get(node.id)?.status ?? 'ok') === 'ok'
+            ? 'over'
+            : balance.byNode.get(node.id)!.status
+          : 'ok',
+      sampleMessage: sampleMessageFor(node.id),
+      sampleWarning: sampleWarningFor(node.id),
       width: (typeof node.width === 'number' ? node.width : (typeof node.data?.width === 'number' ? node.data.width : 400)) as number,
       height: (typeof node.height === 'number' ? node.height : (typeof node.data?.height === 'number' ? node.data.height : 600)) as number, // Default height to prevent auto-sizing
       onDelete: handleNodeDelete,
@@ -712,8 +869,20 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
     },
     style: {
       ...node.style,
-      border: selectedNodeId === node.id ? '3px solid #3b82f6' : '1px solid #e5e7eb',
-      boxShadow: selectedNodeId === node.id ? '0 0 0 3px rgba(59, 130, 246, 0.25)' : '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+      // The step that broke the sample maths is called out in red, whether or
+      // not it happens to be selected.
+      border:
+        node.id === highlightedNodeId
+          ? '3px solid #dc2626'
+          : selectedNodeId === node.id
+            ? '3px solid #3b82f6'
+            : '1px solid #e5e7eb',
+      boxShadow:
+        node.id === highlightedNodeId
+          ? '0 0 0 4px rgba(220, 38, 38, 0.25)'
+          : selectedNodeId === node.id
+            ? '0 0 0 3px rgba(59, 130, 246, 0.25)'
+            : '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
     },
   }))
 
@@ -757,9 +926,9 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
       
       <ReactFlow
         nodes={nodesWithHandlers}
-        edges={edges}
+        edges={edgesWithFlow}
         onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
+        onEdgesChange={readOnly ? onEdgesChange : handleEdgesChange}
         onConnect={readOnly ? undefined : onConnect}
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}

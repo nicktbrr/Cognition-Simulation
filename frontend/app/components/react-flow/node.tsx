@@ -1,12 +1,12 @@
 "use client"
 
-import React, { memo } from "react"
+import React, { memo, useEffect, useState } from "react"
 import { Handle, Position, NodeResizer, type NodeProps } from "@xyflow/react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Slider } from "../ui/slider"
-import { Trash2 } from "lucide-react"
+import { AlertTriangle, Trash2 } from "lucide-react"
 import CustomHandle from "./handle"
 import Multiselect from "../ui/multiselect"
 
@@ -16,6 +16,12 @@ export interface CustomNodeData {
   sliderValue: number
   /** Percent of the full persona sample routed through this step. */
   sampleProportion: number
+  /** Whether this step's share of the sample adds up against the rest of the flow. */
+  sampleStatus?: 'ok' | 'over' | 'under'
+  /** Plain-language read-out of where this step's sample comes from and goes to. */
+  sampleMessage?: string
+  /** Short warning shown on the step the user last changed, when the sample stops adding up. */
+  sampleWarning?: string
   numDescriptionsChars: number
   selectedMeasures: string[]
   measures: Array<{ id: string; title: string; description: string }>
@@ -36,9 +42,20 @@ export interface CustomNodeData {
 const CustomNode = memo(({ id, data, selected, width, height }: NodeProps) => {
   // Get the selected color or default to white
   const selectedColor = (data as any).selectedColor || '#ffffff';
-  
+  const sampleStatus = (data as any).sampleStatus || 'ok';
+  const sampleUnbalanced = sampleStatus !== 'ok';
+  const sampleProportion = (data as any).sampleProportion ?? 100;
+
+  // While the field is being typed in it holds exactly what was typed - an
+  // empty box stays empty rather than snapping back to 0.
+  const [proportionDraft, setProportionDraft] = useState<string | null>(null);
+  useEffect(() => {
+    // A change from elsewhere (a rebalance upstream) wins over a stale draft.
+    setProportionDraft(null);
+  }, [sampleProportion]);
+
   // Create a gradient background using the selected color
-  const gradientStyle = selectedColor !== '#ffffff' 
+  const gradientStyle = selectedColor !== '#ffffff'
     ? {
         background: `linear-gradient(135deg, ${selectedColor}20, ${selectedColor}40, ${selectedColor}60)`,
         border: `2px solid ${selectedColor}`,
@@ -49,7 +66,15 @@ const CustomNode = memo(({ id, data, selected, width, height }: NodeProps) => {
         border: '1px solid #e5e7eb',
         boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)'
       };
-  
+
+  // A step whose share of the sample doesn't add up is called out in red.
+  const balanceStyle = sampleUnbalanced
+    ? {
+        border: '2px solid #dc2626',
+        boxShadow: '0 0 0 3px rgba(220, 38, 38, 0.2)',
+      }
+    : {};
+
   return (
     <>
       <NodeResizer
@@ -80,6 +105,7 @@ const CustomNode = memo(({ id, data, selected, width, height }: NodeProps) => {
         className="rounded-lg p-6 transition-all duration-300 overflow-visible flex flex-col h-full w-full"
         style={{
           ...gradientStyle,
+          ...balanceStyle,
           boxSizing: 'border-box',
         }}
       >
@@ -131,7 +157,7 @@ const CustomNode = memo(({ id, data, selected, width, height }: NodeProps) => {
 
         {/* Sample proportion - what share of the personas travel through this step */}
         <div className="flex-shrink-0">
-          <label className="text-base font-medium text-muted-foreground mb-1.5 block">
+          <label className={`text-base font-medium mb-1.5 block ${sampleUnbalanced ? "text-red-600" : "text-muted-foreground"}`}>
             Sample Proportion
           </label>
           <div className="flex items-center gap-2">
@@ -140,24 +166,30 @@ const CustomNode = memo(({ id, data, selected, width, height }: NodeProps) => {
               min={0.01}
               max={100}
               step={1}
-              value={(data as any).sampleProportion ?? 100}
+              value={proportionDraft ?? sampleProportion}
               onChange={(e) => {
+                setProportionDraft(e.target.value)
                 const parsed = parseFloat(e.target.value)
-                ;(data as any).onSampleProportionChange?.(id, Number.isNaN(parsed) ? 0 : parsed)
+                // An empty (or half-typed) box isn't a proportion yet, so the
+                // flow keeps the last real value until one is typed.
+                if (!Number.isNaN(parsed)) {
+                  ;(data as any).onSampleProportionChange?.(id, parsed)
+                }
               }}
-              className="text-base"
+              onBlur={() => setProportionDraft(null)}
+              className={`text-base ${sampleUnbalanced ? "border-red-500 focus-visible:ring-red-500" : ""}`}
             />
             <span className="text-base text-muted-foreground">%</span>
           </div>
-          {typeof (data as any).childAllocated === "number" && (
-            <div
-              className={`text-sm mt-1 ${
-                Math.abs((data as any).childAllocated - ((data as any).sampleProportion ?? 100)) < 0.01
-                  ? "text-muted-foreground"
-                  : "text-amber-600"
-              }`}
-            >
-              Next steps take {(data as any).childAllocated}% of {(data as any).sampleProportion ?? 100}%
+          {(data as any).sampleMessage && (
+            <div className="text-sm mt-1 text-muted-foreground">
+              {(data as any).sampleMessage}
+            </div>
+          )}
+          {sampleUnbalanced && (data as any).sampleWarning && (
+            <div className="mt-2 flex items-start gap-1.5 rounded-md border border-red-200 bg-red-50 px-2 py-1.5 text-sm text-red-700">
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <span>{(data as any).sampleWarning}</span>
             </div>
           )}
         </div>

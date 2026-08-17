@@ -1704,7 +1704,24 @@ export default function SamplesPage() {
             right: dropdownPosition.right
           }}
         >
-          {/* 1. Rename */}
+          {/* 1. Edit (only while the sample is unlocked) */}
+          {!samples.find(s => s.id === openDropdown)?.isLocked && (
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleEditSample(openDropdown);
+              }}
+              onMouseDown={(e) => {
+                e.stopPropagation();
+              }}
+              className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+            >
+              <Edit className="w-4 h-4 mr-3" />
+              Edit
+            </button>
+          )}
+          {/* 2. Rename */}
           <button
             onClick={(e) => {
               e.preventDefault();
@@ -1719,7 +1736,7 @@ export default function SamplesPage() {
             <Edit2 className="w-4 h-4 mr-3" />
             Rename
           </button>
-          {/* 2. Copy */}
+          {/* 3. Copy */}
           <button
             onClick={(e) => {
               e.preventDefault();
