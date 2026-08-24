@@ -561,7 +561,8 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
   }, [setNodes])
 
   const handleSampleProportionChange = useCallback((nodeId: string, value: number) => {
-    const clamped = Math.max(0, Math.min(100, value))
+    // Personas are whole people, so the split is kept to whole percents.
+    const clamped = Math.max(0, Math.min(100, Math.round(value)))
     setLastEditedNodeId(nodeId)
     // The steps after this one carry its sample, so they move with it.
     setNodes((nds: Node[]) =>

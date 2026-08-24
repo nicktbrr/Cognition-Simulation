@@ -163,7 +163,7 @@ const CustomNode = memo(({ id, data, selected, width, height }: NodeProps) => {
           <div className="flex items-center gap-2">
             <Input
               type="number"
-              min={0.01}
+              min={1}
               max={100}
               step={1}
               value={proportionDraft ?? sampleProportion}
