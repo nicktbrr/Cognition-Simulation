@@ -44,28 +44,29 @@ const scaled = (proportion: number) => Math.round(proportion * 100);
 export const PROPORTION_EPSILON = 0.01;
 
 /**
- * Split `total` percent across `weights`, keeping the parts exact.
+ * Split `total` percent across `weights` in whole percents.
  *
- * Largest-remainder rounding in hundredths, so the parts always add back up to
- * `total` - a three-way split comes out 33.34/33.33/33.33 rather than three
- * 33.33s that leave 0.01% of the sample stranded. Weights that are all zero
- * (or missing) fall back to an even split.
+ * Largest-remainder rounding in whole percents, so the parts are always whole
+ * numbers that add back up to `total` - a three-way split comes out 34/33/33
+ * rather than three 33.33s. A fractional `total` (legacy data) is rounded to
+ * the nearest whole percent before splitting. Weights that are all zero (or
+ * missing) fall back to an even split.
  */
 export function splitProportion(total: number, weights: number[]): number[] {
   if (weights.length === 0) return [];
 
-  const totalScaled = Math.max(0, scaled(total));
+  const totalWhole = Math.max(0, Math.round(total));
   const weightTotal = weights.reduce((sum, weight) => sum + Math.max(0, weight), 0);
   const normalized =
     weightTotal > 0
       ? weights.map((weight) => Math.max(0, weight) / weightTotal)
       : weights.map(() => 1 / weights.length);
 
-  const exact = normalized.map((share) => share * totalScaled);
+  const exact = normalized.map((share) => share * totalWhole);
   const parts = exact.map((value) => Math.floor(value));
-  let remainder = totalScaled - parts.reduce((sum, part) => sum + part, 0);
+  let remainder = totalWhole - parts.reduce((sum, part) => sum + part, 0);
 
-  // Hand the leftover hundredths to the largest fractional parts first.
+  // Hand the leftover whole percents to the largest fractional parts first.
   const order = exact
     .map((value, index) => ({ index, fraction: value - Math.floor(value) }))
     .sort((a, b) => b.fraction - a.fraction || a.index - b.index);
@@ -74,7 +75,7 @@ export function splitProportion(total: number, weights: number[]): number[] {
     remainder -= 1;
   }
 
-  return parts.map((part) => part / 100);
+  return parts;
 }
 
 /** Split `total` percent evenly, exactly, across `count` steps. */

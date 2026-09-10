@@ -1107,7 +1107,8 @@ function SimulationPageContent() {
   }, []);
 
   const handleSampleProportionChange = useCallback((nodeId: string, value: number) => {
-    const clamped = Math.max(0, Math.min(100, value));
+    // Personas are whole people, so the split is kept to whole percents.
+    const clamped = Math.max(0, Math.min(100, Math.round(value)));
     setFlowNodes((nds: Node[]) =>
       nds.map((node: Node) =>
         node.id === nodeId ? { ...node, data: { ...node.data, sampleProportion: clamped } } : node

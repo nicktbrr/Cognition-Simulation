@@ -42,7 +42,7 @@ The steps form a flow chart. By default it is a single straight line, but the st
 
 To branch, give a step a "next" field listing the steps that follow it, and give each step a "sample_proportion" saying what percent of all participants pass through it:
   - "next": an array of step keys, e.g. ["step03", "step05"]. Two or more entries means the participants split there. Omit "next" on the final step of a path.
-  - "sample_proportion": a number from 1 to 100. It is the percent of the WHOLE sample, not of the parent step.
+  - "sample_proportion": a whole number from 1 to 100 (never a decimal - a three-way split is 34/33/33, not 33.33s). It is the percent of the WHOLE sample, not of the parent step.
 
 Rules for branching:
   - There must be exactly ONE first step - the step no other step points to. It must have "sample_proportion": 100.
