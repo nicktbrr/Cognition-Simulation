@@ -20,10 +20,10 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { Button } from '@/components/ui/button'
-import { Plus, Maximize2, Minimize2 } from 'lucide-react'
+import { Plus, Maximize2, Minimize2, AlertTriangle, RotateCcw, X } from 'lucide-react'
 
 import CustomNode from './react-flow/node'
-import { analyzeSampleBalance, edgeKey, splitEvenly, splitProportion } from '../utils/stepGraph'
+import { analyzeSampleBalance, defaultProportions, edgeKey, redistributeProportions } from '../utils/stepGraph'
 
 const nodeTypes = {
   custom: CustomNode as any,
@@ -38,84 +38,62 @@ const getSampleProportion = (node: Node) =>
 const formatPercent = (value: number) => `${Math.round(value * 100) / 100}%`;
 
 /**
- * Push a set of new proportions down through the steps that follow them.
+ * Steps whose sample proportion the user typed in themselves.
  *
- * Every step must hand its whole sample to the steps after it, so changing one
- * proportion changes everything downstream of it. Each step's children are
- * re-split across the step's new proportion, keeping whatever ratio the user
- * had set between them (an untouched even split stays even), and the split is
- * done in hundredths so the parts add back up exactly.
- *
- * Only children with a single parent are touched - once branches merge, the
- * split is ambiguous, so those proportions are left for the user to set and
- * validation guides them.
+ * A pinned step keeps the share it was given; everything else on its level is
+ * re-split around it. The flag lives on the node, so it survives an undo, a
+ * reload from storage, and a round trip through the canvas.
  */
-const applyProportions = (nodes: Node[], edges: Edge[], seeds: Map<string, number>) => {
-  const updates = new Map(seeds);
-  const proportionOf = (nodeId: string) => {
-    if (updates.has(nodeId)) return updates.get(nodeId)!;
-    const node = nodes.find((candidate) => candidate.id === nodeId);
-    return node ? getSampleProportion(node) : 100;
-  };
+const pinnedProportions = (nodes: Node[]) =>
+  new Set(nodes.filter((node) => node.data?.sampleProportionPinned === true).map((node) => node.id));
 
-  const queue = [...seeds.keys()];
-  const visited = new Set<string>();
-  while (queue.length > 0) {
-    const parentId = queue.shift()!;
-    if (visited.has(parentId)) continue;
-    visited.add(parentId);
+const setPinned = (node: Node, pinned: boolean) =>
+  ({ ...node, data: { ...node.data, sampleProportionPinned: pinned } }) as Node;
 
-    const childIds = edges.filter((edge) => edge.source === parentId).map((edge) => edge.target);
-    if (childIds.length === 0) continue;
-
-    const allSingleParent = childIds.every(
-      (childId) => edges.filter((edge) => edge.target === childId).length === 1
-    );
-    if (!allSingleParent) continue;
-
-    const shares = splitProportion(proportionOf(parentId), childIds.map(proportionOf));
-    childIds.forEach((childId, index) => {
-      updates.set(childId, shares[index]);
-      queue.push(childId);
-    });
-  }
-
-  const changed = [...updates.entries()].filter(([nodeId, value]) => {
-    const node = nodes.find((candidate) => candidate.id === nodeId);
-    return node && getSampleProportion(node) !== value;
-  });
-  if (changed.length === 0) return nodes;
-
-  return nodes.map((node) =>
-    updates.has(node.id)
-      ? { ...node, data: { ...node.data, sampleProportion: updates.get(node.id) } }
-      : node
+/**
+ * Re-split the sample across the whole flow, keeping the steps the user set.
+ *
+ * The step the user typed into holds its value and the rest of its level
+ * shares what's left of the parent's sample in equal parts. The same rule is
+ * applied to every level below it, so one edit cascades all the way down.
+ */
+const applyRedistribution = (nodes: Node[], edges: Edge[], pinned: Set<string>) => {
+  const proportions = redistributeProportions(
+    nodes.map((node) => ({ id: node.id, sampleProportion: getSampleProportion(node) })),
+    edges.map((edge) => ({ source: edge.source, target: edge.target })),
+    pinned
   );
+
+  let changed = false;
+  const next = nodes.map((node) => {
+    const value = proportions.get(node.id);
+    if (value === undefined || value === getSampleProportion(node)) return node;
+    changed = true;
+    return { ...node, data: { ...node.data, sampleProportion: value } } as Node;
+  });
+
+  return changed ? next : nodes;
 };
 
-/** Split each listed step's sample evenly across its branches, then cascade. */
+/**
+ * Re-split the branches of the listed steps evenly, then cascade.
+ *
+ * Adding or removing an arrow changes what a level is splitting, so the values
+ * the user pinned on that level no longer describe a split of anything - they
+ * are dropped and the level goes back to an even share each.
+ */
 const rebalanceChildren = (nodes: Node[], edges: Edge[], parentIds: Array<string | null>) => {
-  const seeds = new Map<string, number>();
+  const affectedChildren = new Set(
+    edges
+      .filter((edge) => parentIds.includes(edge.source))
+      .map((edge) => edge.target)
+  );
 
-  for (const parentId of parentIds) {
-    if (!parentId) continue;
-    const parent = nodes.find((node) => node.id === parentId);
-    if (!parent) continue;
+  const unpinned = affectedChildren.size
+    ? nodes.map((node) => (affectedChildren.has(node.id) ? setPinned(node, false) : node))
+    : nodes;
 
-    const childIds = edges.filter((edge) => edge.source === parentId).map((edge) => edge.target);
-    if (childIds.length === 0) continue;
-
-    const allSingleParent = childIds.every(
-      (childId) => edges.filter((edge) => edge.target === childId).length === 1
-    );
-    if (!allSingleParent) continue;
-
-    const shares = splitEvenly(getSampleProportion(parent), childIds.length);
-    childIds.forEach((childId, index) => seeds.set(childId, shares[index]));
-  }
-
-  if (seeds.size === 0) return nodes;
-  return applyProportions(nodes, edges, seeds);
+  return applyRedistribution(unpinned, edges, pinnedProportions(unpinned));
 };
 
 interface Measure {
@@ -156,6 +134,9 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
   const [isFullscreen, setIsFullscreen] = useState(false)
+  // The prompt shown when a level of the flow doesn't use the whole sample.
+  const [showSampleAlert, setShowSampleAlert] = useState(false)
+  const [sampleAlertDismissed, setSampleAlertDismissed] = useState(false)
   const { setViewport } = useReactFlow()
 
   // Undo/Redo history state
@@ -502,6 +483,7 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
 
   const handleNodeDelete = useCallback((nodeId: string) => {
     // Parents of the deleted step lose a branch, so re-split what's left.
+    // (The deleted step takes its own pinned share with it.)
     const affectedParents = edges
       .filter((edge: Edge) => edge.target === nodeId)
       .map((edge: Edge) => edge.source)
@@ -564,16 +546,39 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
     // Personas are whole people, so the split is kept to whole percents.
     const clamped = Math.max(0, Math.min(100, Math.round(value)))
     setLastEditedNodeId(nodeId)
-    // The steps after this one carry its sample, so they move with it.
-    setNodes((nds: Node[]) =>
-      applyProportions(
-        nds.map((node: Node) =>
-          node.id === nodeId ? { ...node, data: { ...node.data, sampleProportion: clamped } } : node
-        ),
-        edges,
-        new Map([[nodeId, clamped]])
+    // The step keeps what was typed into it; the rest of its level splits what
+    // is left of the sample evenly, and every level below it does the same.
+    setNodes((nds: Node[]) => {
+      const edited = nds.map((node: Node) =>
+        node.id === nodeId
+          ? ({
+              ...node,
+              data: { ...node.data, sampleProportion: clamped, sampleProportionPinned: true },
+            } as Node)
+          : node
       )
-    )
+      return applyRedistribution(edited, edges, pinnedProportions(edited))
+    })
+  }, [edges, setNodes])
+
+  /** Put every step back on an even share of its parent's sample. */
+  const handleResetProportions = useCallback(() => {
+    setLastEditedNodeId(null)
+    setShowSampleAlert(false)
+    setNodes((nds: Node[]) => {
+      const proportions = defaultProportions(
+        nds.map((node: Node) => node.id),
+        edges.map((edge: Edge) => ({ source: edge.source, target: edge.target }))
+      )
+      return nds.map((node: Node) => ({
+        ...node,
+        data: {
+          ...node.data,
+          sampleProportion: proportions.get(node.id) ?? 100,
+          sampleProportionPinned: false,
+        },
+      })) as Node[]
+    })
   }, [edges, setNodes])
 
   const handleMeasuresChange = useCallback((nodeId: string, selectedMeasures: string[]) => {
@@ -757,6 +762,24 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
     edges.map((edge: Edge) => ({ source: edge.source, target: edge.target }))
   )
 
+  // A number being typed in passes through half-finished values, so the reset
+  // prompt waits a beat rather than flashing up between keystrokes.
+  useEffect(() => {
+    if (readOnly || nodes.length === 0 || balance.isBalanced) {
+      setShowSampleAlert(false)
+      // A flow that adds up again earns a fresh prompt if it stops adding up.
+      if (balance.isBalanced) setSampleAlertDismissed(false)
+      return
+    }
+    const timer = setTimeout(() => setShowSampleAlert(true), 600)
+    return () => clearTimeout(timer)
+  }, [balance.isBalanced, nodes.length, readOnly])
+
+  // The steps whose share of the sample doesn't add up, named for the prompt.
+  const unbalancedLabels = nodes
+    .filter((node: Node) => (balance.byNode.get(node.id)?.status ?? 'ok') !== 'ok')
+    .map((node: Node) => ((node.data?.title as string) || '').trim() || `Step ${node.id}`)
+
   // Every arrow carries a share of the sample - show it on the arrow.
   const edgesWithFlow = edges.map((edge: Edge) => {
     const flow = balance.flows.get(edgeKey(edge.source, edge.target))
@@ -924,7 +947,56 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
         </Button>
       </div>
 
-      
+      {/* The sample has to be used up on every level - offer a way back when
+          an edit leaves some of it unassigned. */}
+      {showSampleAlert && !sampleAlertDismissed && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 w-[440px] max-w-[calc(100%-2rem)]">
+          <div className="rounded-lg border border-red-200 bg-white shadow-lg">
+            <div className="flex items-start gap-3 p-4">
+              <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold text-red-700">
+                  The sample isn’t fully used
+                </div>
+                <p className="mt-1 text-sm text-gray-600">
+                  {unbalancedLabels.length > 0
+                    ? `${unbalancedLabels.slice(0, 3).join(', ')}${
+                        unbalancedLabels.length > 3 ? ` and ${unbalancedLabels.length - 3} more` : ''
+                      } ${unbalancedLabels.length === 1 ? 'doesn’t' : 'don’t'} pass on the whole sample. `
+                    : 'Some of the sample has nowhere to go. '}
+                  Set the remaining steps by hand, or reset to give every step an even
+                  share of the sample.
+                </p>
+                <div className="mt-3 flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    onClick={handleResetProportions}
+                    className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    Reset split evenly
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setSampleAlertDismissed(true)}
+                  >
+                    Keep editing
+                  </Button>
+                </div>
+              </div>
+              <button
+                onClick={() => setSampleAlertDismissed(true)}
+                className="p-1 -m-1 rounded-full hover:bg-gray-100 transition-colors flex-shrink-0"
+                title="Dismiss"
+              >
+                <X className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <ReactFlow
         nodes={nodesWithHandlers}
         edges={edgesWithFlow}

@@ -417,3 +417,75 @@ export function flowGraphToSteps(
     };
   });
 }
+
+/**
+ * Re-split the sample level by level, from the first step down.
+ *
+ * A step the user set by hand (its id in `pinned`) keeps the proportion it has;
+ * every other step on that level shares whatever its parent has left over, in
+ * equal parts. The rule is applied all the way down, so an edit high up
+ * cascades: each step below is re-split evenly around whatever the user pinned.
+ *
+ * Steps that several branches merge into are left alone - what reaches them
+ * can't be read off a single parent - as are steps caught in a cycle.
+ */
+export function redistributeProportions(
+  nodes: GraphNodeLike[],
+  edges: GraphEdgeLike[],
+  pinned: Set<string> = new Set()
+): Map<string, number> {
+  const known = new Set(nodes.map((node) => node.id));
+  const childrenOf = new Map<string, string[]>(nodes.map((node) => [node.id, []]));
+  const parentsOf = new Map<string, string[]>(nodes.map((node) => [node.id, []]));
+  const seen = new Set<string>();
+
+  for (const edge of edges) {
+    if (!known.has(edge.source) || !known.has(edge.target)) continue;
+    if (edge.source === edge.target) continue;
+    const key = edgeKey(edge.source, edge.target);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    childrenOf.get(edge.source)!.push(edge.target);
+    parentsOf.get(edge.target)!.push(edge.source);
+  }
+
+  const result = new Map(nodes.map((node) => [node.id, node.sampleProportion]));
+
+  // A first step runs the whole sample, unless the user set it themselves - in
+  // which case validation calls out the gap rather than the canvas hiding it.
+  for (const node of nodes) {
+    if (parentsOf.get(node.id)!.length === 0 && !pinned.has(node.id)) {
+      result.set(node.id, 100);
+    }
+  }
+
+  const indegree = new Map<string, number>(
+    nodes.map((node) => [node.id, parentsOf.get(node.id)!.length])
+  );
+  const queue = nodes.filter((node) => indegree.get(node.id) === 0).map((node) => node.id);
+
+  while (queue.length > 0) {
+    const parentId = queue.shift()!;
+    const childIds = childrenOf.get(parentId)!;
+
+    // Once branches merge, the split on that level is ambiguous - leave those
+    // steps as they are and let validation guide the user.
+    const splittable =
+      childIds.length > 0 && childIds.every((childId) => parentsOf.get(childId)!.length === 1);
+    if (splittable) {
+      const claimed = childIds
+        .filter((childId) => pinned.has(childId))
+        .reduce((sum, childId) => sum + (result.get(childId) ?? 0), 0);
+      const freeIds = childIds.filter((childId) => !pinned.has(childId));
+      const shares = splitEvenly(Math.max(0, (result.get(parentId) ?? 0) - claimed), freeIds.length);
+      freeIds.forEach((childId, index) => result.set(childId, shares[index]));
+    }
+
+    for (const childId of childIds) {
+      indegree.set(childId, indegree.get(childId)! - 1);
+      if (indegree.get(childId) === 0) queue.push(childId);
+    }
+  }
+
+  return result;
+}
