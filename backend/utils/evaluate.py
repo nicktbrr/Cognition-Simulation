@@ -12,10 +12,12 @@ from supabase import create_client, Client
 from langchain_core.messages import SystemMessage, HumanMessage
 
 from .llm import invoke_structured, EvaluationMetrics, get_llm, DEFAULT_MODEL
+from .graph import is_measure_step, measure_items
 from .prompts import (
     get_persona_generation_user_prompt,
     get_evaluation_system_prompt,
-    get_evaluation_user_prompt
+    get_evaluation_user_prompt,
+    parse_range
 )
 
 
@@ -140,6 +142,7 @@ def dataframe_to_excel(df_response, df_gemini, steps=None):
             for step in steps:
                 step_info = {
                     'id': step.get('id', ''),
+                    'kind': 'measure' if is_measure_step(step) else 'step',
                     'label': step['label'],
                     'previous': labels_for(step.get('previous')),
                     'next': labels_for(step.get('next')),
@@ -151,6 +154,10 @@ def dataframe_to_excel(df_response, df_gemini, steps=None):
                 measures_info = []
                 for measure in step.get('measures', []):
                     measures_info.append(f"{measure['title']}: {measure['description']} (Range: {measure['range']})")
+                # A measure node's items are what the persona actually answered.
+                items = measure_items(step)
+                if items:
+                    measures_info.append('Items: ' + '; '.join(items))
                 step_info['measures'] = '; '.join(measures_info)
                 steps_data.append(step_info)
 
@@ -250,7 +257,7 @@ def dataframe_to_excel(df_response, df_gemini, steps=None):
     return fn
 
 
-def process_row(row_idx, df_row, steps, model_name, progress_callback=None):
+def process_row(row_idx, df_row, steps, model_name, progress_callback=None, scale_answers=None):
     """
     Processes a single row by evaluating responses using Gemini model.
     
@@ -260,13 +267,18 @@ def process_row(row_idx, df_row, steps, model_name, progress_callback=None):
         steps (list): List of step dictionaries containing measures
         model_name (str): LLM model identifier (e.g. "gemini-2.0-flash")
         progress_callback (callable, optional): Called after each column completes for progress tracking
-        
+        scale_answers (dict, optional): This persona's own answers to the
+            measure nodes it passed through, keyed "{step_label}_{item}".
+            Those are taken as given - the evaluator rates what a persona
+            produced, never the persona itself.
+
     Returns:
         tuple: Contains:
             - dict: Gemini evaluation scores
             - dict: Token usage statistics
     """
 
+    scale_answers = scale_answers or {}
     row_scores = {}
     all_token_usage = {
         'gemini_prompt_tokens': 0,
@@ -278,6 +290,12 @@ def process_row(row_idx, df_row, steps, model_name, progress_callback=None):
     if steps:
         for step_idx, step in enumerate(steps):
             step_label = step.get('label', f'Step_{step_idx + 1}')
+            # A measure node scores one column per item - the answers are the
+            # persona's own, not a rating of what it wrote.
+            if is_measure_step(step):
+                for item in measure_items(step):
+                    row_scores[f"{step_label}_{item}"] = []
+                continue
             measures = step.get('measures', [])
             for measure in measures:
                 step_metric_name = f"{step_label}_{measure.get('title', '')}"
@@ -306,25 +324,24 @@ def process_row(row_idx, df_row, steps, model_name, progress_callback=None):
             or (isinstance(step_output, str) and step_output.strip() == "")
         )
 
-        if current_step is not None and not is_blank:
+        if current_step is not None and not is_blank and is_measure_step(current_step):
+            # The persona already answered this scale during the run. Take its
+            # answers as they are and make no call to the rater.
+            for item in measure_items(current_step):
+                key = f"{step_label}_{item}"
+                if key in row_scores:
+                    value = scale_answers.get(key)
+                    row_scores[key].append(value if value is not None else 'No answer')
+
+        elif current_step is not None and not is_blank:
             current_measures = current_step.get('measures', [])
             step_instructions = current_step.get('instructions', '')  # Get actual step instructions from steps
             
             # Build measures string for this specific step only with detailed scoring guidance
             measures = ""
             for measure in current_measures:
-                range_str = measure['range']
-                # Parse range to extract min and max (e.g., "0 - 10" or "1-5")
-                try:
-                    if ' - ' in range_str:
-                        min_val, max_val = map(float, range_str.split(' - '))
-                    elif '-' in range_str:
-                        min_val, max_val = map(float, range_str.split('-'))
-                    else:
-                        min_val, max_val = 0, 10  # Default fallback
-                except:
-                    min_val, max_val = 0, 10  # Default fallback
-                
+                min_val, max_val = parse_range(measure['range'])
+
                 measures += f"\n### {measure['title']}\n"
                 measures += f"**Description:** {measure['description']}\n"
                 measures += f"**Range:** {measure['range']} (minimum: {min_val}, maximum: {max_val})\n"
@@ -389,7 +406,7 @@ def process_row(row_idx, df_row, steps, model_name, progress_callback=None):
 
     return row_scores, None, all_token_usage
 
-def evaluate(df, model_name, steps=None, progress_callback=None):
+def evaluate(df, model_name, steps=None, progress_callback=None, scale_answers=None):
     """
     Evaluates multiple rows in parallel using threading and combines the results into a DataFrame.
 
@@ -398,6 +415,8 @@ def evaluate(df, model_name, steps=None, progress_callback=None):
         model_name (str): LLM model identifier (e.g. "gemini-2.0-flash")
         steps (list): List of step dictionaries containing 'label', 'instructions', and 'measures' keys
         progress_callback (callable, optional): Called after each row completes for progress tracking
+        scale_answers (list, optional): Per-row answers to the measure nodes,
+            in the same order as `df`, as returned by `baseline_prompt`.
 
     Returns:
         tuple: Contains:
@@ -411,7 +430,19 @@ def evaluate(df, model_name, steps=None, progress_callback=None):
         for step_idx, step in enumerate(steps):
             step_label = step.get('label', f'Step_{step_idx + 1}')
             measures = step.get('measures', [])
-            
+
+            # A scale reports one column per item, each answered by the persona.
+            if is_measure_step(step):
+                measure = measures[0] if measures else {}
+                for item in measure_items(step):
+                    all_metrics_to_evaluate.append({
+                        'name': f"{step_label}_{item}",
+                        'description': item,
+                        'range': measure.get('range', '1-5'),
+                        'desiredValues': measure.get('desiredValues', [])
+                    })
+                continue
+
             for measure_idx, measure in enumerate(measures):
                 measure_title = measure.get('title', '')
                 
@@ -443,19 +474,24 @@ def evaluate(df, model_name, steps=None, progress_callback=None):
     # Process rows in parallel using ThreadPoolExecutor
     # progress_callback is called per column inside process_row for more frequent updates
     max_workers = 2
-    results_gemini = []
+    # Keyed by row, not by finishing order: a row's scores have to stay with
+    # the persona that produced them, and the threads finish out of order.
+    results_gemini = [None] * df.shape[0]
     results_gpt4 = []
     tokens_ls = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
-            executor.submit(process_row, idx, df.iloc[idx], steps, model_name, progress_callback): idx
+            executor.submit(
+                process_row, idx, df.iloc[idx], steps, model_name, progress_callback,
+                (scale_answers or [])[idx] if scale_answers and idx < len(scale_answers) else None
+            ): idx
             for idx in range(df.shape[0])
         }
 
         for future in concurrent.futures.as_completed(futures):
             try:
                 result = future.result()
-                results_gemini.append(result[0])
+                results_gemini[futures[future]] = result[0]
                 # Handle None GPT-4 results since evaluation is commented out
                 gpt4_result = result[1]
                 if gpt4_result is not None:
@@ -466,7 +502,8 @@ def evaluate(df, model_name, steps=None, progress_callback=None):
 
     # Convert results to DataFrames
 
-    results_df_gemini = pd.DataFrame(results_gemini)
+    # A row whose evaluation raised is left out rather than shifting the rest.
+    results_df_gemini = pd.DataFrame([row for row in results_gemini if row is not None])
     # Create empty DataFrame for GPT-4 since evaluation is commented out
 
     # Generate Excel report

@@ -20,10 +20,12 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { Button } from '@/components/ui/button'
-import { Plus, Maximize2, Minimize2, AlertTriangle, RotateCcw, X } from 'lucide-react'
+import { Plus, ChevronDown, Maximize2, Minimize2, AlertTriangle, RotateCcw, X, FileText, SlidersHorizontal } from 'lucide-react'
 
 import CustomNode from './react-flow/node'
+import MeasureNode from './react-flow/measure-node'
 import PersonaSplitEdge from './react-flow/edge'
+import type { Measure } from '../types/measure'
 import {
   analyzeSampleBalance,
   defaultProportions,
@@ -34,6 +36,7 @@ import {
 
 const nodeTypes = {
   custom: CustomNode as any,
+  measure: MeasureNode as any,
 }
 
 const edgeTypes = {
@@ -107,14 +110,6 @@ const rebalanceChildren = (nodes: Node[], edges: Edge[], parentIds: Array<string
   return applyRedistribution(unpinned, edges, pinnedProportions(unpinned));
 };
 
-interface Measure {
-  id: string;
-  title: string;
-  description: string;
-  range: string;
-  desiredValues: Array<{ value: number; label: string }>;
-}
-
 interface ReactFlowAppProps {
   onFlowDataChange?: (nodes: Node[], edges: Edge[]) => void;
   selectedColor?: string;
@@ -125,18 +120,21 @@ interface ReactFlowAppProps {
   readOnly?: boolean;
   /** Samples in the run - what the splits on the arrows are counted out of. */
   sampleSize?: number;
+  /** Open the shared "add measure" form on behalf of a measure node. */
+  onRequestAddMeasure?: (nodeId: string) => void;
 }
 
 export interface ReactFlowRef {
   clearFlow: () => void;
   setNodesAndEdges: (newNodes: Node[], newEdges: Edge[]) => void;
+  selectMeasureForNode: (nodeId: string, measureId: string) => void;
   undo: () => void;
   redo: () => void;
   canUndo: () => boolean;
   canRedo: () => boolean;
 }
 
-const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlowDataChange, selectedColor = '#3b82f6', colorArmed = false, onColorApplied, measures = [], loadingMeasures = false, readOnly = false, sampleSize = 10 }, ref) => {
+const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlowDataChange, selectedColor = '#3b82f6', colorArmed = false, onColorApplied, measures = [], loadingMeasures = false, readOnly = false, sampleSize = 10, onRequestAddMeasure }, ref) => {
   const personaTotal = Math.max(0, Math.round(sampleSize))
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
@@ -150,6 +148,9 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
   const [isFullscreen, setIsFullscreen] = useState(false)
   // The prompt shown when a level of the flow doesn't use the whole sample.
   const [showSampleAlert, setShowSampleAlert] = useState(false)
+  // The "+ Add" menu: step or measure.
+  const [showAddMenu, setShowAddMenu] = useState(false)
+  const addMenuRef = useRef<HTMLDivElement | null>(null)
   const [sampleAlertDismissed, setSampleAlertDismissed] = useState(false)
   const { setViewport } = useReactFlow()
 
@@ -166,6 +167,25 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
   useEffect(() => {
     historyIndexRef.current = historyIndex
   }, [historyIndex])
+
+  // Clicking anywhere else puts the add menu away.
+  useEffect(() => {
+    if (!showAddMenu) return
+
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as globalThis.Node
+      if (addMenuRef.current && !addMenuRef.current.contains(target)) {
+        setShowAddMenu(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside, true)
+    document.addEventListener('touchstart', handleClickOutside, true)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside, true)
+      document.removeEventListener('touchstart', handleClickOutside, true)
+    }
+  }, [showAddMenu])
 
   
 
@@ -332,6 +352,31 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
   }, [history.length])
 
   // Expose clear function, setNodesAndEdges, and undo/redo to parent component
+  /**
+   * Point a measure node at a measure - the one it puts to the persona.
+   *
+   * A node with no name of its own takes the measure's, so it always has one
+   * to be known by in the results. Renaming it afterwards is what tells two
+   * nodes carrying the same measure apart.
+   */
+  const handleMeasureNodeSelect = useCallback((nodeId: string, measureId: string | null) => {
+    setNodes((nds: Node[]) =>
+      nds.map((node: Node) => {
+        if (node.id !== nodeId) return node
+        const named = ((node.data?.title as string) || '').trim()
+        const picked = measures.find((measure: Measure) => measure.id === measureId)
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            measureId,
+            title: named || picked?.title || '',
+          },
+        } as Node
+      })
+    )
+  }, [measures, setNodes])
+
   useImperativeHandle(ref, () => ({
     clearFlow: () => {
       setNodes([])
@@ -363,11 +408,16 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
         }
       }, 50)
     },
+    // Used after the shared form saves a new measure, so the node that asked
+    // for it is already pointing at it when the form closes.
+    selectMeasureForNode: (nodeId: string, measureId: string) => {
+      handleMeasureNodeSelect(nodeId, measureId)
+    },
     undo,
     redo,
     canUndo,
     canRedo
-  }), [setNodes, setEdges, setViewport, undo, redo, canUndo, canRedo, cloneState])
+  }), [setNodes, setEdges, setViewport, undo, redo, canUndo, canRedo, cloneState, handleMeasureNodeSelect])
 
   // Save flow state to localStorage
   const saveFlowToStorage = useCallback(() => {
@@ -641,7 +691,7 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
     return `${maxNumber + 1}`
   }, [])
 
-  const handleAddNode = useCallback(() => {
+  const addNodeOfKind = useCallback((kind: 'custom' | 'measure') => {
     if (!reactFlowInstance.current || !containerRef.current) return
     
     const newNodeId = getNextNodeId(nodes)
@@ -668,36 +718,54 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
     const snappedX = Math.round(centerPosition.x / gridSize) * gridSize
     const snappedY = Math.round(centerPosition.y / gridSize) * gridSize
     
+    // A measure node carries a measure instead of instructions, so it needs
+    // less room; everything else about placing it is the same.
+    const height = kind === 'measure' ? 520 : 600
+
     const newNode: Node = {
       id: newNodeId,
-      type: 'custom',
+      type: kind,
       position: {
         x: snappedX,
         y: snappedY,
       },
       width: 400,
-      height: 600, // Set explicit initial height to prevent auto-sizing loop
-      data: {
-        title: '',
-        description: '',
-        sliderValue: 50,
-        sampleProportion: 100,
-        numDescriptionsChars: 500,
-        selectedMeasures: [],
-        measures: measures,
-        loadingMeasures: loadingMeasures,
-        width: 400,
-        height: 600,
-        onDelete: handleNodeDelete,
-        onTitleChange: handleTitleChange,
-        onDescriptionChange: handleDescriptionChange,
-        onSliderChange: handleSliderChange,
-        onMeasuresChange: handleMeasuresChange,
-        onResize: handleResize,
-      },
+      height, // Set explicit initial height to prevent auto-sizing loop
+      data: kind === 'measure'
+        ? {
+            title: '',
+            measureId: null,
+            sampleProportion: 100,
+            measures: measures,
+            loadingMeasures: loadingMeasures,
+            width: 400,
+            height,
+            onDelete: handleNodeDelete,
+            onTitleChange: handleTitleChange,
+            onMeasureNodeSelect: handleMeasureNodeSelect,
+            onResize: handleResize,
+          }
+        : {
+            title: '',
+            description: '',
+            sliderValue: 50,
+            sampleProportion: 100,
+            numDescriptionsChars: 500,
+            selectedMeasures: [],
+            measures: measures,
+            loadingMeasures: loadingMeasures,
+            width: 400,
+            height,
+            onDelete: handleNodeDelete,
+            onTitleChange: handleTitleChange,
+            onDescriptionChange: handleDescriptionChange,
+            onSliderChange: handleSliderChange,
+            onMeasuresChange: handleMeasuresChange,
+            onResize: handleResize,
+          },
     }
     setNodes((nds: Node[]) => [...nds, newNode])
-  }, [setNodes, handleNodeDelete, handleTitleChange, handleDescriptionChange, handleSliderChange, handleMeasuresChange, handleResize, nodes, getNextNodeId, measures, loadingMeasures])
+  }, [setNodes, handleNodeDelete, handleTitleChange, handleDescriptionChange, handleSliderChange, handleMeasuresChange, handleMeasureNodeSelect, handleResize, nodes, getNextNodeId, measures, loadingMeasures])
 
   // Handle fullscreen toggle
   const toggleFullscreen = useCallback(() => {
@@ -896,14 +964,19 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
     return undefined
   }
 
+  // A scale-only measure is never rated on a step, so it stays out of the
+  // step nodes' measure lists.
+  const ratingMeasures = measures.filter((measure: Measure) => !measure.scaleOnly)
+
   const nodesWithHandlers = nodes.map((node: Node) => ({
     ...node,
     width: (typeof node.width === 'number' ? node.width : (typeof node.data?.width === 'number' ? node.data.width : 400)) as number,
     height: (typeof node.height === 'number' ? node.height : (typeof node.data?.height === 'number' ? node.data.height : 600)) as number, // Default height to prevent auto-sizing
     data: {
       ...node.data,
-      measures: measures,
+      measures: node.type === 'measure' ? measures : ratingMeasures,
       loadingMeasures: loadingMeasures,
+      readOnly,
       selectedMeasures: node.data?.selectedMeasures || [],
       sampleProportion: getSampleProportion(node),
       // The highlighted step is always marked, even when the gap it opened up
@@ -925,6 +998,8 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
       onDescriptionBlur: handleDescriptionBlur,
       onSliderChange: handleSliderChange,
       onMeasuresChange: handleMeasuresChange,
+      onMeasureNodeSelect: handleMeasureNodeSelect,
+      onRequestAddMeasure,
       onResize: handleResize,
     },
     style: {
@@ -948,16 +1023,51 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
 
   return (
     <div ref={containerRef} className="w-full h-full relative bg-gray-50">
-      {/* Add Node Button */}
+      {/* Add a step, or a measure to put to the persona */}
       {!readOnly && (
-      <div className="absolute top-4 left-4 z-10">
-        <Button 
-          onClick={handleAddNode} 
+      <div className="absolute top-4 left-4 z-10" ref={addMenuRef}>
+        <Button
+          onClick={() => setShowAddMenu((open) => !open)}
+          aria-haspopup="menu"
+          aria-expanded={showAddMenu}
           className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
         >
           <Plus className="w-4 h-4" />
-          Add Node
+          Add
+          <ChevronDown className={`w-4 h-4 transition-transform ${showAddMenu ? 'rotate-180' : ''}`} />
         </Button>
+
+        {showAddMenu && (
+          <div
+            role="menu"
+            className="absolute left-0 mt-1 w-56 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg"
+          >
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => { setShowAddMenu(false); addNodeOfKind('custom') }}
+              className="flex w-full items-start gap-3 px-3 py-2.5 text-left transition-colors hover:bg-gray-50"
+            >
+              <FileText className="mt-0.5 h-4 w-4 flex-shrink-0 text-gray-500" />
+              <span>
+                <span className="block text-sm font-medium text-gray-900">Step</span>
+                <span className="block text-xs text-gray-500">Something the persona does</span>
+              </span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => { setShowAddMenu(false); addNodeOfKind('measure') }}
+              className="flex w-full items-start gap-3 px-3 py-2.5 text-left transition-colors hover:bg-gray-50"
+            >
+              <SlidersHorizontal className="mt-0.5 h-4 w-4 flex-shrink-0 text-gray-500" />
+              <span>
+                <span className="block text-sm font-medium text-gray-900">Measure</span>
+                <span className="block text-xs text-gray-500">A scale the persona answers</span>
+              </span>
+            </button>
+          </div>
+        )}
       </div>
       )}
 
@@ -1081,7 +1191,7 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
 
 ReactFlowComponent.displayName = 'ReactFlowComponent'
 
-const ReactFlowApp = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlowDataChange, selectedColor, colorArmed, onColorApplied, measures, loadingMeasures, readOnly, sampleSize }, ref) => {
+const ReactFlowApp = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlowDataChange, selectedColor, colorArmed, onColorApplied, measures, loadingMeasures, readOnly, sampleSize, onRequestAddMeasure }, ref) => {
   return (
     <ReactFlowProvider>
       <ReactFlowComponent 
@@ -1094,6 +1204,7 @@ const ReactFlowApp = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlowDataCh
         loadingMeasures={loadingMeasures}
         readOnly={readOnly}
         sampleSize={sampleSize}
+        onRequestAddMeasure={onRequestAddMeasure}
       />
     </ReactFlowProvider>
   )

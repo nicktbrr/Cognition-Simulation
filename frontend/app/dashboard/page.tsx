@@ -6,6 +6,7 @@ import { Play, Trash2, Folder, FolderPlus, FileUp } from "lucide-react";
 import { createPortal } from "react-dom";
 import { supabase } from "../utils/supabase";
 import { flowGraphToSteps } from "../utils/stepGraph";
+import { mapMeasureRow } from "../utils/measures";
 import { useAuth } from "../hooks/useAuth";
 import { useExperimentsProgress } from "../hooks/useExperimentsProgress";
 import AuthLoading from "../components/auth-loading";
@@ -441,13 +442,7 @@ export default function DashboardHistory() {
               throw measureError || new Error("Measure could not be created");
             }
 
-            measuresByParsedId.set(measure.id, {
-              id: measureRow.id,
-              title: measureRow.title,
-              description: measureRow.definition,
-              range: `${measureRow.min} - ${measureRow.max}`,
-              desiredValues: measureRow.desired_values || [],
-            });
+            measuresByParsedId.set(measure.id, mapMeasureRow(measureRow));
           }
 
           // 3. Draft simulation referencing the rows created above

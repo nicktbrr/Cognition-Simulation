@@ -485,7 +485,32 @@ def get_baseline_subsequent_column_user_prompt(
     Returns:
         str: Formatted user prompt for a subsequent step
     """
-    history_block = (
+    return (
+        preamble
+        + get_path_history_block(path_history)
+        + _get_baseline_current_step_block(col_name, instructions, has_history=True)
+    )
+
+
+def get_path_history_block(path_history: list) -> str:
+    """
+    Replay everything this persona has already been through, in order.
+
+    Shared by the step prompt and the scale prompt, so a scale answered part
+    way through a study is conditioned on the same history a step would be -
+    and the answers it gives are carried into the steps that follow it.
+
+    Args:
+        path_history: Steps and scales this persona has already been through.
+            Each entry is a dict with 'label', 'instructions' and 'response'.
+
+    Returns:
+        str: The history block, or an empty string when there is no history.
+    """
+    if not path_history:
+        return ""
+
+    block = (
         "\nSTEPS YOU HAVE ALREADY COMPLETED\n"
         "These are the earlier steps of this study, in the order you did them, "
         "with the answers you gave. They are your own answers - treat them as "
@@ -493,17 +518,121 @@ def get_baseline_subsequent_column_user_prompt(
     )
 
     for position, entry in enumerate(path_history, start=1):
-        history_block += (
+        block += (
             f"\nStep {position} - {str.upper(entry['label'])}\n"
             f"Instructions you were given: {entry['instructions']}\n"
             f"Your answer: {entry['response']}\n"
         )
 
-    return (
-        preamble
-        + history_block
-        + _get_baseline_current_step_block(col_name, instructions, has_history=True)
+    return block
+
+
+def parse_range(range_str, default=(0.0, 10.0)):
+    """
+    Read "min - max" off a measure, falling back when it can't be parsed.
+
+    Measures written by hand, or imported from a paper, don't always carry a
+    well-formed range; the evaluator has always defaulted rather than failed,
+    and the scale prompt does the same.
+
+    Args:
+        range_str: The measure's range string, e.g. "1 - 7"
+        default: What to use when the string can't be read
+
+    Returns:
+        tuple: (min_val, max_val) as floats
+    """
+    try:
+        text = str(range_str)
+        if ' - ' in text:
+            min_val, max_val = map(float, text.split(' - '))
+        elif '-' in text:
+            min_val, max_val = map(float, text.split('-'))
+        else:
+            return default
+        return min_val, max_val
+    except Exception:
+        return default
+
+
+def format_anchor_points(measure) -> str:
+    """
+    The answers a persona can choose between, one per line.
+
+    Args:
+        measure: A measure dict with 'desiredValues'
+
+    Returns:
+        str: The anchor list, or an empty string when the measure has none.
+    """
+    anchors = (measure or {}).get('desiredValues') or []
+    if not anchors:
+        return ""
+
+    lines = ""
+    for anchor in anchors:
+        lines += f"  - {anchor.get('value')} = {anchor.get('label')}\n"
+    return lines
+
+
+# System prompt for a measure node - a scale put to the persona during the run.
+# Unlike BASELINE_SYSTEM_PROMPT this asks for one value per item rather than a
+# paragraph of prose, so the two cannot share a system prompt.
+SCALE_SYSTEM_PROMPT = """You are role-playing a single human participant in a psychology study on cognitive processes. You will be given a persona, the study introduction, every step of the study you have already completed together with the answers you gave, and a questionnaire to fill in now.
+
+How to answer:
+- Stay in character as the persona for the whole study. Answer as that person would - with their own views, experience and blind spots - not as a neutral or expert assistant.
+- Your answers are one continuous run through the study, so answer consistently with what you have already said.
+- Answer EVERY item you are given, once each, in the order they are listed.
+- For each item choose exactly one of the response options you are given, and report its number. Never invent a value that is not among the options, and never give a range or a half step.
+- Return the item exactly as it was written to you, alongside the value you chose.
+- Do not explain, justify or comment on your answers, and do not add an overall or average score."""
+
+
+def get_scale_user_prompt(
+    preamble: str,
+    path_history: list,
+    measure_title: str,
+    instructions: str,
+    citation: str,
+    anchor_block: str,
+    items: list
+) -> str:
+    """
+    Generate the user prompt that puts a scale to a persona.
+
+    Args:
+        preamble: The persona/study block from get_baseline_persona_preamble
+        path_history: Steps this persona has already been through, in order
+        measure_title: The name of the measure being administered
+        instructions: How the measure should be applied
+        citation: Where the measure comes from, if recorded
+        anchor_block: The response options, from format_anchor_points
+        items: The questions to answer, as strings
+
+    Returns:
+        str: Formatted user prompt for a scale
+    """
+    block = f"\nQUESTIONNAIRE: {str.upper(measure_title)}\n"
+    if instructions:
+        block += f"{instructions}\n"
+    if citation:
+        block += f"(Adapted from {citation})\n"
+
+    block += "\nAnswer each item using one of these response options:\n"
+    block += anchor_block if anchor_block else "  - any whole number on the scale\n"
+
+    block += "\nItems:\n"
+    for position, item in enumerate(items, start=1):
+        block += f"{position}. {item}\n"
+
+    block += (
+        "\nAnswer every item now, as your persona. For each one give the item "
+        "exactly as written above and the number of the response option you "
+        "chose. Do not add anything else."
     )
+
+    return preamble + get_path_history_block(path_history) + block
 
 
 # User prompt for persona generation (from utils/evaluate.py - generate_persona_from_attributes)

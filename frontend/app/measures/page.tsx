@@ -16,6 +16,8 @@ import SubHeader from "../components/layout/SubHeader";
 import AddMeasureModal from "../components/AddMeasureModal";
 import Spinner from "../components/ui/spinner";
 import SortableTableHeader from "../components/ui/SortableTableHeader";
+import type { DesiredValue, Measure } from "../types/measure";
+import { createMeasure, mapMeasureRow, updateMeasure } from "../utils/measures";
 
 interface UserData {
   user_email: string;
@@ -23,26 +25,11 @@ interface UserData {
   pic_url: string;
 }
 
-interface DesiredValue {
-  value: number;
-  label: string;
-}
-
 interface MeasureFolder {
   folder_id: string;
   folder_name: string;
   created_at: string;
   measure_count?: number;
-}
-
-interface Measure {
-  id: string;
-  title: string;
-  description: string;
-  range: string;
-  desiredValues: DesiredValue[];
-  folder_id?: string | null;
-  isLocked?: boolean; // Whether the measure has been used in a simulation
 }
 
 
@@ -522,15 +509,12 @@ export default function MeasuresPage() {
         });
       }
 
-      const formattedMeasures: Measure[] = data.map((measure: any) => ({
-        id: measure.id,
-        title: measure.title,
-        description: measure.definition,
-        range: `${measure.min} - ${measure.max}`,
-        desiredValues: measure.desired_values || [],
-        folder_id: measure.folder_id || null,
-        isLocked: usedMeasureIds.has(measure.id)
-      }));
+      const formattedMeasures: Measure[] = data.map((measure: any) =>
+        mapMeasureRow(measure, {
+          folder_id: measure.folder_id || null,
+          isLocked: usedMeasureIds.has(measure.id)
+        })
+      );
 
       setMeasures(formattedMeasures);
     } catch (error) {
@@ -554,41 +538,14 @@ export default function MeasuresPage() {
     }
 
     try {
-      // Parse the range to get min and max values
-      const [min, max] = newMeasure.range.split(' - ').map(val => parseFloat(val.trim()));
+      const measure = await createMeasure(user.user_id, newMeasure);
+      if (!measure) return;
 
-      const { data, error } = await supabase
-        .from("measures")
-        .insert({
-          user_id: user.user_id,
-          title: newMeasure.title,
-          definition: newMeasure.description,
-          min: min,
-          max: max,
-          desired_values: newMeasure.desiredValues
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.error("Error creating measure:", error);
-        return;
-      }
-
-      // Add the new measure to the local state (new measures are never locked)
-      const measure: Measure = {
-        id: data.id,
-        title: data.title,
-        description: data.definition,
-        range: `${data.min} - ${data.max}`,
-        desiredValues: data.desired_values || [],
-        isLocked: false
-      };
-      
       setMeasures([measure, ...measures]);
       setEditingMeasure(null);
     } catch (error) {
       console.error("Error in handleAddMeasure:", error);
+      alert(`Could not save the measure.\n\n${(error as Error).message}`);
     }
   };
 
@@ -605,40 +562,14 @@ export default function MeasuresPage() {
     }
 
     try {
-      // Parse the range to get min and max values
-      const [min, max] = updatedMeasure.range.split(' - ').map(val => parseFloat(val.trim()));
+      const updated = await updateMeasure(id, updatedMeasure);
+      if (!updated) return;
 
-      const { data, error } = await supabase
-        .from("measures")
-        .update({
-          title: updatedMeasure.title,
-          definition: updatedMeasure.description,
-          min: min,
-          max: max,
-          desired_values: updatedMeasure.desiredValues
-        })
-        .eq("id", id)
-        .select()
-        .single();
-
-      if (error) {
-        console.error("Error updating measure:", error);
-        return;
-      }
-
-      // Update the measure in local state
-      const updated: Measure = {
-        id: data.id,
-        title: data.title,
-        description: data.definition,
-        range: `${data.min} - ${data.max}`,
-        desiredValues: data.desired_values || []
-      };
-      
-      setMeasures(measures.map(m => m.id === id ? updated : m));
+      setMeasures(measures.map(m => (m.id === id ? { ...updated, folder_id: m.folder_id, isLocked: m.isLocked } : m)));
       setEditingMeasure(null);
     } catch (error) {
       console.error("Error in handleUpdateMeasure:", error);
+      alert(`Could not save the measure.\n\n${(error as Error).message}`);
     }
   };
 
@@ -1004,7 +935,7 @@ export default function MeasuresPage() {
                   <TableRow>
                     <TableHead className="w-12"></TableHead>
                     <SortableTableHeader label="Title" sortKey="name" onSort={handleTableSort} currentSort={sortConfig} />
-                    <SortableTableHeader label="Definition" sortKey="description" onSort={handleTableSort} currentSort={sortConfig} />
+                    <SortableTableHeader label="Instructions" sortKey="description" onSort={handleTableSort} currentSort={sortConfig} />
                     <SortableTableHeader label="Range" sortKey="range" onSort={handleTableSort} currentSort={sortConfig} />
                     <SortableTableHeader label="Status" sortKey="status" onSort={handleTableSort} currentSort={sortConfig} />
                   </TableRow>
@@ -1225,18 +1156,38 @@ export default function MeasuresPage() {
                             {expandedRows.has(measure.id) && (
                               <TableRow>
                                 <TableCell colSpan={5} className="bg-muted/30 p-4">
-                                  <div className="space-y-2" style={{marginLeft: '85px'}}>
-                                    <h4 className="font-medium text-sm text-muted-foreground mb-3">Anchor Points:</h4>
-                                    <div className="space-y-1">
-                                      {measure.desiredValues.map((desired, index) => (
-                                        <div key={index} className="flex items-center text-sm">
-                                          <span className="bg-blue-400 text-white text-xs px-1.5 py-0.5 rounded-full min-w-[20px] text-center mr-3">
-                                            {desired.value}
-                                          </span>
-                                          <span>{desired.label}</span>
-                                        </div>
-                                      ))}
+                                  <div className="space-y-4" style={{marginLeft: '85px'}}>
+                                    {measure.citation && (
+                                      <div>
+                                        <h4 className="font-medium text-sm text-muted-foreground mb-1">Citation:</h4>
+                                        <p className="text-sm italic">{measure.citation}</p>
+                                      </div>
+                                    )}
+                                    <div>
+                                      <h4 className="font-medium text-sm text-muted-foreground mb-3">Anchor Points:</h4>
+                                      <div className="space-y-1">
+                                        {measure.desiredValues.map((desired, index) => (
+                                          <div key={index} className="flex items-center text-sm">
+                                            <span className="bg-blue-400 text-white text-xs px-1.5 py-0.5 rounded-full min-w-[20px] text-center mr-3">
+                                              {desired.value}
+                                            </span>
+                                            <span>{desired.label}</span>
+                                          </div>
+                                        ))}
+                                      </div>
                                     </div>
+                                    {(measure.items?.length ?? 0) > 0 && (
+                                      <div>
+                                        <h4 className="font-medium text-sm text-muted-foreground mb-1">
+                                          Items ({measure.items!.length}):
+                                        </h4>
+                                        <ol className="list-decimal list-inside space-y-1 text-sm">
+                                          {measure.items!.map((item) => (
+                                            <li key={item.id}>{item.text}</li>
+                                          ))}
+                                        </ol>
+                                      </div>
+                                    )}
                                   </div>
                                 </TableCell>
                               </TableRow>
@@ -1380,18 +1331,38 @@ export default function MeasuresPage() {
                     {expandedRows.has(measure.id) && (
                       <TableRow>
                         <TableCell colSpan={5} className="bg-muted/30 p-4">
-                          <div className="space-y-2" style={{marginLeft: '65px'}}>
-                            <h4 className="font-medium text-sm text-muted-foreground mb-3">Anchor Points:</h4>
-                            <div className="space-y-1">
-                              {measure.desiredValues.map((desired, index) => (
-                                <div key={index} className="flex items-center text-sm">
-                                  <span className="bg-blue-400 text-white text-xs px-1.5 py-0.5 rounded-full min-w-[20px] text-center mr-3">
-                                    {desired.value}
-                                  </span>
-                                  <span>{desired.label}</span>
-                                </div>
-                              ))}
+                          <div className="space-y-4" style={{marginLeft: '65px'}}>
+                            {measure.citation && (
+                              <div>
+                                <h4 className="font-medium text-sm text-muted-foreground mb-1">Citation:</h4>
+                                <p className="text-sm italic">{measure.citation}</p>
+                              </div>
+                            )}
+                            <div>
+                              <h4 className="font-medium text-sm text-muted-foreground mb-3">Anchor Points:</h4>
+                              <div className="space-y-1">
+                                {measure.desiredValues.map((desired, index) => (
+                                  <div key={index} className="flex items-center text-sm">
+                                    <span className="bg-blue-400 text-white text-xs px-1.5 py-0.5 rounded-full min-w-[20px] text-center mr-3">
+                                      {desired.value}
+                                    </span>
+                                    <span>{desired.label}</span>
+                                  </div>
+                                ))}
+                              </div>
                             </div>
+                            {(measure.items?.length ?? 0) > 0 && (
+                              <div>
+                                <h4 className="font-medium text-sm text-muted-foreground mb-1">
+                                  Items ({measure.items!.length}):
+                                </h4>
+                                <ol className="list-decimal list-inside space-y-1 text-sm">
+                                  {measure.items!.map((item) => (
+                                    <li key={item.id}>{item.text}</li>
+                                  ))}
+                                </ol>
+                              </div>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>

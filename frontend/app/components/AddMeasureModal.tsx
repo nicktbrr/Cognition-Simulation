@@ -7,69 +7,44 @@ import { Input } from "../../components/ui/input";
 import { Textarea } from "../../components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../../components/ui/tooltip";
 import { Plus, X, HelpCircle } from "lucide-react";
+import type { Measure, MeasureDraft } from "../types/measure";
+import { deriveRange, newItemId } from "../utils/measures";
 
-interface DesiredValue {
+interface DesiredValueDraft {
   value: string;
   label: string;
+}
+
+interface ItemDraft {
+  id: string;
+  text: string;
 }
 
 interface AddMeasureModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAdd: (measure: {
-    title: string;
-    description: string;
-    range: string;
-    desiredValues: { value: number; label: string }[];
-  }) => void;
-  editingMeasure?: {
-    id: string;
-    title: string;
-    description: string;
-    range: string;
-    desiredValues: { value: number; label: string }[];
-  } | null;
-  onUpdate?: (id: string, measure: {
-    title: string;
-    description: string;
-    range: string;
-    desiredValues: { value: number; label: string }[];
-  }) => void;
+  onAdd: (measure: MeasureDraft) => void;
+  editingMeasure?: Measure | null;
+  onUpdate?: (id: string, measure: MeasureDraft) => void;
   checkNameExists?: (title: string, excludeId?: string) => boolean;
   readOnly?: boolean;
   onCopy?: () => void;
 }
 
+const emptyForm = { title: "", description: "", citation: "" };
+
 export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure, onUpdate, checkNameExists, readOnly = false, onCopy }: AddMeasureModalProps) {
-  const [formData, setFormData] = useState({
-    title: "",
-    description: "",
-    minValue: "",
-    maxValue: ""
-  });
-  const [desiredValues, setDesiredValues] = useState<DesiredValue[]>([]);
+  const [formData, setFormData] = useState(emptyForm);
+  const [desiredValues, setDesiredValues] = useState<DesiredValueDraft[]>([]);
+  const [items, setItems] = useState<ItemDraft[]>([]);
+  const [scaleOnly, setScaleOnly] = useState(false);
   const [titleError, setTitleError] = useState<string>('');
-  const [anchorLimitError, setAnchorLimitError] = useState<string>('');
-  const [minMaxError, setMinMaxError] = useState<string>('');
+  const [anchorError, setAnchorError] = useState<string>('');
+  const [itemError, setItemError] = useState<string>('');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showUnsavedConfirm, setShowUnsavedConfirm] = useState(false);
 
-  const wholeNumberOnlyRegex = /^-?\d*$/;
-  const handleMinMaxChange = (
-    field: 'minValue' | 'maxValue',
-    raw: string
-  ) => {
-    if (wholeNumberOnlyRegex.test(raw)) {
-      setFormData((prev) => ({ ...prev, [field]: raw }));
-      setMinMaxError('');
-      if (!readOnly) setHasUnsavedChanges(true);
-      return;
-    }
-    const validPart = (raw.match(/^-?\d*/) || [''])[0];
-    setFormData((prev) => ({ ...prev, [field]: validPart }));
-    setMinMaxError('Only whole numbers are allowed (no decimals or other characters).');
-    if (!readOnly) setHasUnsavedChanges(true);
-  };
+  const touch = () => { if (!readOnly) setHasUnsavedChanges(true); };
 
   // Populate form when editing measure changes
   useEffect(() => {
@@ -78,14 +53,10 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
       setShowUnsavedConfirm(false);
     }
     if (editingMeasure) {
-      const [min, max] = editingMeasure.range.split(' - ').map(val => val.trim());
-      const minNum = parseFloat(min);
-      const maxNum = parseFloat(max);
       setFormData({
         title: editingMeasure.title,
         description: editingMeasure.description,
-        minValue: Number.isNaN(minNum) ? min : String(Math.round(minNum)),
-        maxValue: Number.isNaN(maxNum) ? max : String(Math.round(maxNum))
+        citation: editingMeasure.citation || ""
       });
       setDesiredValues(
         editingMeasure.desiredValues.map(dv => ({
@@ -93,26 +64,26 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
           label: dv.label
         }))
       );
+      setItems((editingMeasure.items || []).map(item => ({ id: item.id, text: item.text })));
+      setScaleOnly(editingMeasure.scaleOnly === true);
     } else {
-      // Reset form when not editing
-      setFormData({
-        title: "",
-        description: "",
-        minValue: "",
-        maxValue: ""
-      });
+      // Reset form when not editing - every field, or the last measure's
+      // answers leak into a fresh one.
+      setFormData(emptyForm);
       setDesiredValues([]);
+      setItems([]);
+      setScaleOnly(false);
     }
     setTitleError(''); // Reset error when modal opens/changes
-    setAnchorLimitError('');
-    setMinMaxError('');
+    setAnchorError('');
+    setItemError('');
   }, [editingMeasure, isOpen]);
 
   // Handle title change with validation
   const handleTitleChange = (title: string) => {
     setFormData(prev => ({ ...prev, title }));
-    if (!readOnly) setHasUnsavedChanges(true);
-    
+    touch();
+
     // Check for duplicate title if the function is provided
     if (checkNameExists && title.trim()) {
       const excludeId = editingMeasure?.id;
@@ -126,71 +97,91 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
     }
   };
 
-  // Max anchor points = number of discrete values between min and max (inclusive)
-  const minNum = formData.minValue !== "" ? parseFloat(formData.minValue) : NaN;
-  const maxNum = formData.maxValue !== "" ? parseFloat(formData.maxValue) : NaN;
-  const maxAnchorPoints =
-    !Number.isNaN(minNum) && !Number.isNaN(maxNum) && maxNum >= minNum
-      ? Math.max(0, Math.floor(maxNum) - Math.ceil(minNum) + 1)
-      : null;
+  // The anchor points are the scale, so its range is simply their ends.
+  const filledAnchors = desiredValues
+    .filter(dv => dv.value.trim() && dv.label.trim())
+    .map(dv => ({ value: parseFloat(dv.value), label: dv.label }))
+    .filter(dv => Number.isFinite(dv.value));
+  const derived = filledAnchors.length >= 2 ? deriveRange(filledAnchors) : null;
 
   const addDesiredValue = () => {
-    const limit = maxAnchorPoints ?? Infinity;
-    if (desiredValues.length >= limit) return;
     setDesiredValues([...desiredValues, { value: "", label: "" }]);
-    if (!readOnly) setHasUnsavedChanges(true);
+    touch();
   };
 
   const removeDesiredValue = (index: number) => {
     setDesiredValues(desiredValues.filter((_, i) => i !== index));
-    if (!readOnly) setHasUnsavedChanges(true);
+    touch();
   };
 
   const updateDesiredValue = (index: number, field: 'value' | 'label', value: string) => {
-    const updated = desiredValues.map((item, i) => 
+    setDesiredValues(desiredValues.map((item, i) =>
       i === index ? { ...item, [field]: value } : item
-    );
-    setDesiredValues(updated);
-    if (!readOnly) setHasUnsavedChanges(true);
+    ));
+    touch();
+  };
+
+  const addItem = () => {
+    setItems([...items, { id: newItemId(), text: "" }]);
+    touch();
+  };
+
+  const removeItem = (index: number) => {
+    setItems(items.filter((_, i) => i !== index));
+    touch();
+  };
+
+  const updateItem = (index: number, text: string) => {
+    setItems(items.map((item, i) => (i === index ? { ...item, text } : item)));
+    touch();
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setAnchorLimitError('');
+    setAnchorError('');
+    setItemError('');
 
     // Basic validation
-    if (!formData.title.trim() || !formData.description.trim() || !formData.minValue || !formData.maxValue) {
+    if (!formData.title.trim() || !formData.description.trim()) {
       return;
     }
 
-    // Convert desired values to proper format
-    const processedDesiredValues = desiredValues
-      .filter(dv => dv.value.trim() && dv.label.trim())
-      .map(dv => ({ value: parseFloat(dv.value), label: dv.label }));
-
-    const minNum = parseFloat(formData.minValue);
-    const maxNum = parseFloat(formData.maxValue);
-    const submitMaxAnchors =
-      !Number.isNaN(minNum) && !Number.isNaN(maxNum) && maxNum >= minNum
-        ? Math.max(0, Math.floor(maxNum) - Math.ceil(minNum) + 1)
-        : null;
-    if (
-      submitMaxAnchors != null &&
-      processedDesiredValues.length > submitMaxAnchors
-    ) {
-      setAnchorLimitError(
-        `Anchor points cannot exceed ${submitMaxAnchors} (one per discrete value from ${Math.ceil(minNum)} to ${Math.floor(maxNum)}).`
-      );
+    // Two anchor points is the least that makes a scale - they are its ends.
+    if (filledAnchors.length < 2) {
+      setAnchorError('Add at least two anchor points - they set the range of the measure.');
       return;
     }
 
-    const minInt = Math.round(parseFloat(formData.minValue));
-    const maxInt = Math.round(parseFloat(formData.maxValue));
-    const measureData = {
+    const processedItems = items
+      .filter(item => item.text.trim())
+      .map(item => ({ id: item.id, text: item.text.trim() }));
+
+    // Two items with the same wording would share a results column.
+    const seen = new Set<string>();
+    const duplicate = processedItems.find(item => {
+      const key = item.text.toLowerCase();
+      if (seen.has(key)) return true;
+      seen.add(key);
+      return false;
+    });
+    if (duplicate) {
+      setItemError(`Two items have the same wording ("${duplicate.text}"). Each item needs its own.`);
+      return;
+    }
+
+    if (scaleOnly && processedItems.length === 0) {
+      setItemError('A scale needs at least one item - that is what the persona answers.');
+      return;
+    }
+
+    const measureData: MeasureDraft = {
       title: formData.title,
       description: formData.description,
-      range: `${minInt} - ${maxInt}`,
-      desiredValues: processedDesiredValues
+      range: deriveRange(filledAnchors).range,
+      desiredValues: filledAnchors,
+      citation: formData.citation.trim(),
+      items: processedItems,
+      scaleOnly
     };
 
     if (editingMeasure && onUpdate) {
@@ -202,16 +193,13 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
   };
 
   const handleClose = () => {
-    setFormData({
-      title: "",
-      description: "",
-      minValue: "",
-      maxValue: ""
-    });
+    setFormData(emptyForm);
     setDesiredValues([]);
+    setItems([]);
+    setScaleOnly(false);
     setTitleError('');
-    setAnchorLimitError('');
-    setMinMaxError('');
+    setAnchorError('');
+    setItemError('');
     setShowUnsavedConfirm(false);
     onClose();
   };
@@ -229,6 +217,7 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
   };
 
   const modalTitle = readOnly ? "View Measure" : (editingMeasure ? "Edit Measure" : "Add New Measure");
+  const inputClass = `w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-20 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-opacity-20 focus-visible:ring-offset-0 ${readOnly ? 'bg-gray-100 cursor-not-allowed' : ''}`;
 
   return (
     <>
@@ -253,7 +242,7 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
             <Button
               type="button"
               className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2"
-              disabled={!!titleError || !!minMaxError}
+              disabled={!!titleError}
               onClick={(e) => { e.preventDefault(); handleSubmit(e); }}
             >
               {editingMeasure ? "Update Measure" : "Add Measure"}
@@ -274,6 +263,7 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
               value={formData.title}
               onChange={(e) => handleTitleChange(e.target.value)}
               required
+              maxLength={80}
               readOnly={readOnly}
               className={`w-full border-2 rounded-lg px-4 py-3 focus:ring-2 focus:ring-opacity-20 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-opacity-20 focus-visible:ring-offset-0 ${readOnly ? 'bg-gray-100 cursor-not-allowed' : ''} ${
                 titleError
@@ -286,67 +276,36 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
             )}
           </div>
 
-          {/* Definition */}
+          {/* Citation - where the measure comes from */}
           <div>
             <label className="block text-sm font-semibold text-gray-900 mb-1">
-              Definition
+              Citation <span className="text-gray-500 font-normal">(optional)</span>
             </label>
-            <Textarea
-              placeholder="Describe what this measure tracks (max 200 characters)..."
-              value={formData.description}
-              onChange={(e) => { setFormData({...formData, description: e.target.value}); if (!readOnly) setHasUnsavedChanges(true); }}
-              maxLength={200}
-              rows={4}
-              required
+            <Input
+              placeholder="e.g., Amabile (1982), Consensual Assessment Technique"
+              value={formData.citation}
+              onChange={(e) => { setFormData({ ...formData, citation: e.target.value }); touch(); }}
               readOnly={readOnly}
-              className={`w-full border-2 border-gray-200 rounded-lg px-4 py-3 resize-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-20 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-opacity-20 focus-visible:ring-offset-0 ${readOnly ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+              className={inputClass}
             />
           </div>
 
-          {/* Min and Max Values in a row */}
-          <div className="grid grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-1">
-                Min Value
-              </label>
-              <Input
-                type="text"
-                inputMode="numeric"
-                placeholder="e.g., 0"
-                value={formData.minValue}
-                onChange={(e) => handleMinMaxChange('minValue', e.target.value)}
-                required
-                readOnly={readOnly}
-                className={`w-full border-2 rounded-lg px-4 py-3 focus:ring-2 focus:ring-opacity-20 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-opacity-20 focus-visible:ring-offset-0 ${readOnly ? 'bg-gray-100 cursor-not-allowed' : ''} ${
-                  minMaxError
-                    ? 'border-red-500 focus:border-red-500 focus:ring-red-500 focus-visible:ring-red-500'
-                    : 'border-gray-200 focus:border-blue-500 focus:ring-blue-500 focus-visible:ring-blue-500'
-                }`}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-1">
-                Max Value
-              </label>
-              <Input
-                type="text"
-                inputMode="numeric"
-                placeholder="e.g., 10"
-                value={formData.maxValue}
-                onChange={(e) => handleMinMaxChange('maxValue', e.target.value)}
-                required
-                readOnly={readOnly}
-                className={`w-full border-2 rounded-lg px-4 py-3 focus:ring-2 focus:ring-opacity-20 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-opacity-20 focus-visible:ring-offset-0 ${readOnly ? 'bg-gray-100 cursor-not-allowed' : ''} ${
-                  minMaxError
-                    ? 'border-red-500 focus:border-red-500 focus:ring-red-500 focus-visible:ring-red-500'
-                    : 'border-gray-200 focus:border-blue-500 focus:ring-blue-500 focus-visible:ring-blue-500'
-                }`}
-              />
-            </div>
+          {/* Instructions */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-900 mb-1">
+              Instructions
+            </label>
+            <Textarea
+              placeholder="How this measure should be applied (max 400 characters)..."
+              value={formData.description}
+              onChange={(e) => { setFormData({...formData, description: e.target.value}); touch(); }}
+              maxLength={400}
+              rows={4}
+              required
+              readOnly={readOnly}
+              className={`${inputClass} resize-none`}
+            />
           </div>
-          {minMaxError && (
-            <p className="text-sm text-red-600 -mt-4">{minMaxError}</p>
-          )}
 
           {/* Anchor Points */}
           <div>
@@ -354,9 +313,9 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
               <div className="flex items-center gap-2">
                 <label className="text-sm font-semibold text-gray-900">
                   Anchor Points
-                  {maxAnchorPoints != null && !readOnly && (
+                  {derived && (
                     <span className="text-gray-500 font-normal ml-1">
-                      (max {maxAnchorPoints})
+                      (range {derived.min} – {derived.max})
                     </span>
                   )}
                 </label>
@@ -367,7 +326,7 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
                       <HelpCircle className="h-4 w-4 text-gray-400 cursor-help" />
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>Labels for a specific value on a rating scale. Limited to one per discrete value between min and max.</p>
+                      <p className="max-w-xs">The answers on the scale, each with the value it scores. The lowest and highest set the measure&apos;s range.</p>
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
@@ -378,7 +337,6 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
                 type="button"
                 variant="ghost"
                 onClick={addDesiredValue}
-                disabled={maxAnchorPoints != null && desiredValues.length >= maxAnchorPoints}
                 className="text-sm font-medium flex items-center gap-1"
               >
                 <Plus className="h-4 w-4" />
@@ -386,9 +344,9 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
               </Button>
               )}
             </div>
-            
-            {anchorLimitError && (
-              <p className="text-sm text-red-600 mb-2">{anchorLimitError}</p>
+
+            {anchorError && (
+              <p className="text-sm text-red-600 mb-2">{anchorError}</p>
             )}
             {desiredValues.length > 0 && (
               <div className="space-y-3">
@@ -406,7 +364,7 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
                         value={desired.value}
                         onChange={(e) => updateDesiredValue(index, 'value', e.target.value)}
                         readOnly={readOnly}
-                        className={`w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-20 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-opacity-20 focus-visible:ring-offset-0 ${readOnly ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                        className={inputClass}
                       />
                     </div>
                     <div className="flex gap-2">
@@ -417,11 +375,11 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
                           </label>
                         )}
                         <Input
-                          placeholder="Label"
+                          placeholder="e.g., strongly agree"
                           value={desired.label}
                           onChange={(e) => updateDesiredValue(index, 'label', e.target.value)}
                           readOnly={readOnly}
-                          className={`w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-20 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-opacity-20 focus-visible:ring-offset-0 ${readOnly ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                          className={inputClass}
                         />
                       </div>
                       {!readOnly && (
@@ -440,6 +398,88 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
                 ))}
               </div>
             )}
+          </div>
+
+          {/* Items - the questions a persona answers when this is used as a scale */}
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-semibold text-gray-900">Items</label>
+                {!readOnly && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpCircle className="h-4 w-4 text-gray-400 cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="max-w-xs">The questions the persona answers on this scale, each on the anchor points above.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                )}
+              </div>
+              {!readOnly && (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={addItem}
+                className="text-sm font-medium flex items-center gap-1"
+              >
+                <Plus className="h-4 w-4" />
+                Add Item
+              </Button>
+              )}
+            </div>
+
+            {itemError && (
+              <p className="text-sm text-red-600 mb-2">{itemError}</p>
+            )}
+            {items.length > 0 && (
+              <div className="space-y-3">
+                {items.map((item, index) => (
+                  <div key={item.id} className="flex gap-2 items-start">
+                    <span className="mt-3 w-5 text-sm text-gray-500 flex-shrink-0">{index + 1}.</span>
+                    <Input
+                      placeholder="e.g., I believe in universal childcare"
+                      value={item.text}
+                      onChange={(e) => updateItem(index, e.target.value)}
+                      readOnly={readOnly}
+                      className={inputClass}
+                    />
+                    {!readOnly && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeItem(index)}
+                      className="h-10 w-10 p-0 flex-shrink-0"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* How the measure may be used */}
+          <div className="flex items-start gap-2">
+            <input
+              type="checkbox"
+              id="measure-scale-only"
+              checked={scaleOnly}
+              onChange={(e) => { setScaleOnly(e.target.checked); touch(); }}
+              disabled={readOnly}
+              className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:cursor-not-allowed"
+            />
+            <label htmlFor="measure-scale-only" className="text-sm text-gray-700">
+              <span className="font-semibold text-gray-900">Scale only</span>
+              <span className="block text-gray-500">
+                Placeholder: tick this if the measure can only be put to a persona as a scale.
+                Leave it clear to also allow it as a rating on a step.
+              </span>
+            </label>
           </div>
         </form>
       </div>

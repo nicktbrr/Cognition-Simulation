@@ -404,12 +404,33 @@ export function flowGraphToSteps(
 
   return orderedIds.map((nodeId) => {
     const node = nodes.find((candidate) => candidate.id === nodeId)!;
-    return {
+    const graph = {
       id: node.id,
       previous: parentsOf.get(node.id) || [],
       next: childrenOf.get(node.id) || [],
       sample_proportion:
         typeof node.data?.sampleProportion === 'number' ? node.data.sampleProportion : 100,
+    };
+
+    // A measure node puts its scale to the persona instead of running
+    // instructions, so it carries the one measure it administers. `kind` is
+    // what tells the backend apart - a step has none.
+    if (node.type === 'measure') {
+      const measureId = (node.data?.measureId as string) || null;
+      const measure = resolveMeasures(measureId ? [measureId] : [])[0];
+      return {
+        ...graph,
+        kind: 'measure',
+        measure_id: measureId,
+        label: node.data?.title || measure?.title || `Measure ${node.id}`,
+        instructions: measure?.description || '',
+        temperature: 0.5,
+        measures: measure ? [measure] : [],
+      };
+    }
+
+    return {
+      ...graph,
       label: node.data?.title || `Step ${node.id}`,
       instructions: node.data?.description || '',
       temperature: node.data?.sliderValue ? node.data.sliderValue / 100 : 0.5,

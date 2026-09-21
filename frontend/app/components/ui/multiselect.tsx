@@ -38,6 +38,9 @@ interface MultiselectProps {
   emptyLabel?: string
   loading?: boolean
   className?: string
+  /** Pick one option rather than several - the list closes on choosing. */
+  single?: boolean
+  disabled?: boolean
 }
 
 export default function Multiselect({
@@ -48,7 +51,9 @@ export default function Multiselect({
   searchPlaceholder = "Search measures...",
   emptyLabel = "No measures found",
   loading = false,
-  className = ""
+  className = "",
+  single = false,
+  disabled = false
 }: MultiselectProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -109,6 +114,14 @@ export default function Multiselect({
 
 
   const handleToggleOption = (optionId: string) => {
+    if (single) {
+      // One choice replaces the last, and picking one is the end of the job.
+      onSelectionChange(selectedValues.includes(optionId) ? [] : [optionId])
+      setIsOpen(false)
+      setSearchQuery('')
+      return
+    }
+
     const newSelection = selectedValues.includes(optionId)
       ? selectedValues.filter(id => id !== optionId)
       : [...selectedValues, optionId]
@@ -146,7 +159,7 @@ export default function Multiselect({
         onClick={() => setIsOpen(!isOpen)}
         onBlur={handleButtonBlur}
         className="w-full justify-between text-left h-auto min-h-[40px] p-2"
-        disabled={loading}
+        disabled={loading || disabled}
       >
         <div className="flex flex-wrap gap-1 flex-1 max-h-20 overflow-y-scroll">
           {selectedOptions.length === 0 ? (
@@ -238,7 +251,7 @@ export default function Multiselect({
                       {isSelected ? (
                         <Check className="w-4 h-4 text-blue-600" />
                       ) : (
-                        <div className="w-4 h-4 border border-gray-300 rounded" />
+                        <div className={`w-4 h-4 border border-gray-300 ${single ? 'rounded-full' : 'rounded'}`} />
                       )}
                     </div>
                     <div className="flex-1 min-w-0">

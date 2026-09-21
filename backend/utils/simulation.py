@@ -13,15 +13,86 @@ import random
 
 from langchain_core.messages import SystemMessage, HumanMessage
 
-from .llm import invoke_structured, BaseResponse
-from .graph import assign_persona_paths
+from .llm import invoke_structured, BaseResponse, EvaluationMetrics
+from .graph import assign_persona_paths, is_measure_step, measure_items
 from .personas import personas
 from .prompts import (
     BASELINE_SYSTEM_PROMPT,
+    SCALE_SYSTEM_PROMPT,
+    format_anchor_points,
     get_baseline_persona_preamble,
     get_baseline_first_column_user_prompt,
-    get_baseline_subsequent_column_user_prompt
+    get_baseline_subsequent_column_user_prompt,
+    get_scale_user_prompt
 )
+
+
+def _snap_to_anchor(raw, legal_values):
+    """
+    Pull an answer onto one of the scale's anchor points.
+
+    The model is asked for one of the values it was given, but nothing stops
+    it returning 3.5 or a string; the nearest legal answer is the honest
+    reading of what it meant.
+    """
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return None
+    if not legal_values:
+        return value
+    return min(legal_values, key=lambda option: abs(option - value))
+
+
+def _match_scale_answers(items, anchors, parsed):
+    """
+    Line a scale's answers up with its items, one value each.
+
+    The model can answer out of order, skip an item or repeat one, so answers
+    are matched on the item text first and fall back to position. An item with
+    no usable answer comes back as None rather than borrowing its neighbour's.
+
+    Returns:
+        list: (item_text, value, anchor_label) per item, in the order asked.
+    """
+    legal_values = []
+    label_of = {}
+    for anchor in anchors or []:
+        try:
+            value = float(anchor.get('value'))
+        except (TypeError, ValueError):
+            continue
+        legal_values.append(value)
+        label_of[value] = str(anchor.get('label') or '')
+
+    metrics = list(getattr(parsed, 'metric', None) or []) if parsed else []
+    scores = list(getattr(parsed, 'score', None) or []) if parsed else []
+
+    by_text = {}
+    for idx, name in enumerate(metrics):
+        if idx < len(scores):
+            by_text.setdefault(str(name).strip().lower(), scores[idx])
+
+    answers = []
+    for idx, item in enumerate(items):
+        raw = by_text.get(item.strip().lower())
+        if raw is None and idx < len(scores):
+            raw = scores[idx]
+        value = _snap_to_anchor(raw, legal_values)
+        answers.append((item, value, label_of.get(value, '') if value is not None else ''))
+    return answers
+
+
+def _format_scale_summary(answers):
+    """The persona's answers as one readable line, for the Responses sheet."""
+    parts = []
+    for item, value, label in answers:
+        if value is None:
+            parts.append(f"{item}: no answer")
+            continue
+        shown = int(value) if float(value).is_integer() else value
+        parts.append(f"{item}: {shown}" + (f" ({label})" if label else ""))
+    return "; ".join(parts)
 
 
 def resolve_temperature(value, default=0.5):
@@ -131,6 +202,11 @@ def process_row_with_chat(row_idx, df, prompt, model_name, system_prompt, person
         'total_tokens': 0
     }
 
+    # Answers to the scales on this path, keyed "{label}_{item}". Carried out
+    # of here on a non-column key so the DataFrame still has exactly one column
+    # per step.
+    scale_answers = {}
+
     # Walk this persona's own path through the graph
     for step_id in path_step_ids:
         matching_step = steps_by_id.get(step_id)
@@ -140,6 +216,51 @@ def process_row_with_chat(row_idx, df, prompt, model_name, system_prompt, person
         col_name = matching_step['label']
         instructions = matching_step['instructions']
         temperature = resolve_temperature(matching_step.get('temperature'))
+
+        # A measure node puts a scale to the persona rather than asking it to
+        # do something in its own words: one answer per item, and those
+        # answers join the history the later steps are conditioned on.
+        if is_measure_step(matching_step):
+            measure = (matching_step.get('measures') or [{}])[0] or {}
+            items = measure_items(matching_step)
+            if not items:
+                # Nothing to ask - validation already reported this.
+                continue
+
+            llm_prompt = get_scale_user_prompt(
+                preamble,
+                path_history,
+                col_name,
+                instructions,
+                str(measure.get('citation') or ''),
+                format_anchor_points(measure),
+                items,
+            )
+
+            messages = [
+                SystemMessage(content=SCALE_SYSTEM_PROMPT),
+                HumanMessage(content=llm_prompt),
+            ]
+            parsed, usage = invoke_structured(
+                model_name, EvaluationMetrics, messages, temperature=temperature
+            )
+
+            tokens_dict['prompt_tokens'] += usage['input_tokens']
+            tokens_dict['response_tokens'] += usage['output_tokens']
+            tokens_dict['total_tokens'] += usage['total_tokens']
+
+            answers = _match_scale_answers(items, measure.get('desiredValues'), parsed)
+            summary = _format_scale_summary(answers)
+
+            row_data[col_name] = summary
+            for item, value, _label in answers:
+                scale_answers[f"{col_name}_{item}"] = value
+            path_history.append({
+                'label': col_name,
+                'instructions': instructions,
+                'response': summary,
+            })
+            continue
 
         # The first step on the path has no history to condition on; every step
         # after it replays the parent steps this persona actually went through.
@@ -184,6 +305,7 @@ def process_row_with_chat(row_idx, df, prompt, model_name, system_prompt, person
 
     # Add persona information to the row data (store the original persona, not the string version)
     row_data['persona'] = persona
+    row_data['__scale'] = scale_answers
 
     return row_data, tokens_dict
 
@@ -306,6 +428,11 @@ def baseline_prompt(prompt, model_name, sample=None, progress_callback=None,
             except Exception:
                 pass
 
+    # Lift the scale answers off before the frame is built, in the same order
+    # the rows were collected, so scale_answers[i] belongs to row i whichever
+    # order the threads happened to finish in.
+    scale_answers = [row.pop('__scale', {}) or {} for row in results]
+
     # Convert results to DataFrame
     final_df = pd.DataFrame(results)
     
@@ -314,4 +441,4 @@ def baseline_prompt(prompt, model_name, sample=None, progress_callback=None,
         cols = ['persona'] + [col for col in final_df.columns if col != 'persona']
         final_df = final_df[cols]
 
-    return final_df, tokens_ls
+    return final_df, tokens_ls, scale_answers

@@ -345,7 +345,7 @@ def run_evaluation(uuid, data, model_name, jwt=None):
             uuid, supabase, 10, 30, num_samples,
             get_client=get_supabase_client, jwt=jwt, no_throttle=True
         )
-        df, prompt_tokens = baseline_prompt(
+        df, prompt_tokens, scale_answers = baseline_prompt(
             data, model_name, sample, progress_callback=on_baseline_row,
             parents=step_parents, children=step_children
         )
@@ -358,7 +358,10 @@ def run_evaluation(uuid, data, model_name, jwt=None):
             uuid, supabase, 30, 80, total_eval_units,
             get_client=get_supabase_client, jwt=jwt, no_throttle=True
         )
-        fn, eval_tokens = evaluate(df, model_name, steps, progress_callback=on_eval_unit)
+        fn, eval_tokens = evaluate(
+            df, model_name, steps, progress_callback=on_eval_unit,
+            scale_answers=scale_answers
+        )
 
         df = df.replace('\n', '', regex=True)
         # sim_matrix = create_sim_matrix(df)

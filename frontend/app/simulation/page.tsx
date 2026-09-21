@@ -17,6 +17,9 @@ import ReactFlowApp, { ReactFlowRef } from "../components/react-flow";
 import { Node, Edge } from "@xyflow/react";
 import Spinner from "../components/ui/spinner";
 import IntroductionSelectionModal from "@/app/components/IntroductionSelectionModal";
+import AddMeasureModal from "../components/AddMeasureModal";
+import type { Measure, MeasureDraft } from "../types/measure";
+import { createMeasure, mapMeasureRow } from "../utils/measures";
 
 type Sample = {
   id: string; // Changed to string for UUID
@@ -36,18 +39,7 @@ interface UserData {
   pic_url: string;
 }
 
-interface DesiredValue {
-  value: number;
-  label: string;
-}
 
-interface Measure {
-  id: string;
-  title: string;
-  description: string;
-  range: string;
-  desiredValues: DesiredValue[];
-}
 
 /**
  * A step in the process graph. `id`/`previous`/`next`/`sample_proportion`
@@ -63,6 +55,9 @@ interface Step {
   instructions: string;
   temperature: number;
   measures: Measure[];
+  /** `measure` marks a scale put to the persona; an ordinary step has none. */
+  kind?: string;
+  measure_id?: string | null;
 }
 
 // Helper: should we restore simulation fields from localStorage? (only when not modify/new and on client)
@@ -92,7 +87,9 @@ function SimulationPageContent() {
     readSimulationFromStorage() ? (localStorage.getItem('simulation-sample') ?? '') : ''
   );
   const [selectedModel, setSelectedModel] = useState(() =>
-    localStorage.getItem('simulation-model') ?? 'gemini'
+    // There is no localStorage while this renders on the server; the model
+    // the user last picked is read back once it reaches the browser.
+    (typeof window === 'undefined' ? null : localStorage.getItem('simulation-model')) ?? 'gemini'
   );
   const [sampleSizeInput, setSampleSizeInput] = useState<string>(() => {
     if (!readSimulationFromStorage()) return '10';
@@ -126,6 +123,9 @@ function SimulationPageContent() {
   const [simulationProgress, setSimulationProgress] = useState<number | null>(null);
   const [isSimulationRunning, setIsSimulationRunning] = useState(false);
   const [showIntroductionModal, setShowIntroductionModal] = useState(false);
+  // The shared "add measure" form, opened from a measure node on the canvas.
+  const [showAddMeasureModal, setShowAddMeasureModal] = useState(false);
+  const [pendingMeasureNodeId, setPendingMeasureNodeId] = useState<string | null>(null);
   const [generatedIntroduction, setGeneratedIntroduction] = useState<string>("");
   const [titleError, setTitleError] = useState<string>("");
   const [showNoMeasuresConfirm, setShowNoMeasuresConfirm] = useState(false);
@@ -172,13 +172,7 @@ function SimulationPageContent() {
         return;
       }
 
-      const formattedMeasures: Measure[] = data.map((measure: any) => ({
-        id: measure.id,
-        title: measure.title,
-        description: measure.definition,
-        range: `${measure.min} - ${measure.max}`,
-        desiredValues: measure.desired_values || []
-      }));
+      const formattedMeasures: Measure[] = data.map((measure: any) => mapMeasureRow(measure));
 
       setMeasures(formattedMeasures);
     } catch (error) {
@@ -714,6 +708,8 @@ function SimulationPageContent() {
         (origStep.label || '') !== (newStep.label || '') ||
         (origStep.instructions || '') !== (newStep.instructions || '') ||
         (origStep.temperature || 0) !== (newStep.temperature || 0) ||
+        (origStep.kind || '') !== (newStep.kind || '') ||
+        (origStep.measure_id || '') !== (newStep.measure_id || '') ||
         !sameBranching
       ) {
         return false;
@@ -748,9 +744,14 @@ function SimulationPageContent() {
       return { isValid: false, errors };
     }
     
-    // 1. Check that all nodes have title and description
-    const nodesWithoutTitle = flowNodes.filter(node => !node.data?.title || (node.data.title as string).trim() === '');
-    const nodesWithoutDescription = flowNodes.filter(node => !node.data?.description || (node.data.description as string).trim() === '');
+    // 1. Check that all steps have title and description. A measure node has
+    // neither - it carries a measure, checked on its own below.
+    const stepNodes = flowNodes.filter(node => node.type !== 'measure');
+    const measureNodes = flowNodes.filter(node => node.type === 'measure');
+    const measureById = new Map(measures.map(measure => [measure.id, measure]));
+
+    const nodesWithoutTitle = stepNodes.filter(node => !node.data?.title || (node.data.title as string).trim() === '');
+    const nodesWithoutDescription = stepNodes.filter(node => !node.data?.description || (node.data.description as string).trim() === '');
     
     if (nodesWithoutTitle.length > 0) {
       errors.push(`Node(s) are missing titles`);
@@ -759,10 +760,62 @@ function SimulationPageContent() {
     if (nodesWithoutDescription.length > 0) {
       errors.push(`Node(s) are missing descriptions`);
     }
+
+    // 1b. Every measure node needs a measure that still exists and has items.
+    for (const node of measureNodes) {
+      const measureId = (node.data?.measureId as string) || null;
+      const name = ((node.data?.title as string) || '').trim();
+      const nodeName = name || `Measure "${node.id}"`;
+
+      if (!measureId) {
+        errors.push(
+          `${nodeName} has no measure selected. Choose one, or delete the node. `
+        );
+        continue;
+      }
+
+      const measure = measureById.get(measureId);
+      if (!measure) {
+        errors.push(
+          `${nodeName} points at a measure that no longer exists. Choose another one. `
+        );
+        continue;
+      }
+
+      if (!measure.items || measure.items.length === 0) {
+        errors.push(
+          `"${measure.title}" has no items, so there is nothing for a persona to answer. ` +
+          "Add items to the measure on the Measures page. "
+        );
+      }
+    }
     
     // 2. Check the graph: one first step, everything reachable, no loops, and
     // sample proportions that add up.
-    const getNodeLabel = (node: Node) => (node.data?.title as string)?.trim() || `"${node.id}"`;
+    const getNodeLabel = (node: Node) => {
+      const name = (node.data?.title as string)?.trim();
+      if (name) return name;
+      if (node.type === 'measure') {
+        const measure = measureById.get((node.data?.measureId as string) || '');
+        return measure ? measure.title : `Measure "${node.id}"`;
+      }
+      return `"${node.id}"`;
+    };
+
+    // Results are keyed by node name, so two nodes answering to the same one
+    // would land in the same column.
+    const labelCounts = new Map<string, Node[]>();
+    for (const node of flowNodes) {
+      const label = getNodeLabel(node);
+      labelCounts.set(label, [...(labelCounts.get(label) || []), node]);
+    }
+    for (const [label, sharing] of labelCounts.entries()) {
+      if (sharing.length > 1) {
+        errors.push(
+          `${sharing.length} nodes are called ${label}. Give each one its own name so their results can be told apart. `
+        );
+      }
+    }
     const nodeById = new Map(flowNodes.map(node => [node.id, node]));
     const proportionOf = (nodeId: string) => {
       const value = nodeById.get(nodeId)?.data?.sampleProportion;
@@ -897,8 +950,10 @@ function SimulationPageContent() {
       return;
     }
 
-    // Check if any measures are selected across all nodes
+    // Check if any measures are selected across all nodes - a measure node
+    // carries one of its own, so a flow of scales counts.
     const hasMeasures = flowNodes.some((node: Node) => {
+      if (node.type === 'measure') return !!node.data?.measureId;
       const selectedMeasures = (node.data?.selectedMeasures as string[]) || [];
       return selectedMeasures.length > 0;
     });
@@ -1120,6 +1175,47 @@ function SimulationPageContent() {
     );
   }, []);
 
+  const handleMeasureNodeSelect = useCallback((nodeId: string, measureId: string | null) => {
+    setFlowNodes((nds: Node[]) =>
+      nds.map((node: Node) =>
+        node.id === nodeId ? { ...node, data: { ...node.data, measureId } } : node
+      )
+    );
+  }, []);
+
+  /**
+   * Save a measure created from the canvas, and give it to the node that
+   * asked. The canvas re-reads `measures` on the next render, so the new one
+   * shows up in every dropdown without any further wiring.
+   */
+  const handleAddMeasureFromCanvas = useCallback(async (draft: MeasureDraft) => {
+    if (!userData?.user_id) {
+      console.error("No user found");
+      return;
+    }
+
+    try {
+      const measure = await createMeasure(userData.user_id, draft);
+      if (!measure) return;
+
+      setMeasures(prev => [measure, ...prev]);
+      if (pendingMeasureNodeId) {
+        reactFlowRef.current?.selectMeasureForNode(pendingMeasureNodeId, measure.id);
+        handleMeasureNodeSelect(pendingMeasureNodeId, measure.id);
+      }
+    } catch (error) {
+      console.error("Error adding measure from the canvas:", error);
+      alert(`Could not save the measure.\n\n${(error as Error).message}`);
+    }
+    setPendingMeasureNodeId(null);
+  }, [userData, pendingMeasureNodeId, handleMeasureNodeSelect]);
+
+  /** A measure node asked for a measure that doesn't exist yet. */
+  const handleRequestAddMeasure = useCallback((nodeId: string) => {
+    setPendingMeasureNodeId(nodeId);
+    setShowAddMeasureModal(true);
+  }, []);
+
   const convertStepsToFlow = (steps: any[]): { nodes: Node[], edges: Edge[] } => {
     const nodes: Node[] = [];
     const edges: Edge[] = [];
@@ -1196,25 +1292,42 @@ function SimulationPageContent() {
       const row = rowInDepth.get(depth) ?? 0;
       rowInDepth.set(depth, row + 1);
 
+      const sampleProportion =
+        typeof step.sample_proportion === 'number' ? step.sample_proportion : 100;
+      // A measure node saved a `kind`; anything without one is an ordinary
+      // step, which is how every experiment saved before scales reads back.
+      const isMeasure = step.kind === 'measure' || step.kind === 'scale';
+
       nodes.push({
         id: nodeId,
-        type: 'custom',
+        type: isMeasure ? 'measure' : 'custom',
         position: { x: startX + (depth * nodeSpacing), y: startY + (row * rowSpacing) },
-        data: {
-          title: step.label || '',
-          description: step.instructions || '',
-          sliderValue: (step.temperature || 0.5) * 100,
-          sampleProportion: typeof step.sample_proportion === 'number' ? step.sample_proportion : 100,
-          numDescriptionsChars: 500,
-          selectedMeasures: step.measures?.map((m: any) => m.id) || [],
-          measures: measures,
-          loadingMeasures: loadingMeasures,
-          onDelete: handleNodeDelete,
-          onTitleChange: handleTitleChange,
-          onDescriptionChange: handleDescriptionChange,
-          onSliderChange: handleSliderChange,
-          onMeasuresChange: handleMeasuresChange,
-        }
+        data: isMeasure
+          ? {
+              title: step.label || '',
+              measureId: step.measure_id ?? step.measures?.[0]?.id ?? null,
+              sampleProportion,
+              measures: measures,
+              loadingMeasures: loadingMeasures,
+              onDelete: handleNodeDelete,
+              onTitleChange: handleTitleChange,
+              onMeasureNodeSelect: handleMeasureNodeSelect,
+            }
+          : {
+              title: step.label || '',
+              description: step.instructions || '',
+              sliderValue: (step.temperature || 0.5) * 100,
+              sampleProportion,
+              numDescriptionsChars: 500,
+              selectedMeasures: step.measures?.map((m: any) => m.id) || [],
+              measures: measures,
+              loadingMeasures: loadingMeasures,
+              onDelete: handleNodeDelete,
+              onTitleChange: handleTitleChange,
+              onDescriptionChange: handleDescriptionChange,
+              onSliderChange: handleSliderChange,
+              onMeasuresChange: handleMeasuresChange,
+            }
       });
     });
 
@@ -1925,6 +2038,7 @@ function SimulationPageContent() {
                   loadingMeasures={loadingMeasures}
                   readOnly={simulationHasBeenRun}
                   sampleSize={sampleSize}
+                  onRequestAddMeasure={handleRequestAddMeasure}
                 />
               </div>
             </div>
@@ -1978,6 +2092,19 @@ function SimulationPageContent() {
         oldIntroduction={studyIntroduction}
         newIntroduction={generatedIntroduction}
         onSelect={handleIntroductionSelect}
+      />
+
+      {/* The same form the Measures page uses, opened from a measure node */}
+      <AddMeasureModal
+        isOpen={showAddMeasureModal}
+        onClose={() => {
+          setShowAddMeasureModal(false);
+          setPendingMeasureNodeId(null);
+        }}
+        onAdd={handleAddMeasureFromCanvas}
+        checkNameExists={(title: string) =>
+          measures.some(measure => measure.title.trim().toLowerCase() === title.trim().toLowerCase())
+        }
       />
 
       {/* Submitted modal: show immediately so user can go straight to dashboard (backend may be warming up) */}

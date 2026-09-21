@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Slider } from "../ui/slider"
-import { AlertTriangle, Trash2 } from "lucide-react"
+import { Trash2 } from "lucide-react"
 import CustomHandle from "./handle"
 import Multiselect from "../ui/multiselect"
+import SampleWarning from "./sample-warning"
 
 export interface CustomNodeData {
   title: string
@@ -143,23 +144,11 @@ const CustomNode = memo(({ id, data, selected, width, height }: NodeProps) => {
           />
         </div>
 
-        {/* How this step's share of the sample adds up - the split itself is
-            set on the arrows between the steps. */}
-        {sampleUnbalanced && ((data as any).sampleWarning || (data as any).sampleMessage) && (
-          <div className="flex-shrink-0">
-            <div className="flex items-start gap-1.5 rounded-md border border-red-200 bg-red-50 px-2 py-1.5 text-sm text-red-700">
-              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-              <div>
-                {(data as any).sampleWarning && <div>{(data as any).sampleWarning}</div>}
-                {(data as any).sampleMessage && (
-                  <div className={(data as any).sampleWarning ? "mt-0.5 text-red-600" : ""}>
-                    {(data as any).sampleMessage}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+        <SampleWarning
+          unbalanced={sampleUnbalanced}
+          warning={(data as any).sampleWarning}
+          message={(data as any).sampleMessage}
+        />
 
         {/* Measures Selection */}
         <div className="flex-shrink-0 overflow-visible">

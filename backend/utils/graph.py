@@ -39,6 +39,35 @@ def _as_id_list(value):
     return ids
 
 
+def is_measure_step(step):
+    """
+    Whether a step is a measure node - a scale put to the persona.
+
+    A measure node carries `kind`; an ordinary step has none, which is how
+    every design saved before scales existed reads back.
+    """
+    return str((step or {}).get('kind') or '').strip().lower() in ('measure', 'scale')
+
+
+def measure_items(step):
+    """The items of the measure a measure step administers, as plain strings."""
+    measures = (step or {}).get('measures') or []
+    if not measures:
+        return []
+    items = (measures[0] or {}).get('items') or []
+    texts = []
+    for item in items:
+        if isinstance(item, str):
+            text = item.strip()
+        elif isinstance(item, dict):
+            text = str(item.get('text') or '').strip()
+        else:
+            text = ''
+        if text:
+            texts.append(text)
+    return texts
+
+
 def _coerce_proportion(value, default=100.0):
     """Coerce sample_proportion to a float, falling back to the default."""
     if value is None:
@@ -265,6 +294,21 @@ def validate_graph(steps, parents, children):
             errors.append(
                 f"\"{_label_for(step)}\" has a sample proportion of "
                 f"{proportion:g}%. It must be greater than 0% and at most 100%."
+            )
+
+    # A measure node has a scale to put to the persona, or it has nothing to do.
+    for step in steps:
+        if not is_measure_step(step):
+            continue
+        if not (step.get('measures') or []):
+            errors.append(
+                f"\"{_label_for(step)}\" is a measure node with no measure "
+                "selected. Choose one, or delete the node."
+            )
+        elif not measure_items(step):
+            errors.append(
+                f"\"{_label_for(step)}\" has no items, so there is nothing "
+                "for a persona to answer. Add items to the measure."
             )
 
     errors.extend(_validate_proportions(steps, parents, children))
