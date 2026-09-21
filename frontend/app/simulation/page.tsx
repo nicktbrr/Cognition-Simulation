@@ -818,11 +818,17 @@ function SimulationPageContent() {
       }
     }
 
-    // 3. Sample proportions
+    // 3. How the samples are split across the steps
+    const sampleTotal = Math.min(50, Math.max(10, sampleSize));
+    /** A step's share of the sample, read back as whole samples. */
+    const samplesIn = (percent: number) => Math.round((percent * sampleTotal) / 100);
+    const formatSamples = (count: number) => `${count} ${count === 1 ? 'sample' : 'samples'}`;
+
     if (startingNodes.length === 1 && Math.abs(proportionOf(startingNodes[0].id) - 100) > 0.01) {
       errors.push(
-        `The first step (${getNodeLabel(startingNodes[0])}) must use 100% of the sample, ` +
-        `but is set to ${proportionOf(startingNodes[0].id)}%. `
+        `The first step (${getNodeLabel(startingNodes[0])}) must use all ` +
+        `${formatSamples(sampleTotal)}, but is set to ` +
+        `${formatSamples(samplesIn(proportionOf(startingNodes[0].id)))}. `
       );
     }
 
@@ -830,8 +836,8 @@ function SimulationPageContent() {
       const proportion = proportionOf(node.id);
       if (proportion <= 0 || proportion > 100) {
         errors.push(
-          `${getNodeLabel(node)} has a sample proportion of ${proportion}%. ` +
-          "It must be greater than 0% and at most 100%. "
+          `${getNodeLabel(node)} is set to ${formatSamples(samplesIn(proportion))}. ` +
+          `Every step must get at least one sample and at most all ${sampleTotal}. `
         );
       }
     }
@@ -849,9 +855,9 @@ function SimulationPageContent() {
       const names = childrenOf.get(nodeId)!.map(id => getNodeLabel(nodeById.get(id)!)).join(", ");
       errors.push(
         `The steps after ${getNodeLabel(node)} (${names}) take ` +
-        `${Math.round((proportionOf(nodeId) - leftover) * 100) / 100}% of the sample, but ` +
-        `${getNodeLabel(node)} passes on ${proportionOf(nodeId)}%. ` +
-        `${Math.round(leftover * 100) / 100}% has nowhere to go - raise the sample proportion of a following step. `
+        `${formatSamples(samplesIn(proportionOf(nodeId) - leftover))}, but ` +
+        `${getNodeLabel(node)} passes on ${formatSamples(samplesIn(proportionOf(nodeId)))}. ` +
+        `${formatSamples(samplesIn(leftover))} have nowhere to go - raise the count on one of the arrows leaving it. `
       );
     }
 
@@ -860,9 +866,9 @@ function SimulationPageContent() {
       const node = nodeById.get(nodeId);
       if (!node) continue;
       errors.push(
-        `${getNodeLabel(node)} is set to ${proportionOf(nodeId)}% of the sample but only ` +
-        `${Math.round((proportionOf(nodeId) - shortfall) * 100) / 100}% reaches it from the steps before it. ` +
-        "Lower its sample proportion or raise the steps feeding into it. "
+        `${getNodeLabel(node)} is set to ${formatSamples(samplesIn(proportionOf(nodeId)))} but only ` +
+        `${formatSamples(samplesIn(proportionOf(nodeId) - shortfall))} reach it from the steps before it. ` +
+        "Lower the count on the arrow into it, or raise the steps feeding into it. "
       );
     }
 
@@ -1106,16 +1112,6 @@ function SimulationPageContent() {
     );
   }, []);
 
-  const handleSampleProportionChange = useCallback((nodeId: string, value: number) => {
-    // Personas are whole people, so the split is kept to whole percents.
-    const clamped = Math.max(0, Math.min(100, Math.round(value)));
-    setFlowNodes((nds: Node[]) =>
-      nds.map((node: Node) =>
-        node.id === nodeId ? { ...node, data: { ...node.data, sampleProportion: clamped } } : node
-      )
-    );
-  }, []);
-
   const handleMeasuresChange = useCallback((nodeId: string, selectedMeasures: string[]) => {
     setFlowNodes((nds: Node[]) =>
       nds.map((node: Node) =>
@@ -1217,7 +1213,6 @@ function SimulationPageContent() {
           onTitleChange: handleTitleChange,
           onDescriptionChange: handleDescriptionChange,
           onSliderChange: handleSliderChange,
-          onSampleProportionChange: handleSampleProportionChange,
           onMeasuresChange: handleMeasuresChange,
         }
       });
@@ -1601,7 +1596,7 @@ function SimulationPageContent() {
               }
               title={
                 sampleIsUnbalanced
-                  ? "The steps don't use exactly 100% of the sample. Fix their sample proportions to run the simulation."
+                  ? "The steps don't use the whole sample. Fix the sample counts on the arrows to run the simulation."
                   : undefined
               }
               className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1929,6 +1924,7 @@ function SimulationPageContent() {
                   measures={measures}
                   loadingMeasures={loadingMeasures}
                   readOnly={simulationHasBeenRun}
+                  sampleSize={sampleSize}
                 />
               </div>
             </div>

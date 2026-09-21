@@ -1,6 +1,6 @@
 "use client"
 
-import React, { memo, useEffect, useState } from "react"
+import React, { memo } from "react"
 import { Handle, Position, NodeResizer, type NodeProps } from "@xyflow/react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -14,11 +14,9 @@ export interface CustomNodeData {
   title: string
   description: string
   sliderValue: number
-  /** Percent of the full persona sample routed through this step. */
-  sampleProportion: number
   /** Whether this step's share of the sample adds up against the rest of the flow. */
   sampleStatus?: 'ok' | 'over' | 'under'
-  /** Plain-language read-out of where this step's sample comes from and goes to. */
+  /** Plain-language read-out of where this step's personas come from and go to. */
   sampleMessage?: string
   /** Short warning shown on the step the user last changed, when the sample stops adding up. */
   sampleWarning?: string
@@ -34,7 +32,6 @@ export interface CustomNodeData {
   onDescriptionChange: (id: string, description: string) => void
   onDescriptionBlur?: () => void
   onSliderChange: (id: string, value: number) => void
-  onSampleProportionChange: (id: string, value: number) => void
   onMeasuresChange: (id: string, selectedMeasures: string[]) => void
   onResize?: (id: string, width: number, height: number) => void
 }
@@ -44,15 +41,6 @@ const CustomNode = memo(({ id, data, selected, width, height }: NodeProps) => {
   const selectedColor = (data as any).selectedColor || '#ffffff';
   const sampleStatus = (data as any).sampleStatus || 'ok';
   const sampleUnbalanced = sampleStatus !== 'ok';
-  const sampleProportion = (data as any).sampleProportion ?? 100;
-
-  // While the field is being typed in it holds exactly what was typed - an
-  // empty box stays empty rather than snapping back to 0.
-  const [proportionDraft, setProportionDraft] = useState<string | null>(null);
-  useEffect(() => {
-    // A change from elsewhere (a rebalance upstream) wins over a stale draft.
-    setProportionDraft(null);
-  }, [sampleProportion]);
 
   // Create a gradient background using the selected color
   const gradientStyle = selectedColor !== '#ffffff'
@@ -155,44 +143,23 @@ const CustomNode = memo(({ id, data, selected, width, height }: NodeProps) => {
           />
         </div>
 
-        {/* Sample proportion - what share of the personas travel through this step */}
-        <div className="flex-shrink-0">
-          <label className={`text-base font-medium mb-1.5 block ${sampleUnbalanced ? "text-red-600" : "text-muted-foreground"}`}>
-            Sample Proportion
-          </label>
-          <div className="flex items-center gap-2">
-            <Input
-              type="number"
-              min={1}
-              max={100}
-              step={1}
-              value={proportionDraft ?? sampleProportion}
-              onChange={(e) => {
-                setProportionDraft(e.target.value)
-                const parsed = parseFloat(e.target.value)
-                // An empty (or half-typed) box isn't a proportion yet, so the
-                // flow keeps the last real value until one is typed.
-                if (!Number.isNaN(parsed)) {
-                  ;(data as any).onSampleProportionChange?.(id, parsed)
-                }
-              }}
-              onBlur={() => setProportionDraft(null)}
-              className={`text-base ${sampleUnbalanced ? "border-red-500 focus-visible:ring-red-500" : ""}`}
-            />
-            <span className="text-base text-muted-foreground">%</span>
-          </div>
-          {(data as any).sampleMessage && (
-            <div className="text-sm mt-1 text-muted-foreground">
-              {(data as any).sampleMessage}
-            </div>
-          )}
-          {sampleUnbalanced && (data as any).sampleWarning && (
-            <div className="mt-2 flex items-start gap-1.5 rounded-md border border-red-200 bg-red-50 px-2 py-1.5 text-sm text-red-700">
+        {/* How this step's share of the sample adds up - the split itself is
+            set on the arrows between the steps. */}
+        {sampleUnbalanced && ((data as any).sampleWarning || (data as any).sampleMessage) && (
+          <div className="flex-shrink-0">
+            <div className="flex items-start gap-1.5 rounded-md border border-red-200 bg-red-50 px-2 py-1.5 text-sm text-red-700">
               <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-              <span>{(data as any).sampleWarning}</span>
+              <div>
+                {(data as any).sampleWarning && <div>{(data as any).sampleWarning}</div>}
+                {(data as any).sampleMessage && (
+                  <div className={(data as any).sampleWarning ? "mt-0.5 text-red-600" : ""}>
+                    {(data as any).sampleMessage}
+                  </div>
+                )}
+              </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Measures Selection */}
         <div className="flex-shrink-0 overflow-visible">

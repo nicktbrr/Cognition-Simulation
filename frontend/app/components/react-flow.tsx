@@ -23,10 +23,21 @@ import { Button } from '@/components/ui/button'
 import { Plus, Maximize2, Minimize2, AlertTriangle, RotateCcw, X } from 'lucide-react'
 
 import CustomNode from './react-flow/node'
-import { analyzeSampleBalance, defaultProportions, edgeKey, redistributeProportions } from '../utils/stepGraph'
+import PersonaSplitEdge from './react-flow/edge'
+import {
+  analyzeSampleBalance,
+  defaultProportions,
+  edgeKey,
+  personaCounts,
+  redistributeProportions,
+} from '../utils/stepGraph'
 
 const nodeTypes = {
   custom: CustomNode as any,
+}
+
+const edgeTypes = {
+  personaSplit: PersonaSplitEdge as any,
 }
 
 const flowKey = 'simulation-flow';
@@ -34,8 +45,8 @@ const flowKey = 'simulation-flow';
 const getSampleProportion = (node: Node) =>
   typeof node.data?.sampleProportion === 'number' ? node.data.sampleProportion : 100;
 
-/** Trim the rounding tail so 33.34 reads as 33.34 and 50.00 reads as 50. */
-const formatPercent = (value: number) => `${Math.round(value * 100) / 100}%`;
+/** Samples are whole people, so a share of them always reads as a count. */
+const formatSamples = (count: number) => `${count} ${count === 1 ? 'sample' : 'samples'}`;
 
 /**
  * Steps whose sample proportion the user typed in themselves.
@@ -112,6 +123,8 @@ interface ReactFlowAppProps {
   measures?: Measure[];
   loadingMeasures?: boolean;
   readOnly?: boolean;
+  /** Samples in the run - what the splits on the arrows are counted out of. */
+  sampleSize?: number;
 }
 
 export interface ReactFlowRef {
@@ -123,7 +136,8 @@ export interface ReactFlowRef {
   canRedo: () => boolean;
 }
 
-const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlowDataChange, selectedColor = '#3b82f6', colorArmed = false, onColorApplied, measures = [], loadingMeasures = false, readOnly = false }, ref) => {
+const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlowDataChange, selectedColor = '#3b82f6', colorArmed = false, onColorApplied, measures = [], loadingMeasures = false, readOnly = false, sampleSize = 10 }, ref) => {
+  const personaTotal = Math.max(0, Math.round(sampleSize))
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
@@ -542,24 +556,38 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
     )
   }, [setNodes])
 
-  const handleSampleProportionChange = useCallback((nodeId: string, value: number) => {
-    // Personas are whole people, so the split is kept to whole percents.
-    const clamped = Math.max(0, Math.min(100, Math.round(value)))
-    setLastEditedNodeId(nodeId)
-    // The step keeps what was typed into it; the rest of its level splits what
-    // is left of the sample evenly, and every level below it does the same.
+  /**
+   * Give the step at the end of an arrow the samples typed onto it.
+   *
+   * An arrow is only editable when its step has this one arrow coming in, so
+   * what travels the arrow is that step's whole share of the sample. The step
+   * keeps what was typed; the branches beside it split what is left of their
+   * parent's sample evenly, and every level below them does the same.
+   */
+  const handlePersonaCountChange = useCallback((edgeId: string, personas: number) => {
+    if (personaTotal <= 0) return
+    const edge = edges.find((candidate: Edge) => candidate.id === edgeId)
+    if (!edge) return
+
+    const count = Math.max(0, Math.min(personaTotal, Math.round(personas)))
+    // Proportions stay whole percents behind the scenes; with at most 50
+    // samples a whole percent is always finer than a single sample, so the
+    // count that comes back out is the count that was typed in.
+    const proportion = Math.round((count / personaTotal) * 100)
+
+    setLastEditedNodeId(edge.target)
     setNodes((nds: Node[]) => {
       const edited = nds.map((node: Node) =>
-        node.id === nodeId
+        node.id === edge.target
           ? ({
               ...node,
-              data: { ...node.data, sampleProportion: clamped, sampleProportionPinned: true },
+              data: { ...node.data, sampleProportion: proportion, sampleProportionPinned: true },
             } as Node)
           : node
       )
       return applyRedistribution(edited, edges, pinnedProportions(edited))
     })
-  }, [edges, setNodes])
+  }, [edges, personaTotal, setNodes])
 
   /** Put every step back on an even share of its parent's sample. */
   const handleResetProportions = useCallback(() => {
@@ -664,13 +692,12 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
         onTitleChange: handleTitleChange,
         onDescriptionChange: handleDescriptionChange,
         onSliderChange: handleSliderChange,
-        onSampleProportionChange: handleSampleProportionChange,
         onMeasuresChange: handleMeasuresChange,
         onResize: handleResize,
       },
     }
     setNodes((nds: Node[]) => [...nds, newNode])
-  }, [setNodes, handleNodeDelete, handleTitleChange, handleDescriptionChange, handleSliderChange, handleSampleProportionChange, handleMeasuresChange, handleResize, nodes, getNextNodeId, measures, loadingMeasures])
+  }, [setNodes, handleNodeDelete, handleTitleChange, handleDescriptionChange, handleSliderChange, handleMeasuresChange, handleResize, nodes, getNextNodeId, measures, loadingMeasures])
 
   // Handle fullscreen toggle
   const toggleFullscreen = useCallback(() => {
@@ -780,28 +807,35 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
     .filter((node: Node) => (balance.byNode.get(node.id)?.status ?? 'ok') !== 'ok')
     .map((node: Node) => ((node.data?.title as string) || '').trim() || `Step ${node.id}`)
 
-  // Every arrow carries a share of the sample - show it on the arrow.
-  const edgesWithFlow = edges.map((edge: Edge) => {
-    const flow = balance.flows.get(edgeKey(edge.source, edge.target))
-    if (flow === undefined) return edge
-    return {
-      ...edge,
-      label: formatPercent(flow),
-      labelShowBg: true,
-      labelBgPadding: [6, 3] as [number, number],
-      labelBgBorderRadius: 4,
-      labelBgStyle: {
-        fill: '#ffffff',
-        stroke: '#3b82f6',
-        strokeWidth: 1,
-      },
-      labelStyle: {
-        fill: '#1d4ed8',
-        fontSize: 12,
-        fontWeight: 600,
-      },
-    }
-  })
+  // The samples each arrow carries, worked out the same way the backend
+  // routes them, so the canvas shows the split the run will actually use.
+  const counts = personaCounts(
+    nodes.map((node: Node) => ({ id: node.id, sampleProportion: getSampleProportion(node) })),
+    edges.map((edge: Edge) => ({ source: edge.source, target: edge.target })),
+    balance.flows,
+    personaTotal
+  )
+
+  // How many arrows feed each step - a step that branches rejoin has its share
+  // worked out by the solver, so there is no single arrow to type into.
+  const incomingCount = new Map<string, number>()
+  for (const edge of edges) {
+    incomingCount.set(edge.target, (incomingCount.get(edge.target) ?? 0) + 1)
+  }
+
+  // Every arrow carries a share of the sample - show it on the arrow, and let
+  // it be set there.
+  const edgesWithFlow = edges.map((edge: Edge) => ({
+    ...edge,
+    type: 'personaSplit',
+    data: {
+      ...edge.data,
+      personas: counts.byEdge.get(edgeKey(edge.source, edge.target)),
+      available: counts.byNode.get(edge.source),
+      editable: !readOnly && (incomingCount.get(edge.target) ?? 0) === 1,
+      onPersonaCountChange: handlePersonaCountChange,
+    },
+  }))
 
   // Only the step the user changed last is called out, so a single edit
   // doesn't light up half the canvas.
@@ -816,10 +850,10 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
     const { proportion, inflow, outflow, shortfall, status } = nodeBalance
 
     if (inflow === null && Math.abs(proportion - 100) > 0.01) {
-      return 'The first step must use 100% of the sample.'
+      return 'The first step must use the whole sample.'
     }
     if (proportion <= 0) {
-      return 'Must be more than 0% of the sample.'
+      return 'This step needs at least one sample.'
     }
     if (outflow !== null && outflow > proportion + 0.005) {
       return 'The next steps take more sample than this step passes on.'
@@ -836,25 +870,28 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
       : 'This step’s share of the sample doesn’t add up.'
   }
 
-  // A short read-out of where a step's sample comes from and goes to.
+  /** A percent of the whole sample, read back as whole samples. */
+  const samplesIn = (percent: number) => Math.round((percent * personaTotal) / 100)
+
+  // A short read-out of where a step's samples come from and go to.
   const sampleMessageFor = (nodeId: string) => {
     const nodeBalance = balance.byNode.get(nodeId)
     if (!nodeBalance) return undefined
     const { proportion, inflow, outflow, shortfall } = nodeBalance
 
     if (inflow === null && Math.abs(proportion - 100) > 0.01) {
-      return `First step must use 100% of the sample, not ${formatPercent(proportion)}`
+      return `First step must use all ${formatSamples(personaTotal)}, not ${formatSamples(samplesIn(proportion))}`
     }
     if (proportion <= 0) {
-      return 'Sample proportion must be greater than 0%'
+      return 'This step must be given at least one sample'
     }
     // What this step hands on is the more useful reading when both ends are
     // off, since fixing the split fixes the steps that follow it too.
     if (outflow !== null) {
-      return `Next steps take ${formatPercent(outflow)} of ${formatPercent(proportion)}`
+      return `Next steps take ${formatSamples(samplesIn(outflow))} of ${formatSamples(samplesIn(proportion))}`
     }
     if (shortfall > 0.005 && inflow !== null) {
-      return `Only ${formatPercent(inflow)} of the sample reaches this step, but it is set to ${formatPercent(proportion)}`
+      return `Only ${formatSamples(samplesIn(inflow))} reach this step, but it is set to ${formatSamples(samplesIn(proportion))}`
     }
     return undefined
   }
@@ -887,7 +924,6 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
       onDescriptionChange: handleDescriptionChange,
       onDescriptionBlur: handleDescriptionBlur,
       onSliderChange: handleSliderChange,
-      onSampleProportionChange: handleSampleProportionChange,
       onMeasuresChange: handleMeasuresChange,
       onResize: handleResize,
     },
@@ -964,8 +1000,8 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
                         unbalancedLabels.length > 3 ? ` and ${unbalancedLabels.length - 3} more` : ''
                       } ${unbalancedLabels.length === 1 ? 'doesn’t' : 'don’t'} pass on the whole sample. `
                     : 'Some of the sample has nowhere to go. '}
-                  Set the remaining steps by hand, or reset to give every step an even
-                  share of the sample.
+                  Set the remaining branches on the arrows, or reset to give every
+                  step an even share of the sample.
                 </p>
                 <div className="mt-3 flex items-center gap-2">
                   <Button
@@ -1019,6 +1055,7 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
         elementsSelectable={!readOnly}
         isValidConnection={isValidConnection}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         fitView
         snapToGrid={true}
         snapGrid={[40, 40]}
@@ -1044,7 +1081,7 @@ const ReactFlowComponent = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlow
 
 ReactFlowComponent.displayName = 'ReactFlowComponent'
 
-const ReactFlowApp = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlowDataChange, selectedColor, colorArmed, onColorApplied, measures, loadingMeasures, readOnly }, ref) => {
+const ReactFlowApp = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlowDataChange, selectedColor, colorArmed, onColorApplied, measures, loadingMeasures, readOnly, sampleSize }, ref) => {
   return (
     <ReactFlowProvider>
       <ReactFlowComponent 
@@ -1056,6 +1093,7 @@ const ReactFlowApp = forwardRef<ReactFlowRef, ReactFlowAppProps>(({ onFlowDataCh
         measures={measures}
         loadingMeasures={loadingMeasures}
         readOnly={readOnly}
+        sampleSize={sampleSize}
       />
     </ReactFlowProvider>
   )

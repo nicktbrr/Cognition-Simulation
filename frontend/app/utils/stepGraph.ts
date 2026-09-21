@@ -489,3 +489,70 @@ export function redistributeProportions(
 
   return result;
 }
+
+export interface PersonaCounts {
+  /** "source->target" -> whole personas travelling that arrow. */
+  byEdge: Map<string, number>;
+  /** Step id -> whole personas that reach that step. */
+  byNode: Map<string, number>;
+}
+
+/**
+ * Turn the percentage flow along each arrow into whole personas.
+ *
+ * Personas are whole people, so a branch can't take half of one. The first
+ * step runs the whole sample and every step hands the personas standing on it
+ * to its branches by largest-remainder rounding on the solved flows - the
+ * parts are always whole and always add back up to what arrived.
+ *
+ * This mirrors `assign_persona_paths` in `backend/utils/graph.py`, so the
+ * counts shown on the canvas are the counts the run actually uses. Steps
+ * caught in a cycle never settle and are left at zero for validation to
+ * report.
+ */
+export function personaCounts(
+  nodes: GraphNodeLike[],
+  edges: GraphEdgeLike[],
+  flows: Map<string, number>,
+  totalPersonas: number
+): PersonaCounts {
+  const byEdge = new Map<string, number>();
+  const byNode = new Map<string, number>(nodes.map((node) => [node.id, 0]));
+  if (nodes.length === 0 || totalPersonas <= 0) return { byEdge, byNode };
+
+  const known = new Set(nodes.map((node) => node.id));
+  const childrenOf = new Map<string, string[]>(nodes.map((node) => [node.id, []]));
+  const indegree = new Map<string, number>(nodes.map((node) => [node.id, 0]));
+  const seen = new Set<string>();
+
+  for (const edge of edges) {
+    if (!known.has(edge.source) || !known.has(edge.target)) continue;
+    if (edge.source === edge.target) continue;
+    const key = edgeKey(edge.source, edge.target);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    childrenOf.get(edge.source)!.push(edge.target);
+    indegree.set(edge.target, indegree.get(edge.target)! + 1);
+  }
+
+  // The backend starts everyone on the first root it finds; anything else
+  // standing on its own is a step the run never reaches.
+  const queue = nodes.filter((node) => indegree.get(node.id) === 0).map((node) => node.id);
+  if (queue.length > 0) byNode.set(queue[0], Math.round(totalPersonas));
+
+  while (queue.length > 0) {
+    const parentId = queue.shift()!;
+    const childIds = childrenOf.get(parentId)!;
+    const weights = childIds.map((childId) => flows.get(edgeKey(parentId, childId)) ?? 0);
+    const shares = splitProportion(byNode.get(parentId) ?? 0, weights);
+
+    childIds.forEach((childId, index) => {
+      byEdge.set(edgeKey(parentId, childId), shares[index]);
+      byNode.set(childId, (byNode.get(childId) ?? 0) + shares[index]);
+      indegree.set(childId, indegree.get(childId)! - 1);
+      if (indegree.get(childId) === 0) queue.push(childId);
+    });
+  }
+
+  return { byEdge, byNode };
+}
