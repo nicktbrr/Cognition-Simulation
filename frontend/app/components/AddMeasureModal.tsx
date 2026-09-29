@@ -27,13 +27,11 @@ interface AddMeasureModalProps {
   editingMeasure?: Measure | null;
   onUpdate?: (id: string, measure: MeasureDraft) => void;
   checkNameExists?: (title: string, excludeId?: string) => boolean;
-  readOnly?: boolean;
-  onCopy?: () => void;
 }
 
 const emptyForm = { title: "", description: "", citation: "" };
 
-export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure, onUpdate, checkNameExists, readOnly = false, onCopy }: AddMeasureModalProps) {
+export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure, onUpdate, checkNameExists }: AddMeasureModalProps) {
   const [formData, setFormData] = useState(emptyForm);
   const [desiredValues, setDesiredValues] = useState<DesiredValueDraft[]>([]);
   const [items, setItems] = useState<ItemDraft[]>([]);
@@ -44,7 +42,7 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showUnsavedConfirm, setShowUnsavedConfirm] = useState(false);
 
-  const touch = () => { if (!readOnly) setHasUnsavedChanges(true); };
+  const touch = () => setHasUnsavedChanges(true);
 
   // Populate form when editing measure changes
   useEffect(() => {
@@ -205,10 +203,6 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
   };
 
   const attemptClose = () => {
-    if (readOnly) {
-      handleClose();
-      return;
-    }
     if (hasUnsavedChanges) {
       setShowUnsavedConfirm(true);
     } else {
@@ -216,8 +210,8 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
     }
   };
 
-  const modalTitle = readOnly ? "View Measure" : (editingMeasure ? "Edit Measure" : "Add New Measure");
-  const inputClass = `w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-20 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-opacity-20 focus-visible:ring-offset-0 ${readOnly ? 'bg-gray-100 cursor-not-allowed' : ''}`;
+  const modalTitle = editingMeasure ? "Edit Measure" : "Add New Measure";
+  const inputClass = `w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-20 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-opacity-20 focus-visible:ring-offset-0`;
 
   return (
     <>
@@ -225,30 +219,18 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
       isOpen={isOpen}
       onClose={attemptClose}
       title={modalTitle}
-      banner={readOnly && (
-        <div className="w-full bg-red-400/85 text-white px-2 py-1 text-center text-xs font-medium rounded-t-lg flex-shrink-0">
-          This measure has already been used in a simulation and cannot be modified. You can copy the measure from the measures page and then edit the copy.
-        </div>
-      )}
-      headerAction={readOnly && onCopy && (
-        <Button onClick={onCopy} className="bg-gray-900 hover:bg-gray-700 text-white text-sm px-4 py-2">Make a Copy</Button>
-      )}
       footer={
-        readOnly ? (
-          <Button onClick={handleClose} variant="outline" className="px-6 py-2">Close</Button>
-        ) : (
-          <>
-            <Button type="button" variant="outline" onClick={attemptClose} className="px-6 py-2">Cancel</Button>
-            <Button
-              type="button"
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2"
-              disabled={!!titleError}
-              onClick={(e) => { e.preventDefault(); handleSubmit(e); }}
-            >
-              {editingMeasure ? "Update Measure" : "Add Measure"}
-            </Button>
-          </>
-        )
+        <>
+          <Button type="button" variant="outline" onClick={attemptClose} className="px-6 py-2">Cancel</Button>
+          <Button
+            type="button"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2"
+            disabled={!!titleError}
+            onClick={(e) => { e.preventDefault(); handleSubmit(e); }}
+          >
+            {editingMeasure ? "Update Measure" : "Add Measure"}
+          </Button>
+        </>
       }
     >
       <div className="space-y-6">
@@ -264,8 +246,7 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
               onChange={(e) => handleTitleChange(e.target.value)}
               required
               maxLength={80}
-              readOnly={readOnly}
-              className={`w-full border-2 rounded-lg px-4 py-3 focus:ring-2 focus:ring-opacity-20 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-opacity-20 focus-visible:ring-offset-0 ${readOnly ? 'bg-gray-100 cursor-not-allowed' : ''} ${
+              className={`w-full border-2 rounded-lg px-4 py-3 focus:ring-2 focus:ring-opacity-20 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-opacity-20 focus-visible:ring-offset-0 ${
                 titleError
                   ? 'border-red-500 focus:border-red-500 focus:ring-red-500 focus-visible:ring-red-500'
                   : 'border-gray-200 focus:border-blue-500 focus:ring-blue-500 focus-visible:ring-blue-500'
@@ -285,7 +266,6 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
               placeholder="e.g., Amabile (1982), Consensual Assessment Technique"
               value={formData.citation}
               onChange={(e) => { setFormData({ ...formData, citation: e.target.value }); touch(); }}
-              readOnly={readOnly}
               className={inputClass}
             />
           </div>
@@ -302,7 +282,6 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
               maxLength={400}
               rows={4}
               required
-              readOnly={readOnly}
               className={`${inputClass} resize-none`}
             />
           </div>
@@ -319,7 +298,6 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
                     </span>
                   )}
                 </label>
-                {!readOnly && (
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -330,9 +308,7 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
-                )}
               </div>
-              {!readOnly && (
               <Button
                 type="button"
                 variant="ghost"
@@ -342,7 +318,6 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
                 <Plus className="h-4 w-4" />
                 Add Anchor
               </Button>
-              )}
             </div>
 
             {anchorError && (
@@ -363,7 +338,6 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
                         placeholder="Value"
                         value={desired.value}
                         onChange={(e) => updateDesiredValue(index, 'value', e.target.value)}
-                        readOnly={readOnly}
                         className={inputClass}
                       />
                     </div>
@@ -378,11 +352,9 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
                           placeholder="e.g., strongly agree"
                           value={desired.label}
                           onChange={(e) => updateDesiredValue(index, 'label', e.target.value)}
-                          readOnly={readOnly}
                           className={inputClass}
                         />
                       </div>
-                      {!readOnly && (
                       <Button
                         type="button"
                         variant="ghost"
@@ -392,7 +364,6 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
                       >
                         <X className="h-4 w-4" />
                       </Button>
-                      )}
                     </div>
                   </div>
                 ))}
@@ -405,7 +376,6 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <label className="text-sm font-semibold text-gray-900">Items</label>
-                {!readOnly && (
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -416,9 +386,7 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
-                )}
               </div>
-              {!readOnly && (
               <Button
                 type="button"
                 variant="ghost"
@@ -428,7 +396,6 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
                 <Plus className="h-4 w-4" />
                 Add Item
               </Button>
-              )}
             </div>
 
             {itemError && (
@@ -443,10 +410,8 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
                       placeholder="e.g., I believe in universal childcare"
                       value={item.text}
                       onChange={(e) => updateItem(index, e.target.value)}
-                      readOnly={readOnly}
                       className={inputClass}
                     />
-                    {!readOnly && (
                     <Button
                       type="button"
                       variant="ghost"
@@ -456,7 +421,6 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
                     >
                       <X className="h-4 w-4" />
                     </Button>
-                    )}
                   </div>
                 ))}
               </div>
@@ -470,7 +434,6 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
               id="measure-scale-only"
               checked={scaleOnly}
               onChange={(e) => { setScaleOnly(e.target.checked); touch(); }}
-              disabled={readOnly}
               className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:cursor-not-allowed"
             />
             <label htmlFor="measure-scale-only" className="text-sm text-gray-700">

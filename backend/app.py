@@ -18,6 +18,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from utils.simulation import *
 from utils.evaluate import *
 from utils.graph import normalize_graph, validate_graph
+from utils.sampling import generate_personas, personas_match
 from utils.llm import get_llm, resolve_model_name, DEFAULT_MODEL
 from utils.progress import create_progress_updater
 try:
@@ -41,7 +42,6 @@ from utils.prompts import (
 import base64
 import threading
 import uuid
-import random
 import json
 import re
 import logging
@@ -181,95 +181,6 @@ STRIPE_MIN_AMOUNT = 1       # $1
 STRIPE_MAX_AMOUNT = 10000   # $10,000
 
 
-def parse_age_range(age_range_str):
-    """
-    Parse an age range string and return a random age within that range.
-    
-    Args:
-        age_range_str: String like "18 - 35 years old" or "18-35"
-    
-    Returns:
-        str: A random age within the range as a string, or the original string if parsing fails
-    """
-    try:
-        # Extract numbers from the string using regex
-        numbers = re.findall(r'\d+', age_range_str)
-        if len(numbers) >= 2:
-            min_age = int(numbers[0])
-            max_age = int(numbers[1])
-            # Select a random age within the range
-            random_age = random.randint(min_age, max_age)
-            return str(random_age)
-        elif len(numbers) == 1:
-            # Only one number found, return it as is
-            return numbers[0]
-        else:
-            # No numbers found, return original string
-            return age_range_str
-    except Exception as e:
-        logger.debug(f"Error parsing age range '{age_range_str}': {e}")
-        return age_range_str
-
-
-def generate_random_samples(attributes, num_samples=10):
-    """
-    Generate random samples from the attributes list.
-    
-    Args:
-        attributes: List of dictionaries, each containing 'label', 'category', and 'values'
-        num_samples: Number of samples to generate (default: 10)
-    
-    Returns:
-        List of sample dictionaries, each containing randomly selected values for each attribute
-        and a 'number' field (1-10) for consistent ordering
-    
-    Example input:
-        [
-            {'label': 'Age', 'category': 'demographics', 'values': ['18 - 35 years old']},
-            {'label': 'Nationality (UK)', 'category': 'demographics', 'values': ['England']},
-            {'label': 'Gender', 'category': 'demographics', 'values': ['Man (including Trans Male/Trans Man)']}
-        ]
-    
-    Example output:
-        [
-            {
-                'number': 1,
-                'Age': '24',
-                'Nationality (UK)': 'England',
-                'Gender': 'Man (including Trans Male/Trans Man)'
-            },
-            {
-                'number': 2,
-                'Age': '31',
-                'Nationality (UK)': 'England',
-                'Gender': 'Man (including Trans Male/Trans Man)'
-            },
-            ...
-        ]
-    """
-    samples = []
-    
-    for i in range(num_samples):
-        sample = {'number': i + 1}  # Add number field (1-10)
-        for attribute in attributes:
-            label = attribute.get('label')
-            values = attribute.get('values', [])
-            
-            # Randomly select one value from the available values
-            if values:
-                selected_value = random.choice(values)
-                
-                # Special handling for Age attribute: parse range and select random age
-                if label == 'Age' and isinstance(selected_value, str):
-                    selected_value = parse_age_range(selected_value)
-                
-                sample[label] = selected_value
-        
-        samples.append(sample)
-    
-    return samples
-
-
 def run_evaluation(uuid, data, model_name, jwt=None):
     fn = None  # Initialize fn variable for cleanup
     try:
@@ -291,47 +202,27 @@ def run_evaluation(uuid, data, model_name, jwt=None):
         except (TypeError, ValueError):
             num_samples = 10
 
-        # Always maintain 50 unique personas; use only the first num_samples for this run.
-        PERSONA_POOL_SIZE = 50
-
+        # Build exactly num_samples personas matching the sample's distributions.
+        # The last set is cached on the sample and reused while it still matches
+        # the current attributes and size; editing a distribution invalidates it.
         sample_id = data.get('sample')['id']
+        attributes = data.get('sample').get('attributes') or []
+        cached_personas = None
         try:
             sample_response = supabase.table("samples").select("persona").eq("id", sample_id).execute()
-
-            if sample_response.data and sample_response.data[0].get('persona') is not None:
-                existing_personas = sample_response.data[0]['persona']
-                if isinstance(existing_personas, list):
-                    existing_personas = sorted(existing_personas, key=lambda x: x.get('number', 0))
-                if len(existing_personas) >= PERSONA_POOL_SIZE:
-                    random_samples = existing_personas[:num_samples]
-                else:
-                    attributes = data.get('sample')['attributes']
-                    persona_pool = generate_random_samples(attributes, num_samples=PERSONA_POOL_SIZE)
-                    if isinstance(persona_pool, list):
-                        persona_pool = sorted(persona_pool, key=lambda x: x.get('number', 0))
-                    random_samples = persona_pool[:num_samples]
-                    if supabase and persona_pool:
-                        try:
-                            supabase.table("samples").update({"persona": persona_pool}).eq("id", sample_id).execute()
-                        except Exception:
-                            pass
-            else:
-                attributes = data.get('sample')['attributes']
-                persona_pool = generate_random_samples(attributes, num_samples=PERSONA_POOL_SIZE)
-                if isinstance(persona_pool, list):
-                    persona_pool = sorted(persona_pool, key=lambda x: x.get('number', 0))
-                random_samples = persona_pool[:num_samples]
-                if supabase and persona_pool:
-                    try:
-                        supabase.table("samples").update({"persona": persona_pool}).eq("id", sample_id).execute()
-                    except Exception:
-                        pass
+            if sample_response.data:
+                cached_personas = sample_response.data[0].get('persona')
         except Exception as e:
-            attributes = data.get('sample')['attributes']
-            persona_pool = generate_random_samples(attributes, num_samples=PERSONA_POOL_SIZE)
-            if isinstance(persona_pool, list):
-                persona_pool = sorted(persona_pool, key=lambda x: x.get('number', 0))
-            random_samples = persona_pool[:num_samples]
+            logger.warning(f"Could not read cached personas for sample {sample_id}: {e}")
+
+        if personas_match(cached_personas, attributes, num_samples):
+            random_samples = sorted(cached_personas, key=lambda x: x.get('number', 0))
+        else:
+            random_samples = generate_personas(attributes, num_samples)
+            try:
+                supabase.table("samples").update({"persona": random_samples}).eq("id", sample_id).execute()
+            except Exception as e:
+                logger.warning(f"Could not cache personas for sample {sample_id}: {e}")
 
         # Update progress to 10% - Setup complete, starting baseline
         supabase.table("experiments").update({"progress": 10}).eq("experiment_id", uuid).execute()
@@ -358,9 +249,18 @@ def run_evaluation(uuid, data, model_name, jwt=None):
             uuid, supabase, 30, 80, total_eval_units,
             get_client=get_supabase_client, jwt=jwt, no_throttle=True
         )
+        summary_spec = {
+            'title': data.get('title', ''),
+            'run_date': datetime.now().strftime('%Y-%m-%d %H:%M'),
+            'model': model_name,
+            'num_personas': num_samples,
+            'sample_name': sample.get('name', ''),
+            'study_introduction': data.get('study_introduction', ''),
+            'attributes': attributes,
+        }
         fn, eval_tokens = evaluate(
             df, model_name, steps, progress_callback=on_eval_unit,
-            scale_answers=scale_answers
+            scale_answers=scale_answers, summary_spec=summary_spec
         )
 
         df = df.replace('\n', '', regex=True)

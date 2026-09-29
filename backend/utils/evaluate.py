@@ -13,6 +13,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 
 from .llm import invoke_structured, EvaluationMetrics, get_llm, DEFAULT_MODEL
 from .graph import is_measure_step, measure_items
+from .summary_sheet import write_summary_sheet
 from .prompts import (
     get_persona_generation_user_prompt,
     get_evaluation_system_prompt,
@@ -75,40 +76,7 @@ def generate_persona_from_attributes(sample, key_g, supabase_client=None):
 
 
 
-def extract_unique_measures(steps):
-    """
-    Extracts all unique measure information from steps data.
-    
-    Args:
-        steps (list): List of step dictionaries containing measures
-        
-    Returns:
-        list: List of dictionaries containing unique measure information
-    """
-    unique_measures = []
-    seen_measures = set()
-    
-    for step in steps:
-        measures = step.get('measures', [])
-        for measure in measures:
-            # Create a unique identifier based on title and description
-            measure_key = f"{measure.get('title', '')}_{measure.get('description', '')}"
-            
-            if measure_key not in seen_measures:
-                seen_measures.add(measure_key)
-                
-                measure_info = {
-                    'title': measure.get('title', ''),
-                    'description': measure.get('description', ''),
-                    'range': measure.get('range', ''),
-                    'desiredValues': measure.get('desiredValues', [])
-                }
-                unique_measures.append(measure_info)
-    
-    return unique_measures
-
-
-def dataframe_to_excel(df_response, df_gemini, steps=None):
+def dataframe_to_excel(df_response, df_gemini, steps=None, summary_spec=None):
     """
     Converts evaluation results into an Excel file with multiple sheets.
     
@@ -116,6 +84,7 @@ def dataframe_to_excel(df_response, df_gemini, steps=None):
         df_response (pd.DataFrame): Original response dataframe
         df_gemini (pd.DataFrame): Gemini evaluation results
         steps (list): List of step dictionaries containing 'label' and 'instructions' keys
+        summary_spec (dict): Run details for the Summary sheet (see write_summary_sheet)
         
     Returns:
         str: Filename of the generated Excel file
@@ -124,46 +93,11 @@ def dataframe_to_excel(df_response, df_gemini, steps=None):
     fn = f'multiple_sheets_{timestamp}.xlsx'
 
     with pd.ExcelWriter(fn, engine='openpyxl') as writer:
-        # Add simulation steps as the first sheet if steps are provided
-        if steps:
-            # Report the graph by label so the previous/next columns join
-            # directly against the Responses and Metrics column headers.
-            label_by_id = {
-                step.get('id'): step.get('label', '')
-                for step in steps if step.get('id') is not None
-            }
+        # The full spec the run used - sample, measures and steps - goes
+        # first, since samples and measures can be edited after the run.
+        if steps or summary_spec:
+            write_summary_sheet(writer.book, {**(summary_spec or {}), 'steps': steps or []})
 
-            def labels_for(ids):
-                return ', '.join(
-                    label_by_id.get(step_id, str(step_id)) for step_id in (ids or [])
-                )
-
-            steps_data = []
-            for step in steps:
-                step_info = {
-                    'id': step.get('id', ''),
-                    'kind': 'measure' if is_measure_step(step) else 'step',
-                    'label': step['label'],
-                    'previous': labels_for(step.get('previous')),
-                    'next': labels_for(step.get('next')),
-                    'sample_proportion': step.get('sample_proportion', 100),
-                    'instructions': step['instructions'],
-                    'temperature': step.get('temperature', 'N/A')
-                }
-                # Add measures information
-                measures_info = []
-                for measure in step.get('measures', []):
-                    measures_info.append(f"{measure['title']}: {measure['description']} (Range: {measure['range']})")
-                # A measure node's items are what the persona actually answered.
-                items = measure_items(step)
-                if items:
-                    measures_info.append('Items: ' + '; '.join(items))
-                step_info['measures'] = '; '.join(measures_info)
-                steps_data.append(step_info)
-
-            steps_df = pd.DataFrame(steps_data)
-            steps_df.to_excel(writer, sheet_name='Simulation Steps', index=False)
-        
         # Determine sort order based on persona "number" field
         sort_indices = None
         if 'persona' in df_response.columns:
@@ -406,7 +340,8 @@ def process_row(row_idx, df_row, steps, model_name, progress_callback=None, scal
 
     return row_scores, None, all_token_usage
 
-def evaluate(df, model_name, steps=None, progress_callback=None, scale_answers=None):
+def evaluate(df, model_name, steps=None, progress_callback=None, scale_answers=None,
+             summary_spec=None):
     """
     Evaluates multiple rows in parallel using threading and combines the results into a DataFrame.
 
@@ -417,6 +352,7 @@ def evaluate(df, model_name, steps=None, progress_callback=None, scale_answers=N
         progress_callback (callable, optional): Called after each row completes for progress tracking
         scale_answers (list, optional): Per-row answers to the measure nodes,
             in the same order as `df`, as returned by `baseline_prompt`.
+        summary_spec (dict, optional): Run details for the export's Summary sheet.
 
     Returns:
         tuple: Contains:
@@ -507,6 +443,6 @@ def evaluate(df, model_name, steps=None, progress_callback=None, scale_answers=N
     # Create empty DataFrame for GPT-4 since evaluation is commented out
 
     # Generate Excel report
-    excel_file = dataframe_to_excel(df, results_df_gemini, steps)
+    excel_file = dataframe_to_excel(df, results_df_gemini, steps, summary_spec)
 
     return excel_file, tokens_ls

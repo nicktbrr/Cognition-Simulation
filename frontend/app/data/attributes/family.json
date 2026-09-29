@@ -96,6 +96,9 @@
         "id": "people_in_household",
         "label": "People in Household (excluding self)",
         "category": "family",
+        "type": "continuous",
+        "min": 0,
+        "max": 10,
         "options": [
             {
                 "id": "0",
@@ -151,6 +154,9 @@
         "id": "youngest_child_year",
         "label": "Year of birth of youngest child",
         "category": "family",
+        "type": "continuous",
+        "min": 1900,
+        "max": 2025,
         "options": [
             {
                 "id": "rather_not_say",
@@ -670,6 +676,9 @@
         "id": "number_of_children",
         "label": "Number of Children",
         "category": "family",
+        "type": "continuous",
+        "min": 0,
+        "max": 10,
         "options": [
             {
                 "id": "1",
@@ -729,6 +738,9 @@
         "id": "household_size",
         "label": "Household Size (including self)",
         "category": "family",
+        "type": "continuous",
+        "min": 1,
+        "max": 10,
         "options": [
             {
                 "id": "1",
@@ -784,6 +796,9 @@
         "id": "first_child_year",
         "label": "Year of birth of first child",
         "category": "family",
+        "type": "continuous",
+        "min": 1900,
+        "max": 2025,
         "options": [
             {
                 "id": "1900",
@@ -1372,6 +1387,9 @@
         "id": "romantic_partners",
         "label": "Number of romantic partners",
         "category": "family",
+        "type": "continuous",
+        "min": 0,
+        "max": 21,
         "options": [
             {
                 "id": "0",
@@ -1600,6 +1618,9 @@
         "id": "number_of_siblings",
         "label": "Number of Siblings",
         "category": "family",
+        "type": "continuous",
+        "min": 0,
+        "max": 10,
         "options": [
             {
                 "id": "0",

@@ -37,9 +37,7 @@ export interface Measure {
   /** True when the measure can only be used as a scale, never as a rating. */
   scaleOnly?: boolean;
   folder_id?: string | null;
-  /** Set on the measures page: already used in a simulation, so not editable. */
-  isLocked?: boolean;
 }
 
 /** A measure as the form hands it over, before the database assigns an id. */
-export type MeasureDraft = Omit<Measure, 'id' | 'folder_id' | 'isLocked'>;
+export type MeasureDraft = Omit<Measure, 'id' | 'folder_id'>;

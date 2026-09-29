@@ -3,11 +3,10 @@
 import React, { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { Plus, ChevronDown, ChevronRight, MoreVertical, Edit, Edit2, Copy, Trash2, Folder, FolderPlus, FolderInput, FileText, Lock } from "lucide-react";
+import { Plus, ChevronDown, ChevronRight, MoreVertical, Edit, Edit2, Copy, Trash2, Folder, FolderPlus, FolderInput, FileText } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../../components/ui/tooltip";
 import { supabase } from "../utils/supabase";
 import { useAuth } from "../hooks/useAuth";
 import AuthLoading from "../components/auth-loading";
@@ -53,8 +52,6 @@ export default function MeasuresPage() {
   const [contentLoaded, setContentLoaded] = useState(false);
   const [renamingMeasure, setRenamingMeasure] = useState<string | null>(null);
   const [newMeasureName, setNewMeasureName] = useState('');
-  const [showLockedWarning, setShowLockedWarning] = useState(false);
-  const [lockedMeasureId, setLockedMeasureId] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRefs = useRef<Record<string, HTMLButtonElement>>({});
   const hasInitiallyLoadedRef = useRef(false);
@@ -480,40 +477,8 @@ export default function MeasuresPage() {
         return;
       }
 
-      // Get all experiments for this user to check measure usage
-      const { data: experiments, error: expError } = await supabase
-        .from("experiments")
-        .select("experiment_data")
-        .eq("user_id", userId);
-
-      const usedMeasureIds = new Set<string>();
-      if (experiments) {
-        experiments.forEach((exp: any) => {
-          const ed = exp.experiment_data || {};
-          // Top-level measures array
-          if (Array.isArray(ed.measures)) {
-            ed.measures.forEach((m: any) => {
-              if (m?.id) usedMeasureIds.add(m.id);
-            });
-          }
-          // Steps may each have measures
-          if (Array.isArray(ed.steps)) {
-            ed.steps.forEach((step: any) => {
-              if (Array.isArray(step?.measures)) {
-                step.measures.forEach((m: any) => {
-                  if (m?.id) usedMeasureIds.add(m.id);
-                });
-              }
-            });
-          }
-        });
-      }
-
       const formattedMeasures: Measure[] = data.map((measure: any) =>
-        mapMeasureRow(measure, {
-          folder_id: measure.folder_id || null,
-          isLocked: usedMeasureIds.has(measure.id)
-        })
+        mapMeasureRow(measure, { folder_id: measure.folder_id || null })
       );
 
       setMeasures(formattedMeasures);
@@ -565,7 +530,7 @@ export default function MeasuresPage() {
       const updated = await updateMeasure(id, updatedMeasure);
       if (!updated) return;
 
-      setMeasures(measures.map(m => (m.id === id ? { ...updated, folder_id: m.folder_id, isLocked: m.isLocked } : m)));
+      setMeasures(measures.map(m => (m.id === id ? { ...updated, folder_id: m.folder_id } : m)));
       setEditingMeasure(null);
     } catch (error) {
       console.error("Error in handleUpdateMeasure:", error);
@@ -637,15 +602,9 @@ export default function MeasuresPage() {
   const handleRenameMeasure = (measureId: string) => {
     const measure = measures.find(m => m.id === measureId);
     if (measure) {
-      if (measure.isLocked) {
-        setLockedMeasureId(measureId);
-        setShowLockedWarning(true);
-        setOpenDropdown(null);
-      } else {
-        setRenamingMeasure(measureId);
-        setNewMeasureName(measure.title);
-        setOpenDropdown(null);
-      }
+      setRenamingMeasure(measureId);
+      setNewMeasureName(measure.title);
+      setOpenDropdown(null);
     }
   };
 
@@ -693,14 +652,8 @@ export default function MeasuresPage() {
   const handleEditMeasure = (id: string) => {
     const measureToEdit = measures.find(m => m.id === id);
     if (measureToEdit) {
-      if (measureToEdit.isLocked) {
-        setLockedMeasureId(id);
-        setShowLockedWarning(true);
-        setOpenDropdown(null);
-      } else {
-        setEditingMeasure(measureToEdit);
-        setIsAddModalOpen(true);
-      }
+      setEditingMeasure(measureToEdit);
+      setIsAddModalOpen(true);
     }
     setOpenDropdown(null);
   };
@@ -755,15 +708,14 @@ export default function MeasuresPage() {
         return;
       }
 
-      // Add the duplicated measure to the local state (new copy is never locked)
+      // Add the duplicated measure to the local state
       const duplicatedMeasure: Measure = {
         id: data.id,
         title: data.title,
         description: data.definition,
         range: `${data.min} - ${data.max}`,
         desiredValues: data.desired_values || [],
-        folder_id: data.folder_id || null,
-        isLocked: false
+        folder_id: data.folder_id || null
       };
       
       setMeasures([duplicatedMeasure, ...measures]);
@@ -937,7 +889,6 @@ export default function MeasuresPage() {
                     <SortableTableHeader label="Title" sortKey="name" onSort={handleTableSort} currentSort={sortConfig} />
                     <SortableTableHeader label="Instructions" sortKey="description" onSort={handleTableSort} currentSort={sortConfig} />
                     <SortableTableHeader label="Range" sortKey="range" onSort={handleTableSort} currentSort={sortConfig} />
-                    <SortableTableHeader label="Status" sortKey="status" onSort={handleTableSort} currentSort={sortConfig} />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1023,9 +974,6 @@ export default function MeasuresPage() {
                           <TableCell>
                             <span className="text-sm text-gray-500">—</span>
                           </TableCell>
-                          <TableCell>
-                            <span className="text-sm text-gray-500">—</span>
-                          </TableCell>
                         </TableRow>
                         
                         {/* Measures inside the folder (when expanded) - sorted based on sortConfig */}
@@ -1040,10 +988,6 @@ export default function MeasuresPage() {
                             return multiplier * a.description.localeCompare(b.description);
                           } else if (key === 'range') {
                             return multiplier * a.range.localeCompare(b.range);
-                          } else if (key === 'status') {
-                            const statusA = a.isLocked ? 'Locked' : 'Unlocked';
-                            const statusB = b.isLocked ? 'Locked' : 'Unlocked';
-                            return multiplier * statusA.localeCompare(statusB);
                           }
                           return 0;
                         }).map((measure) => (
@@ -1130,32 +1074,10 @@ export default function MeasuresPage() {
                               <TableCell>
                                 <span className="font-medium">{measure.range}</span>
                               </TableCell>
-                              <TableCell>
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      {measure.isLocked ? (
-                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 cursor-help">
-                                          Locked
-                                        </span>
-                                      ) : (
-                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 cursor-help">
-                                          Unlocked
-                                        </span>
-                                      )}
-                                    </TooltipTrigger>
-                                    <TooltipContent side="top" className="max-w-xs">
-                                      {measure.isLocked
-                                        ? "Has been used in a simulation and cannot be edited."
-                                        : "Has not been used in a simulation and can be edited."}
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              </TableCell>
                             </TableRow>
                             {expandedRows.has(measure.id) && (
                               <TableRow>
-                                <TableCell colSpan={5} className="bg-muted/30 p-4">
+                                <TableCell colSpan={4} className="bg-muted/30 p-4">
                                   <div className="space-y-4" style={{marginLeft: '85px'}}>
                                     {measure.citation && (
                                       <div>
@@ -1217,10 +1139,6 @@ export default function MeasuresPage() {
                       return multiplier * a.description.localeCompare(b.description);
                     } else if (key === 'range') {
                       return multiplier * a.range.localeCompare(b.range);
-                    } else if (key === 'status') {
-                      const statusA = a.isLocked ? 'Locked' : 'Unlocked';
-                      const statusB = b.isLocked ? 'Locked' : 'Unlocked';
-                      return multiplier * statusA.localeCompare(statusB);
                     }
                     return 0;
                   }).map((measure) => (
@@ -1305,32 +1223,10 @@ export default function MeasuresPage() {
                       <TableCell>
                         <span className="font-medium">{measure.range}</span>
                       </TableCell>
-                      <TableCell>
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              {measure.isLocked ? (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 cursor-help">
-                                  Locked
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 cursor-help">
-                                  Unlocked
-                                </span>
-                              )}
-                            </TooltipTrigger>
-                            <TooltipContent side="top" className="max-w-xs">
-                              {measure.isLocked
-                                ? "Has been used in a simulation and cannot be edited."
-                                : "Has not been used in a simulation and can be edited."}
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </TableCell>
                     </TableRow>
                     {expandedRows.has(measure.id) && (
                       <TableRow>
-                        <TableCell colSpan={5} className="bg-muted/30 p-4">
+                        <TableCell colSpan={4} className="bg-muted/30 p-4">
                           <div className="space-y-4" style={{marginLeft: '65px'}}>
                             {measure.citation && (
                               <div>
@@ -1388,12 +1284,6 @@ export default function MeasuresPage() {
         editingMeasure={editingMeasure}
         onUpdate={handleUpdateMeasure}
         checkNameExists={isMeasureNameTaken}
-        readOnly={editingMeasure?.isLocked ?? false}
-        onCopy={editingMeasure?.isLocked ? () => {
-          handleDuplicateMeasure(editingMeasure.id);
-          setIsAddModalOpen(false);
-          setEditingMeasure(null);
-        } : undefined}
       />
 
       {/* Portal-based Dropdown */}
@@ -1406,23 +1296,21 @@ export default function MeasuresPage() {
             right: dropdownPosition.right
           }}
         >
-          {/* 1. Edit (only while the measure is unlocked) */}
-          {!measures.find(m => m.id === openDropdown)?.isLocked && (
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                handleEditMeasure(openDropdown);
-              }}
-              onMouseDown={(e) => {
-                e.stopPropagation();
-              }}
-              className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-            >
-              <Edit className="w-4 h-4 mr-3" />
-              Edit
-            </button>
-          )}
+          {/* 1. Edit */}
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleEditMeasure(openDropdown);
+            }}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+            }}
+            className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+          >
+            <Edit className="w-4 h-4 mr-3" />
+            Edit
+          </button>
           {/* 2. Rename */}
           <button
             onClick={(e) => {
@@ -1486,50 +1374,6 @@ export default function MeasuresPage() {
             <Trash2 className="w-4 h-4 mr-3" />
             Delete
           </button>
-        </div>,
-        document.body
-      )}
-
-      {/* Locked Measure Warning Modal */}
-      {showLockedWarning && createPortal(
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[99999]">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
-                <Lock className="w-5 h-5 text-red-600" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">Measure is Locked</h3>
-              </div>
-            </div>
-            <p className="text-gray-700 mb-6">
-              Measures may be edited up until the first time they are used in a simulation. You may make a copy of the measure to edit it at any point.
-            </p>
-            <div className="flex gap-3 justify-end">
-              <Button
-                onClick={() => {
-                  setShowLockedWarning(false);
-                  setLockedMeasureId(null);
-                }}
-                variant="outline"
-                className="px-4 py-2"
-              >
-                Close
-              </Button>
-              <Button
-                onClick={() => {
-                  if (lockedMeasureId) {
-                    handleDuplicateMeasure(lockedMeasureId);
-                  }
-                  setShowLockedWarning(false);
-                  setLockedMeasureId(null);
-                }}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                Copy
-              </Button>
-            </div>
-          </div>
         </div>,
         document.body
       )}

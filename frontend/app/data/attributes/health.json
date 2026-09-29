@@ -399,6 +399,9 @@
     "id": "covid_vaccinations_count",
     "label": "Including boosters, how many COVID-19 vaccinations have you received?",
     "category": "health",
+    "type": "continuous",
+    "min": 0,
+    "max": 6,
     "options": [
       { "id": "1", "label": "1" },
       { "id": "2", "label": "2" },

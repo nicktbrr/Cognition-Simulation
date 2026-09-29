@@ -17,6 +17,13 @@ import shoppingAttributesData from "./attributes/shopping.json";
 import financeAttributesData from "./attributes/finance.json";
 import lifestyleAttributesData from "./attributes/lifestyle.json";
 import technologyAttributesData from "./attributes/technology.json";
+import {
+  defaultContinuous,
+  formatRange,
+  rebalanceCategorical,
+  type Distribution,
+  type SampleAttributeJson,
+} from "../utils/distributions";
 
 export interface AttributeOption {
   id: string;
@@ -28,6 +35,15 @@ export interface Attribute {
   label: string;
   category: string;
   options?: AttributeOption[];
+  /**
+   * Continuous attributes (Age and the numeric counts) are drawn from a
+   * min/max/mean/SD curve instead of a split across chosen options. `min`
+   * and `max` are the widest range the user may pick.
+   */
+  type?: "categorical" | "continuous";
+  min?: number;
+  max?: number;
+  unit?: string;
 }
 
 export interface AttributeCategory {
@@ -77,44 +93,83 @@ allCategories.forEach((category) => {
 export const getAttributeById = (attributeId: string): Attribute | undefined =>
   attributesById.get(attributeId);
 
+/** The catalogue attribute a stored `{label, category}` row came from. */
+export const getAttributeByLabel = (label: string, category?: string): Attribute | undefined => {
+  let fallback: Attribute | undefined;
+  for (const attribute of attributesById.values()) {
+    if (attribute.label !== label) continue;
+    if (!category || attribute.category.toLowerCase() === category.toLowerCase()) return attribute;
+    fallback = fallback ?? attribute;
+  }
+  return fallback;
+};
+
+export const isContinuous = (attribute: Attribute | undefined): boolean =>
+  attribute?.type === "continuous";
+
+/** The range a continuous attribute may take: [min, max] from the catalogue. */
+export const continuousBounds = (attribute: Attribute) => ({
+  min: attribute.min ?? 0,
+  max: attribute.max ?? 100,
+});
+
 export const getOptionLabel = (attributeId: string, optionId: string): string => {
   const attribute = attributesById.get(attributeId);
   const option = attribute?.options?.find((opt) => opt.id === optionId);
   return option?.label || optionId;
 };
 
-// The Samples page stores Age as a single "18 - 25 years old" range value
-// rather than one entry per selected age.
-export const formatAgeRange = (optionIds: string[]): string => {
-  const ages = optionIds
-    .map((id) => parseInt(id, 10))
-    .filter((age) => !Number.isNaN(age))
-    .sort((a, b) => a - b);
-  if (ages.length === 0) return "";
-  const min = ages[0];
-  const max = ages[ages.length - 1];
-  return `${min} - ${max} years old`;
+// A continuous attribute picked as option ids (e.g. from a PDF import) spans
+// the lowest to highest numeric option chosen; anything without a number
+// ("Rather not say") is ignored.
+const numericRange = (attribute: Attribute, optionIds: string[]): [number, number] => {
+  const numbers = optionIds
+    .map((optionId) => parseInt(getOptionLabel(attribute.id, optionId), 10))
+    .filter((value) => !Number.isNaN(value));
+  const bounds = continuousBounds(attribute);
+  if (numbers.length === 0) return [bounds.min, bounds.max];
+  const lo = Math.max(bounds.min, Math.min(...numbers));
+  const hi = Math.min(bounds.max, Math.max(...numbers));
+  return lo < hi ? [lo, hi] : [bounds.min, bounds.max];
 };
 
 /**
  * Convert selected attribute/option ids into the `attributes` JSON shape the
- * samples table stores: [{ label, category, values }].
+ * samples table stores: [{ label, category, values, distribution }].
+ *
+ * A continuous attribute stores its range as one "min - max unit" value; its
+ * distribution is the one given, or the default curve over the chosen range.
+ * A categorical attribute stores its option labels, split as given or evenly.
  */
 export const toSampleAttributesJson = (
-  selections: Array<{ attributeId: string; optionIds: string[] }>
-): Array<{ label: string; category: string; values: string[] }> =>
+  selections: Array<{ attributeId: string; optionIds: string[]; distribution?: Distribution }>
+): SampleAttributeJson[] =>
   selections
-    .map((selection) => {
+    .map((selection): SampleAttributeJson | null => {
       const attribute = attributesById.get(selection.attributeId);
       if (!attribute) return null;
+      const { label, category } = attribute;
 
-      const values =
-        attribute.id === "age"
-          ? [formatAgeRange(selection.optionIds)].filter(Boolean)
-          : selection.optionIds.map((optionId) => getOptionLabel(attribute.id, optionId));
+      if (isContinuous(attribute)) {
+        const distribution =
+          selection.distribution?.type === "continuous"
+            ? selection.distribution
+            : defaultContinuous(...numericRange(attribute, selection.optionIds));
+        return {
+          label,
+          category,
+          values: [formatRange(distribution.min, distribution.max, attribute.unit)],
+          distribution,
+        };
+      }
 
+      const values = selection.optionIds.map((optionId) => getOptionLabel(attribute.id, optionId));
       if (values.length === 0) return null;
-
-      return { label: attribute.label, category: attribute.category, values };
+      return {
+        label,
+        category,
+        values,
+        distribution: rebalanceCategorical(selection.distribution, values),
+      };
     })
-    .filter(Boolean) as Array<{ label: string; category: string; values: string[] }>;
+    .filter((attribute): attribute is SampleAttributeJson => attribute !== null);

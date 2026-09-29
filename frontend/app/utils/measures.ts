@@ -131,8 +131,7 @@ export async function createMeasure(userId: string, measure: MeasureDraft): Prom
     throw new Error(describeMeasureError(error));
   }
 
-  // A measure that has never been in a simulation can't be locked yet.
-  return mapMeasureRow(data, { isLocked: false });
+  return mapMeasureRow(data);
 }
 
 /** Update a measure in place. Throws with a readable message on failure. */

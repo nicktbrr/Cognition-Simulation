@@ -452,16 +452,15 @@ def _validate_proportions(steps, parents, children):
     return errors
 
 
-def _largest_remainder_split(items, weights):
+def largest_remainder_counts(total, weights):
     """
-    Split `items` into contiguous chunks sized by `weights` (which should sum
-    to 1). Largest-remainder rounding guarantees the chunk sizes are integers
-    that sum to exactly len(items).
+    Split `total` into whole-number counts proportional to `weights` (which
+    should sum to 1). Largest-remainder rounding guarantees the counts sum to
+    exactly `total`.
     """
     if not weights:
         return []
 
-    total = len(items)
     raw = [max(0.0, w) * total for w in weights]
     counts = [int(math.floor(value)) for value in raw]
 
@@ -482,9 +481,17 @@ def _largest_remainder_split(items, weights):
             if counts[idx] > 0:
                 counts[idx] -= 1
 
+    return counts
+
+
+def _largest_remainder_split(items, weights):
+    """
+    Split `items` into contiguous chunks sized by `weights` (which should sum
+    to 1), using `largest_remainder_counts` for the chunk sizes.
+    """
     chunks = []
     position = 0
-    for count in counts:
+    for count in largest_remainder_counts(len(items), weights):
         chunks.append(items[position:position + count])
         position += count
     return chunks

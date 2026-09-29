@@ -3,12 +3,61 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { X, ChevronDown, ChevronUp, Search, Pencil } from "lucide-react";
 import { Button } from "./ui/button";
-import { allCategories, type Attribute, type AttributeOption } from "../data/attributeCatalog";
+import {
+  allCategories,
+  continuousBounds,
+  isContinuous,
+  type Attribute,
+  type AttributeOption,
+} from "../data/attributeCatalog";
+import DistributionEditor from "./DistributionEditor";
+import {
+  defaultContinuous,
+  ensureDistribution,
+  formatContinuous,
+  parseRange,
+  rebalanceCategorical,
+  validateContinuous,
+  type CategoricalDistribution,
+  type ContinuousDistribution,
+  type Distribution,
+} from "../utils/distributions";
 
-interface AttributeSelection {
+/**
+ * The options chosen for an attribute and how the sample is spread over
+ * them. A continuous attribute stores its range as `[min, max]` in
+ * `selectedOptions` and its curve in `distribution`.
+ */
+export interface AttributeSelection {
   attributeId: string;
   selectedOptions: string[];
+  distribution?: Distribution;
 }
+
+/** Key in `checkedOptions` for a continuous attribute's single range row. */
+const rangeKey = (attributeId: string) => `${attributeId}-range`;
+
+/** The labels of the chosen options, in catalogue order. */
+const optionLabelsFor = (attribute: Attribute, optionIds: string[]) =>
+  (attribute.options ?? []).filter((option) => optionIds.includes(option.id)).map((option) => option.label);
+
+/**
+ * The range a continuous attribute was saved with: its stored curve, a
+ * legacy "18 - 35 years old" range, or the span of numeric option labels a
+ * legacy row picked.
+ */
+const storedContinuous = (attribute: Attribute, attrData: any): ContinuousDistribution => {
+  if (attrData?.distribution?.type === "continuous") return attrData.distribution;
+  const values: string[] = Array.isArray(attrData?.values) ? attrData.values : [];
+  const bounds = continuousBounds(attribute);
+  const range = values.length === 1 ? parseRange(values[0]) : null;
+  if (range) return defaultContinuous(range[0], range[1]);
+  const numbers = values.map((value) => parseInt(value, 10)).filter((value) => !Number.isNaN(value));
+  if (numbers.length > 1 && Math.min(...numbers) < Math.max(...numbers)) {
+    return defaultContinuous(Math.min(...numbers), Math.max(...numbers));
+  }
+  return defaultContinuous(bounds.min, bounds.max);
+};
 
 interface Sample {
   id: string;
@@ -22,19 +71,17 @@ interface NewSampleModalProps {
   onSave: (sampleName: string, selectedAttributes: Attribute[], attributeSelections: AttributeSelection[]) => void;
   initialSample?: Sample | null;
   checkNameExists?: (name: string, excludeId?: string) => boolean;
-  readOnly?: boolean;
-  onCopy?: () => void;
 }
 
-export default function NewSampleModal({ isOpen, onClose, onSave, initialSample, checkNameExists, readOnly = false, onCopy }: NewSampleModalProps) {
+export default function NewSampleModal({ isOpen, onClose, onSave, initialSample, checkNameExists }: NewSampleModalProps) {
   const [sampleName, setSampleName] = useState<string>('');
   const [selectedAttributes, setSelectedAttributes] = useState<Attribute[]>([]);
   const [attributeSelections, setAttributeSelections] = useState<AttributeSelection[]>([]);
   const [activeAttributePanel, setActiveAttributePanel] = useState<Attribute | null>(null);
   const [tempSelectedOptions, setTempSelectedOptions] = useState<string[]>([]);
-  const [ageRange, setAgeRange] = useState({ min: 5, max: 82 });
-  const [tempAgeRange, setTempAgeRange] = useState({ min: 5, max: 82 });
-  const [tempAgeInput, setTempAgeInput] = useState({ min: '5', max: '82' });
+  // The popover's draft split (categorical) or curve (continuous).
+  const [tempDistribution, setTempDistribution] = useState<CategoricalDistribution | undefined>(undefined);
+  const [tempContinuous, setTempContinuous] = useState<ContinuousDistribution | null>(null);
   const [panelPosition, setPanelPosition] = useState<{ top: number; left: number; maxHeight?: number } | null>(null);
   const [checkedOptions, setCheckedOptions] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -58,20 +105,13 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showUnsavedConfirm, setShowUnsavedConfirm] = useState(false);
 
-  const ageValidation = useMemo(() => {
-    const minNum = tempAgeInput.min === '' ? NaN : parseInt(tempAgeInput.min, 10);
-    const maxNum = tempAgeInput.max === '' ? NaN : parseInt(tempAgeInput.max, 10);
-    const bothNumbers = !isNaN(minNum) && !isNaN(maxNum);
-    const inRange = bothNumbers && minNum >= 5 && minNum <= 82 && maxNum >= 5 && maxNum <= 82;
-    const validRange = inRange && minNum < maxNum;
-    const errorMessage =
-      !bothNumbers
-        ? 'Enter numbers between 5 and 82 for both minimum and maximum.'
-        : !inRange
-          ? 'Ages must be between 5 and 82.'
-          : 'Minimum age must be less than maximum age.';
-    return { validRange, minNum, maxNum, bothNumbers, inRange, errorMessage };
-  }, [tempAgeInput.min, tempAgeInput.max]);
+  const continuousError = useMemo(
+    () =>
+      activeAttributePanel && tempContinuous
+        ? validateContinuous(tempContinuous, continuousBounds(activeAttributePanel))
+        : null,
+    [activeAttributePanel, tempContinuous]
+  );
 
   // Initialize with initialSample data when in edit mode
   useEffect(() => {
@@ -90,7 +130,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
   // Check for duplicate name when sample name changes
   const handleSampleNameChange = (name: string) => {
     setSampleName(name);
-    if (!readOnly) setHasUnsavedChanges(true);
+    setHasUnsavedChanges(true);
     
     // Check for duplicate name if the function is provided
     if (checkNameExists && name.trim()) {
@@ -121,18 +161,13 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
         if (attribute) {
           preSelectedAttributes.push(attribute);
 
-          if (attribute.id === 'age' && attrData.values && attrData.values.length > 0) {
-            // Parse age range from string like "18 - 24 years old"
-            const ageValue = attrData.values[0];
-            const match = ageValue.match(/(\d+)\s*-\s*(\d+)/);
-            if (match) {
-              const min = parseInt(match[1]);
-              const max = parseInt(match[2]);
-              preSelections.push({
-                attributeId: 'age',
-                selectedOptions: [min.toString(), max.toString()]
-              });
-            }
+          if (isContinuous(attribute)) {
+            const distribution = storedContinuous(attribute, attrData);
+            preSelections.push({
+              attributeId: attribute.id,
+              selectedOptions: [String(distribution.min), String(distribution.max)],
+              distribution,
+            });
           } else if (attribute.options && attrData.values) {
             // Match values to option IDs
             const selectedOptionIds: string[] = [];
@@ -146,7 +181,11 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
             if (selectedOptionIds.length > 0) {
               preSelections.push({
                 attributeId: attribute.id,
-                selectedOptions: selectedOptionIds
+                selectedOptions: selectedOptionIds,
+                distribution: rebalanceCategorical(
+                  ensureDistribution(attrData),
+                  optionLabelsFor(attribute, selectedOptionIds)
+                ),
               });
             }
           }
@@ -159,8 +198,8 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
       // Initialize all options as checked
       const allCheckedKeys = new Set<string>();
       preSelections.forEach(selection => {
-        if (selection.attributeId === 'age') {
-          allCheckedKeys.add(`${selection.attributeId}-age-range`);
+        if (selection.distribution?.type === 'continuous') {
+          allCheckedKeys.add(rangeKey(selection.attributeId));
         } else {
           selection.selectedOptions.forEach(optionId => {
             allCheckedKeys.add(`${selection.attributeId}-${optionId}`);
@@ -207,28 +246,27 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
     const position = { top, left, maxHeight: Math.min(maxPanelHeight, viewportHeight - top - panelPadding) };
     setPanelPosition(position);
 
-    if (attribute.id === 'age') {
+    const existingSelection = attributeSelections.find(sel => sel.attributeId === attribute.id);
+    if (isContinuous(attribute)) {
       setActiveAttributePanel(attribute);
-      const existingSelection = attributeSelections.find(sel => sel.attributeId === attribute.id);
-      if (existingSelection && existingSelection.selectedOptions.length >= 2) {
-        const minAge = Math.min(parseInt(existingSelection.selectedOptions[0]), parseInt(existingSelection.selectedOptions[1]));
-        const maxAge = Math.max(parseInt(existingSelection.selectedOptions[0]), parseInt(existingSelection.selectedOptions[1]));
-        setTempAgeRange({ min: minAge, max: maxAge });
-        setTempAgeInput({ min: minAge.toString(), max: maxAge.toString() });
-      } else {
-        setTempAgeRange({ min: 5, max: 82 });
-        setTempAgeInput({ min: '5', max: '82' });
-      }
+      const bounds = continuousBounds(attribute);
+      setTempContinuous(
+        existingSelection?.distribution?.type === 'continuous'
+          ? existingSelection.distribution
+          : defaultContinuous(bounds.min, bounds.max)
+      );
     } else if (attribute.options) {
       setActiveAttributePanel(attribute);
       setOptionSearchQuery('');
-      const existingSelection = attributeSelections.find(sel => sel.attributeId === attribute.id);
       setTempSelectedOptions(existingSelection?.selectedOptions || []);
+      setTempDistribution(
+        existingSelection?.distribution?.type === 'categorical' ? existingSelection.distribution : undefined
+      );
     }
   };
 
   const handleAttributeClick = (attribute: Attribute, event: React.MouseEvent) => {
-    if (attribute.id === 'age' || attribute.options) {
+    if (isContinuous(attribute) || attribute.options) {
       openAttributePanelFor(attribute, event.currentTarget as HTMLElement);
     } else {
       const isSelected = selectedAttributes.some(attr => attr.id === attribute.id);
@@ -237,7 +275,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
       } else {
         setSelectedAttributes([...selectedAttributes, attribute]);
       }
-      if (!readOnly) setHasUnsavedChanges(true);
+      setHasUnsavedChanges(true);
     }
   };
 
@@ -267,76 +305,56 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
   };
 
   const handleAddToSelection = () => {
-    if (activeAttributePanel) {
-      if (activeAttributePanel.id === 'age') {
-        const minNum = tempAgeInput.min === '' ? NaN : parseInt(tempAgeInput.min, 10);
-        const maxNum = tempAgeInput.max === '' ? NaN : parseInt(tempAgeInput.max, 10);
-        const valid =
-          !isNaN(minNum) && !isNaN(maxNum) &&
-          minNum >= 5 && minNum <= 82 && maxNum >= 5 && maxNum <= 82 &&
-          minNum < maxNum;
-        if (!valid) return;
-        const minAge = Math.min(minNum, maxNum);
-        const maxAge = Math.max(minNum, maxNum);
-        const newSelection: AttributeSelection = {
-          attributeId: activeAttributePanel.id,
-          selectedOptions: [minAge.toString(), maxAge.toString()]
-        };
+    if (!activeAttributePanel) return;
+    const attribute = activeAttributePanel;
+    let newSelection: AttributeSelection;
+    let checkedKeys: string[];
 
-        setAttributeSelections(prev => {
-          const filtered = prev.filter(sel => sel.attributeId !== activeAttributePanel.id);
-          return [...filtered, newSelection];
-        });
-
-        // Add to selected attributes if not already there
-        if (!selectedAttributes.some(attr => attr.id === activeAttributePanel.id)) {
-          setSelectedAttributes(prev => [...prev, activeAttributePanel]);
-        }
-
-        // Mark age range as checked
-        setCheckedOptions(prev => new Set(prev).add(`${activeAttributePanel.id}-age-range`));
-        setHasUnsavedChanges(true);
-
-        // Close panel
-        setActiveAttributePanel(null);
-        setTempAgeRange({ min: 5, max: 82 });
-        setTempAgeInput({ min: '5', max: '82' });
-      } else if (tempSelectedOptions.length > 0) {
-        // Handle regular options selection
-        const newSelection: AttributeSelection = {
-          attributeId: activeAttributePanel.id,
-          selectedOptions: tempSelectedOptions
-        };
-
-        setAttributeSelections(prev => {
-          const filtered = prev.filter(sel => sel.attributeId !== activeAttributePanel.id);
-          return [...filtered, newSelection];
-        });
-        setHasUnsavedChanges(true);
-
-        // Add to selected attributes if not already there
-        if (!selectedAttributes.some(attr => attr.id === activeAttributePanel.id)) {
-          setSelectedAttributes(prev => [...prev, activeAttributePanel]);
-        }
-
-        // Mark all selected options as checked
-        tempSelectedOptions.forEach(optionId => {
-          setCheckedOptions(prev => new Set(prev).add(`${activeAttributePanel.id}-${optionId}`));
-        });
-
-        // Close panel
-        setActiveAttributePanel(null);
-        setTempSelectedOptions([]);
-      }
+    if (isContinuous(attribute)) {
+      if (!tempContinuous || continuousError) return;
+      newSelection = {
+        attributeId: attribute.id,
+        selectedOptions: [String(tempContinuous.min), String(tempContinuous.max)],
+        distribution: tempContinuous,
+      };
+      checkedKeys = [rangeKey(attribute.id)];
+    } else {
+      if (tempSelectedOptions.length === 0) return;
+      // Keep the options in catalogue order so the split reads top to bottom.
+      const optionIds = (attribute.options ?? [])
+        .map(option => option.id)
+        .filter(id => tempSelectedOptions.includes(id));
+      newSelection = {
+        attributeId: attribute.id,
+        selectedOptions: optionIds,
+        distribution: rebalanceCategorical(tempDistribution, optionLabelsFor(attribute, optionIds)),
+      };
+      checkedKeys = optionIds.map(optionId => `${attribute.id}-${optionId}`);
     }
+
+    setAttributeSelections(prev => [...prev.filter(sel => sel.attributeId !== attribute.id), newSelection]);
+    if (!selectedAttributes.some(attr => attr.id === attribute.id)) {
+      setSelectedAttributes(prev => [...prev, attribute]);
+    }
+    setCheckedOptions(prev => {
+      const next = new Set(prev);
+      checkedKeys.forEach(key => next.add(key));
+      return next;
+    });
+    setHasUnsavedChanges(true);
+
+    setActiveAttributePanel(null);
+    setTempSelectedOptions([]);
+    setTempDistribution(undefined);
+    setTempContinuous(null);
   };
 
   const handleCloseAttributePanel = () => {
     setActiveAttributePanel(null);
     setOptionSearchQuery('');
     setTempSelectedOptions([]);
-    setTempAgeRange({ min: 5, max: 82 });
-    setTempAgeInput({ min: '5', max: '82' });
+    setTempDistribution(undefined);
+    setTempContinuous(null);
     setPanelPosition(null);
   };
 
@@ -354,8 +372,8 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
     setHasUnsavedChanges(true);
   };
 
-  const handleToggleAgeRange = (attributeId: string) => {
-    const key = `${attributeId}-age-range`;
+  const handleToggleRange = (attributeId: string) => {
+    const key = rangeKey(attributeId);
     setCheckedOptions(prev => {
       const newSet = new Set(prev);
       if (newSet.has(key)) {
@@ -376,8 +394,8 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
   const handleSave = () => {
     // Filter selections to only include checked options
     const filteredSelections = attributeSelections.map(selection => {
-      if (selection.attributeId === 'age') {
-        const isChecked = checkedOptions.has(`${selection.attributeId}-age-range`);
+      if (selection.distribution?.type === 'continuous') {
+        const isChecked = checkedOptions.has(rangeKey(selection.attributeId));
         return isChecked ? selection : null;
       } else {
         const checkedOptionsForAttr = selection.selectedOptions.filter(optionId => 
@@ -416,8 +434,8 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
     setAttributeSelections([]);
     setActiveAttributePanel(null);
     setTempSelectedOptions([]);
-    setTempAgeRange({ min: 5, max: 82 });
-    setTempAgeInput({ min: '5', max: '82' });
+    setTempDistribution(undefined);
+    setTempContinuous(null);
     setPanelPosition(null);
     setCheckedOptions(new Set());
     setSearchQuery('');
@@ -427,10 +445,6 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
   };
 
   const attemptClose = () => {
-    if (readOnly) {
-      handleClose();
-      return;
-    }
     if (hasUnsavedChanges) {
       setShowUnsavedConfirm(true);
     } else {
@@ -442,17 +456,11 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
     const selection = attributeSelections.find(sel => sel.attributeId === attributeId);
     if (!selection) return [];
     
-    if (attributeId === 'age') {
-      // For age, create a display format for the range
-      if (selection.selectedOptions.length >= 2) {
-        const minAge = Math.min(parseInt(selection.selectedOptions[0]), parseInt(selection.selectedOptions[1]));
-        const maxAge = Math.max(parseInt(selection.selectedOptions[0]), parseInt(selection.selectedOptions[1]));
-        return [{ id: 'age-range', label: `${minAge} - ${maxAge} years old` }];
-      }
-      return [];
+    const attribute = selectedAttributes.find(attr => attr.id === attributeId);
+    if (selection.distribution?.type === 'continuous') {
+      return [{ id: 'range', label: formatContinuous(selection.distribution, attribute?.unit) }];
     }
     
-    const attribute = selectedAttributes.find(attr => attr.id === attributeId);
     if (!attribute || !attribute.options) return [];
     
     return attribute.options.filter(option => selection.selectedOptions.includes(option.id));
@@ -462,16 +470,10 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
     <>
       <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-end z-50" onClick={attemptClose}>
         <div className="bg-white h-screen flex flex-col shadow-2xl" style={{width: 'calc(100% - 224px)'}} onClick={(e) => e.stopPropagation()}>
-          {/* Locked Banner */}
-          {readOnly && (
-            <div className="w-full bg-red-400/85 text-white px-2 py-1 text-center text-xs font-medium flex-shrink-0">
-              This sample has already been used in an experiment and cannot be modified. You can copy the sample from the samples page and then edit the copy.
-            </div>
-          )}
           {/* Header */}
           <div className="flex items-start justify-between p-6 border-b border-gray-200 flex-shrink-0">
             <div className="flex-1">
-              <h2 className="text-xl font-semibold text-blue-600 mb-3">{readOnly ? 'View Sample' : (initialSample ? 'Edit Sample' : 'New Sample')}</h2>
+              <h2 className="text-xl font-semibold text-blue-600 mb-3">{initialSample ? 'Edit Sample' : 'New Sample'}</h2>
               <div>
                 <label htmlFor="sample-name" className="block text-sm font-medium text-gray-700 mb-2">
                   Sample Name
@@ -482,8 +484,7 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
                   value={sampleName}
                   onChange={(e) => handleSampleNameChange(e.target.value)}
                   placeholder="Enter sample name"
-                  readOnly={readOnly}
-                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent ${readOnly ? 'bg-gray-100 cursor-not-allowed' : ''} ${
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent ${
                     nameError 
                       ? 'border-red-500 focus:ring-red-500' 
                       : 'border-gray-300 focus:ring-blue-500'
@@ -495,15 +496,6 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
               </div>
             </div>
             <div className="flex items-center gap-2 ml-4 flex-shrink-0">
-              {readOnly && onCopy && (
-                <Button
-                  type="button"
-                  onClick={onCopy}
-                  className="bg-gray-900 hover:bg-gray-700 text-white text-sm px-4 py-2"
-                >
-                  Make a Copy
-                </Button>
-              )}
               <button
                 onClick={attemptClose}
                 className="text-gray-400 hover:text-gray-600"
@@ -514,7 +506,6 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
           </div>
 
           {/* Explore Attributes Header */}
-          {!readOnly && (
           <div className="p-6 border-b border-gray-200 flex-shrink-0">
             <h3 className="text-lg font-semibold text-blue-600 mb-4">Explore Attributes</h3>
             {/* Search Bar */}
@@ -529,12 +520,10 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
               />
             </div>
           </div>
-          )}
 
           {/* Main Content Area - Split into two halves */}
           <div className="flex-1 flex flex-col" style={{ minHeight: 0 }}>
-            {/* Top Half - Scrollable Categories (hidden when read-only) */}
-            {!readOnly && (
+            {/* Top Half - Scrollable Categories */}
             <div className="flex-1 overflow-y-auto border-b border-gray-200" style={{ minHeight: 0 }}>
               <div className="p-6">
                 {allCategories.map((category) => {
@@ -614,7 +603,6 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
                 )}
               </div>
             </div>
-            )}
 
             {/* Bottom Half - Selected Attributes */}
             <div className="flex-1 p-6 bg-white overflow-y-auto" style={{ minHeight: 0 }}>
@@ -628,6 +616,17 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
                 <div className="grid grid-cols-3 gap-4">
                   {selectedAttributes.map((attribute) => {
                     const selectedOptions = getSelectedOptionsForAttribute(attribute.id);
+                    const continuous = isContinuous(attribute);
+                    // The split shown is over the options still ticked, as saved.
+                    const selection = attributeSelections.find(sel => sel.attributeId === attribute.id);
+                    const split = continuous
+                      ? undefined
+                      : rebalanceCategorical(
+                          selection?.distribution,
+                          selectedOptions
+                            .filter(option => isOptionChecked(attribute.id, option.id))
+                            .map(option => option.label)
+                        );
                     return (
                       <div
                         key={attribute.id}
@@ -638,9 +637,8 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
                             <div className="text-sm font-medium text-gray-900 mb-1">{attribute.category}</div>
                             <div className="text-base font-semibold text-blue-600 truncate">{attribute.label}</div>
                           </div>
-                          {!readOnly && (
                           <div className="flex items-center gap-1 flex-shrink-0 ml-2">
-                            {(attribute.id === 'age' || (attribute.options && attribute.options.length > 0)) && (
+                            {(continuous || (attribute.options && attribute.options.length > 0)) && (
                               <button
                                 onClick={(e) => openAttributePanelFor(attribute, e.currentTarget as HTMLElement)}
                                 className="text-gray-400 hover:text-blue-600 p-1 rounded"
@@ -661,26 +659,23 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
                               <X className="w-4 h-4" />
                             </button>
                           </div>
-                          )}
                         </div>
                         
                         {selectedOptions.length > 0 && (
                           <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
                             {selectedOptions.map((option) => {
-                              const optionKey = attribute.id === 'age' ? 'age-range' : option.id;
-                              const isChecked = isOptionChecked(attribute.id, optionKey);
+                              const isChecked = isOptionChecked(attribute.id, option.id);
                               return (
                                 <div
                                   key={option.id}
                                   onClick={() => {
-                                    if (readOnly) return;
-                                    if (attribute.id === 'age' || option.id === 'age-range') {
-                                      handleToggleAgeRange(attribute.id);
+                                    if (continuous) {
+                                      handleToggleRange(attribute.id);
                                     } else {
                                       handleToggleOption(attribute.id, option.id);
                                     }
                                   }}
-                                  className={`flex items-center space-x-2 text-sm text-gray-900 rounded px-2 py-1 -mx-2 -my-1 transition-colors ${readOnly ? '' : 'cursor-pointer hover:bg-gray-100'}`}
+                                  className={`flex items-center space-x-2 text-sm text-gray-900 rounded px-2 py-1 -mx-2 -my-1 transition-colors cursor-pointer hover:bg-gray-100`}
                                 >
                                   {isChecked ? (
                                     <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0 cursor-pointer">
@@ -692,7 +687,12 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
                                     <div className="w-4 h-4 border-2 border-gray-300 rounded-full flex items-center justify-center flex-shrink-0 cursor-pointer bg-white">
                                     </div>
                                   )}
-                                  <span className="truncate">{option.label}</span>
+                                  <span className="truncate flex-1">{option.label}</span>
+                                  {split && isChecked && (
+                                    <span className="flex-shrink-0 text-xs font-medium text-gray-600">
+                                      {split.percentages[option.label] ?? 0}%
+                                    </span>
+                                  )}
                                 </div>
                               );
                             })}
@@ -721,12 +721,11 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
           {/* Action Buttons - fixed at bottom of screen */}
           <div className="flex-shrink-0 flex justify-end gap-3 p-6 border-t border-gray-200 bg-white">
             <Button
-              onClick={readOnly ? handleClose : attemptClose}
-              variant={readOnly ? "default" : "outline"}
+              onClick={attemptClose}
+              variant="outline"
             >
-              {readOnly ? 'Close' : 'Cancel'}
+              Cancel
             </Button>
-            {!readOnly && (
             <Button
               onClick={handleSave}
               className="bg-blue-600 hover:bg-blue-700 text-white"
@@ -734,7 +733,6 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
             >
               {initialSample ? 'Update Sample' : 'Create Sample'}
             </Button>
-            )}
           </div>
         </div>
       </div>
@@ -786,70 +784,21 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
               </button>
             </div>
 
-            {/* Options List / Age Range Inputs - scrollable so footer always stays visible */}
+            {/* Options List / Continuous Inputs - scrollable so footer always stays visible */}
             <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 pb-4 flex flex-col">
-              {activeAttributePanel.id === 'age' ? (
+              {isContinuous(activeAttributePanel) && tempContinuous ? (
                 <div className="space-y-4">
-                  <div className="text-sm text-gray-600 mb-4">
-                    Select the age range for your sample (5-82 years):
+                  <div className="text-sm text-gray-600">
+                    Each persona&apos;s value is drawn from a normal curve with this mean and SD, kept between
+                    the min and max.
                   </div>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Minimum Age
-                      </label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        placeholder="5"
-                        value={tempAgeInput.min}
-                        onChange={(e) => {
-                          const raw = e.target.value;
-                          const inputValue = raw.replace(/\D/g, '');
-                          setTempAgeInput(prev => ({ ...prev, min: inputValue }));
-                          const numValue = inputValue === '' ? NaN : parseInt(inputValue, 10);
-                          if (!isNaN(numValue)) {
-                            const validValue = Math.max(5, Math.min(82, numValue));
-                            setTempAgeRange(prev => ({ ...prev, min: validValue }));
-                          }
-                        }}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Maximum Age
-                      </label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        placeholder="82"
-                        value={tempAgeInput.max}
-                        onChange={(e) => {
-                          const raw = e.target.value;
-                          const inputValue = raw.replace(/\D/g, '');
-                          setTempAgeInput(prev => ({ ...prev, max: inputValue }));
-                          const numValue = inputValue === '' ? NaN : parseInt(inputValue, 10);
-                          if (!isNaN(numValue)) {
-                            const validValue = Math.max(5, Math.min(82, numValue));
-                            setTempAgeRange(prev => ({ ...prev, max: validValue }));
-                          }
-                        }}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                    </div>
-                    {activeAttributePanel.id === 'age' && ageValidation && (
-                      ageValidation.validRange ? (
-                        <div className="text-sm text-gray-500 px-3 py-2 rounded-md border border-gray-200 bg-gray-50">
-                          Selected range: {ageValidation.minNum} - {ageValidation.maxNum} years old
-                        </div>
-                      ) : (
-                        <div className="text-sm text-red-600 px-3 py-2 rounded-md border-2 border-red-400 bg-red-50">
-                          {ageValidation.errorMessage}
-                        </div>
-                      )
-                    )}
-                  </div>
+                  <DistributionEditor
+                    values={[]}
+                    distribution={tempContinuous}
+                    onChange={(distribution) => setTempContinuous(distribution as ContinuousDistribution)}
+                    bounds={continuousBounds(activeAttributePanel)}
+                    unit={activeAttributePanel.unit}
+                  />
                 </div>
               ) : (
                 <>
@@ -894,16 +843,31 @@ export default function NewSampleModal({ isOpen, onClose, onSave, initialSample,
 
             {/* Tooltip Footer */}
             <div className="border-t border-gray-200 p-4 flex-shrink-0 bg-white">
-              {activeAttributePanel.id === 'age' ? (
+              {isContinuous(activeAttributePanel) ? (
                 <Button
                   onClick={handleAddToSelection}
-                  disabled={!ageValidation.validRange}
+                  disabled={!!continuousError}
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  + Add Age Range to Sample
+                  + Add to Sample
                 </Button>
               ) : (
                 <>
+                  {tempSelectedOptions.length > 0 && (() => {
+                    const labels = optionLabelsFor(activeAttributePanel, tempSelectedOptions);
+                    return (
+                      <div className="mb-3">
+                        <div className="text-xs font-medium text-gray-500 mb-2">Share of sample</div>
+                        <div className="max-h-48 overflow-y-auto pr-1">
+                          <DistributionEditor
+                            values={labels}
+                            distribution={rebalanceCategorical(tempDistribution, labels)}
+                            onChange={(distribution) => setTempDistribution(distribution as CategoricalDistribution)}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })()}
                   <div className="flex gap-2 mb-3">
                     <Button
                       onClick={handleSelectAll}

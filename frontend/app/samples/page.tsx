@@ -3,17 +3,19 @@
 import React, { useEffect, useState, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { ChevronDown, ChevronUp, Plus, Users, MoreVertical, Trash2, Edit, Edit2, Copy, Lock, Folder, FolderPlus, FolderInput, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronUp, Plus, Users, MoreVertical, Trash2, Edit, Edit2, Copy, Folder, FolderPlus, FolderInput, ChevronRight } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent } from "../../components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../../components/ui/tooltip";
 import { supabase } from "../utils/supabase";
 import { useAuth } from "../hooks/useAuth";
 import AuthLoading from "../components/auth-loading";
 import AppLayout from "../components/layout/AppLayout";
 import SubHeader from "../components/layout/SubHeader";
-import NewSampleModal from "../components/NewSampleModal";
+import NewSampleModal, { type AttributeSelection } from "../components/NewSampleModal";
+import SampleAttributeCard from "../components/SampleAttributeCard";
+import { toSampleAttributesJson, type Attribute } from "../data/attributeCatalog";
+import type { SampleAttributeJson } from "../utils/distributions";
 import Spinner from "../components/ui/spinner";
 import SortableTableHeader from "../components/ui/SortableTableHeader";
 
@@ -43,25 +45,7 @@ interface Sample {
     attributeType: string;
     values: string[];
   }[];
-  isLocked?: boolean; // Whether the sample has been used in an experiment
   folder_id?: string | null; // Folder ID if sample is in a folder
-}
-
-interface Attribute {
-  id: string;
-  label: string;
-  category: string;
-  options?: AttributeOption[];
-}
-
-interface AttributeOption {
-  id: string;
-  label: string;
-}
-
-interface AttributeSelection {
-  attributeId: string;
-  selectedOptions: string[];
 }
 
 export default function SamplesPage() {
@@ -81,8 +65,6 @@ export default function SamplesPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const hasInitiallyLoadedRef = useRef(false);
 
-  const [showLockedWarning, setShowLockedWarning] = useState(false);
-  const [lockedSampleId, setLockedSampleId] = useState<string | null>(null);
 
   // Folder state
   const [folders, setFolders] = useState<Folder[]>([]);
@@ -590,27 +572,10 @@ export default function SamplesPage() {
       return [];
     }
 
-      // Get all experiments for this user to check sample usage more efficiently
-      const { data: experiments, error: expError } = await supabase
-        .from("experiments")
-        .select("experiment_data")
-        .eq("user_id", userId);
-
-      // Create a set of used sample IDs
-      const usedSampleIds = new Set<string>();
-      if (experiments) {
-        experiments.forEach((exp: any) => {
-          if (exp.experiment_data?.sample?.id) {
-            usedSampleIds.add(exp.experiment_data.sample.id);
-          }
-        });
-      }
-
-      // Transform Supabase data to match our interface and check if samples are locked
+      // Transform Supabase data to match our interface
       return data.map((sample: any) => ({
         ...sample,
         expanded: false,
-        isLocked: usedSampleIds.has(sample.id),
         folder_id: sample.folder_id || null,
         // Parse attributes if it's a JSON string
         attributes: typeof sample.attributes === 'string' ? JSON.parse(sample.attributes) : sample.attributes,
@@ -839,15 +804,9 @@ export default function SamplesPage() {
   const handleEditSample = (sampleId: string) => {
     const sample = samples.find(s => s.id === sampleId);
     if (sample) {
-      if (sample.isLocked) {
-        setLockedSampleId(sampleId);
-        setShowLockedWarning(true);
-        setOpenDropdown(null);
-      } else {
-        setEditingSample(sample);
-        setIsEditModalOpen(true);
-        setOpenDropdown(null);
-      }
+      setEditingSample(sample);
+      setIsEditModalOpen(true);
+      setOpenDropdown(null);
     }
   };
 
@@ -992,6 +951,48 @@ export default function SamplesPage() {
     setNewSampleName('');
   };
 
+  // The stored attributes for what the modal selected, with each one's
+  // distribution (or its default).
+  const toAttributesJson = (selectedAttributes: Attribute[], attributeSelections: AttributeSelection[]) =>
+    toSampleAttributesJson(
+      selectedAttributes.map(attr => {
+        const selection = attributeSelections.find(sel => sel.attributeId === attr.id);
+        return {
+          attributeId: attr.id,
+          optionIds: selection?.selectedOptions ?? [],
+          distribution: selection?.distribution,
+        };
+      })
+    );
+
+  // Save one attribute's edited distribution from the expanded row. The
+  // cached personas were built for the old distribution, so they are cleared
+  // and the next run builds new ones.
+  const saveSampleAttribute = async (sampleId: string, attributeIndex: number, updated: SampleAttributeJson) => {
+    const sample = samples.find(s => s.id === sampleId);
+    if (!sample || !Array.isArray(sample.attributes)) return;
+    const updatedAttributes = sample.attributes.map((attr: SampleAttributeJson, index: number) =>
+      index === attributeIndex ? updated : attr
+    );
+
+    const { error } = await supabase
+      .from('samples')
+      .update({ attributes: updatedAttributes, persona: null })
+      .eq('id', sampleId);
+
+    if (error) {
+      console.error('Error updating sample:', error);
+      showError('Failed to update sample. Please try again.');
+      return;
+    }
+
+    setSamples(prev => prev.map(s =>
+      s.id === sampleId
+        ? { ...s, attributes: updatedAttributes, attributeCategories: extractAttributeCategories(updatedAttributes) }
+        : s
+    ));
+  };
+
   const handleNewSample = async (sampleName: string, selectedAttributes: Attribute[], attributeSelections: AttributeSelection[]) => {
     if (!user) return;
 
@@ -1005,34 +1006,7 @@ export default function SamplesPage() {
     }
 
     try {
-      // Process each selected attribute with its selected options
-      const attributesJson = selectedAttributes.map(attr => {
-        // Find the selections for this attribute
-        const selection = attributeSelections.find(sel => sel.attributeId === attr.id);
-        
-        // Special handling for Age attribute
-        if (attr.id === 'age' && selection?.selectedOptions.length === 2) {
-          const minAge = Math.min(parseInt(selection.selectedOptions[0]), parseInt(selection.selectedOptions[1]));
-          const maxAge = Math.max(parseInt(selection.selectedOptions[0]), parseInt(selection.selectedOptions[1]));
-          return {
-            label: attr.label,
-            category: attr.category,
-            values: [`${minAge} - ${maxAge} years old`] // Single range value
-          };
-        }
-        
-        // Get the actual option labels from the selected option IDs for other attributes
-        const selectedValues = selection?.selectedOptions.map(optionId => {
-          const option = attr.options?.find(opt => opt.id === optionId);
-          return option?.label || optionId; // Fallback to ID if option not found
-        }) || [];
-
-        return {
-          label: attr.label, // The attribute name (e.g., "Age", "Gender")
-          category: attr.category, // The category (e.g., "demographics")
-          values: selectedValues // The actual selected option labels (e.g., ["25", "30", "35"])
-        };
-      });
+      const attributesJson = toAttributesJson(selectedAttributes, attributeSelections);
 
       // Insert into Supabase
       const newSampleData = {
@@ -1071,41 +1045,16 @@ export default function SamplesPage() {
     }
 
     try {
-      // Process each selected attribute with its selected options
-      const attributesJson = selectedAttributes.map(attr => {
-        // Find the selections for this attribute
-        const selection = attributeSelections.find(sel => sel.attributeId === attr.id);
-        
-        // Special handling for Age attribute
-        if (attr.id === 'age' && selection?.selectedOptions.length === 2) {
-          const minAge = Math.min(parseInt(selection.selectedOptions[0]), parseInt(selection.selectedOptions[1]));
-          const maxAge = Math.max(parseInt(selection.selectedOptions[0]), parseInt(selection.selectedOptions[1]));
-          return {
-            label: attr.label,
-            category: attr.category,
-            values: [`${minAge} - ${maxAge} years old`] // Single range value
-          };
-        }
-        
-        // Get the actual option labels from the selected option IDs for other attributes
-        const selectedValues = selection?.selectedOptions.map(optionId => {
-          const option = attr.options?.find(opt => opt.id === optionId);
-          return option?.label || optionId; // Fallback to ID if option not found
-        }) || [];
-
-        return {
-          label: attr.label,
-          category: attr.category,
-          values: selectedValues
-        };
-      });
+      const attributesJson = toAttributesJson(selectedAttributes, attributeSelections);
 
       // Update in Supabase
       const { error } = await supabase
         .from('samples')
         .update({ 
           name: sampleName || editingSample.name,
-          attributes: attributesJson 
+          attributes: attributesJson,
+          // Personas cached for the old attributes no longer match.
+          persona: null
         })
         .eq('id', editingSample.id);
 
@@ -1206,7 +1155,6 @@ export default function SamplesPage() {
                       <SortableTableHeader label="Name" sortKey="name" onSort={handleTableSort} currentSort={sortConfig} />
                       <SortableTableHeader label="Created Date" sortKey="created_date" onSort={handleTableSort} currentSort={sortConfig} />
                       <SortableTableHeader label="Attributes" sortKey="attributes" onSort={handleTableSort} currentSort={sortConfig} />
-                      <SortableTableHeader label="Status" sortKey="status" onSort={handleTableSort} currentSort={sortConfig} />
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1292,9 +1240,6 @@ export default function SamplesPage() {
                             <TableCell>
                               <span className="text-sm text-gray-500">—</span>
                             </TableCell>
-                            <TableCell>
-                              <span className="text-sm text-gray-500">—</span>
-                            </TableCell>
                           </TableRow>
                           
                           {/* Samples inside the folder (when expanded) - sorted based on sortConfig */}
@@ -1313,10 +1258,6 @@ export default function SamplesPage() {
                               const countA = Array.isArray(a.attributes) ? a.attributes.length : 0;
                               const countB = Array.isArray(b.attributes) ? b.attributes.length : 0;
                               return multiplier * (countA - countB);
-                            } else if (key === 'status') {
-                              const statusA = a.isLocked ? 'Locked' : 'Unlocked';
-                              const statusB = b.isLocked ? 'Locked' : 'Unlocked';
-                              return multiplier * statusA.localeCompare(statusB);
                             }
                             return 0;
                           }).map((sample) => (
@@ -1403,73 +1344,19 @@ export default function SamplesPage() {
                                 <TableCell>
                                   <span className="text-sm">{Array.isArray(sample.attributes) ? sample.attributes.length : 0} attribute{Array.isArray(sample.attributes) && sample.attributes.length !== 1 ? 's' : ''}</span>
                                 </TableCell>
-                                <TableCell>
-                                  <TooltipProvider>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        {sample.isLocked ? (
-                                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 cursor-help">
-                                            Locked
-                                          </span>
-                                        ) : (
-                                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 cursor-help">
-                                            Unlocked
-                                          </span>
-                                        )}
-                                      </TooltipTrigger>
-                                      <TooltipContent side="top" className="max-w-xs">
-                                        {sample.isLocked
-                                          ? "Has been used in a simulation and cannot be edited."
-                                          : "Has not been used in a simulation and can be edited."}
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  </TooltipProvider>
-                                </TableCell>
                               </TableRow>
                               {sample.expanded && (
                                 <TableRow>
-                                  <TableCell colSpan={5} className="bg-muted/30 p-4">
+                                  <TableCell colSpan={4} className="bg-muted/30 p-4">
                                     <div className="space-y-2" style={{marginLeft: '85px'}}>
                                       <h4 className="font-medium text-sm text-muted-foreground mb-3">Selected Attributes:</h4>
                                       <div className="grid grid-cols-3 gap-4">
-                                        {Array.isArray(sample.attributes) && sample.attributes.map((attribute: any, attributeIndex: number) => (
-                                          <div key={attributeIndex} className="p-4 bg-gray-50 border border-gray-200 rounded-lg shadow-sm">
-                                            <div className="flex items-start justify-between mb-3">
-                                              <div className="flex-1 min-w-0">
-                                                <div className="text-sm font-medium text-gray-900 mb-1">{attribute.category}</div>
-                                                <div className="text-base font-semibold text-blue-600 truncate">{attribute.label}</div>
-                                              </div>
-                                            </div>
-                                            
-                                            {attribute.values && attribute.values.length > 0 && (
-                                              <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
-                                                {attribute.values.map((value: string, valueIndex: number) => (
-                                                  <div
-                                                    key={valueIndex}
-                                                    className="flex items-center space-x-2 text-sm text-gray-900"
-                                                  >
-                                                    <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
-                                                      <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                                      </svg>
-                                                    </div>
-                                                    <span className="truncate">{value}</span>
-                                                  </div>
-                                                ))}
-                                              </div>
-                                            )}
-                                            
-                                            {(!attribute.values || attribute.values.length === 0) && (
-                                              <div className="flex items-center space-x-2 text-sm text-gray-900">
-                                                <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
-                                                  <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                                  </svg>
-                                                </div>
-                                                <span>Selected</span>
-                                              </div>
-                                            )}
-                                          </div>
+                                        {Array.isArray(sample.attributes) && sample.attributes.map((attribute: SampleAttributeJson, attributeIndex: number) => (
+                                          <SampleAttributeCard
+                                            key={`${attribute.label}-${attributeIndex}`}
+                                            attribute={attribute}
+                                            onSave={(updated) => saveSampleAttribute(sample.id, attributeIndex, updated)}
+                                          />
                                         ))}
                                       </div>
                                     </div>
@@ -1505,10 +1392,6 @@ export default function SamplesPage() {
                         const countA = Array.isArray(a.attributes) ? a.attributes.length : 0;
                         const countB = Array.isArray(b.attributes) ? b.attributes.length : 0;
                         return multiplier * (countA - countB);
-                      } else if (key === 'status') {
-                        const statusA = a.isLocked ? 'Locked' : 'Unlocked';
-                        const statusB = b.isLocked ? 'Locked' : 'Unlocked';
-                        return multiplier * statusA.localeCompare(statusB);
                       }
                       return 0;
                     }).map((sample) => (
@@ -1593,74 +1476,20 @@ export default function SamplesPage() {
                           <TableCell>
                             <span className="text-sm">{Array.isArray(sample.attributes) ? sample.attributes.length : 0} attribute{Array.isArray(sample.attributes) && sample.attributes.length !== 1 ? 's' : ''}</span>
                           </TableCell>
-                          <TableCell>
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  {sample.isLocked ? (
-                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 cursor-help">
-                                      Locked
-                                    </span>
-                                  ) : (
-                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 cursor-help">
-                                      Unlocked
-                                    </span>
-                                  )}
-                                </TooltipTrigger>
-                                <TooltipContent side="top" className="max-w-xs">
-                                  {sample.isLocked
-                                    ? "Has been used in a simulation and cannot be edited."
-                                    : "Has not been used in a simulation and can be edited."}
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          </TableCell>
                         </TableRow>
                         {sample.expanded && (
                           <TableRow>
-                            <TableCell colSpan={5} className="bg-muted/30 p-4">
+                            <TableCell colSpan={4} className="bg-muted/30 p-4">
                               <div className="space-y-2" style={{marginLeft: '65px'}}>
                                 <h4 className="font-medium text-sm text-muted-foreground mb-3">Selected Attributes:</h4>
                                 <div className="grid grid-cols-3 gap-4">
-                                  {Array.isArray(sample.attributes) && sample.attributes.map((attribute: any, attributeIndex: number) => (
-                                    <div key={attributeIndex} className="p-4 bg-gray-50 border border-gray-200 rounded-lg shadow-sm">
-                                      <div className="flex items-start justify-between mb-3">
-                                        <div className="flex-1 min-w-0">
-                                          <div className="text-sm font-medium text-gray-900 mb-1">{attribute.category}</div>
-                                          <div className="text-base font-semibold text-blue-600 truncate">{attribute.label}</div>
-                                        </div>
-                                      </div>
-                                      
-                                      {attribute.values && attribute.values.length > 0 && (
-                                        <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
-                                          {attribute.values.map((value: string, valueIndex: number) => (
-                                            <div
-                                              key={valueIndex}
-                                              className="flex items-center space-x-2 text-sm text-gray-900"
-                                            >
-                                              <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
-                                                <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                                </svg>
-                                              </div>
-                                              <span className="truncate">{value}</span>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      )}
-                                      
-                                      {(!attribute.values || attribute.values.length === 0) && (
-                                        <div className="flex items-center space-x-2 text-sm text-gray-900">
-                                          <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
-                                            <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                            </svg>
-                                          </div>
-                                          <span>Selected</span>
-                                        </div>
-                                      )}
-                                    </div>
-                                  ))}
+                                  {Array.isArray(sample.attributes) && sample.attributes.map((attribute: SampleAttributeJson, attributeIndex: number) => (
+                                          <SampleAttributeCard
+                                            key={`${attribute.label}-${attributeIndex}`}
+                                            attribute={attribute}
+                                            onSave={(updated) => saveSampleAttribute(sample.id, attributeIndex, updated)}
+                                          />
+                                        ))}
                                 </div>
                               </div>
                             </TableCell>
@@ -1704,23 +1533,21 @@ export default function SamplesPage() {
             right: dropdownPosition.right
           }}
         >
-          {/* 1. Edit (only while the sample is unlocked) */}
-          {!samples.find(s => s.id === openDropdown)?.isLocked && (
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                handleEditSample(openDropdown);
-              }}
-              onMouseDown={(e) => {
-                e.stopPropagation();
-              }}
-              className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-            >
-              <Edit className="w-4 h-4 mr-3" />
-              Edit
-            </button>
-          )}
+          {/* 1. Edit */}
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleEditSample(openDropdown);
+            }}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+            }}
+            className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+          >
+            <Edit className="w-4 h-4 mr-3" />
+            Edit
+          </button>
           {/* 2. Rename */}
           <button
             onClick={(e) => {
@@ -1807,57 +1634,7 @@ export default function SamplesPage() {
           onSave={handleUpdateSample}
           initialSample={editingSample}
           checkNameExists={isSampleNameTaken}
-          readOnly={editingSample.isLocked ?? false}
-          onCopy={editingSample.isLocked ? () => {
-            handleDuplicateSample(editingSample.id);
-            setIsEditModalOpen(false);
-            setEditingSample(null);
-          } : undefined}
         />
-      )}
-
-      {/* Locked Sample Warning Modal */}
-      {showLockedWarning && createPortal(
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[99999]">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
-                <Lock className="w-5 h-5 text-red-600" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">Sample is Locked</h3>
-              </div>
-            </div>
-            <p className="text-gray-700 mb-6">
-              Samples may be edited up until the first time they are used. You may make a copy of the sample to edit it at any point.
-            </p>
-            <div className="flex gap-3 justify-end">
-              <Button
-                onClick={() => {
-                  setShowLockedWarning(false);
-                  setLockedSampleId(null);
-                }}
-                variant="outline"
-                className="px-4 py-2"
-              >
-                Close
-              </Button>
-              <Button
-                onClick={() => {
-                  if (lockedSampleId) {
-                    handleDuplicateSample(lockedSampleId);
-                  }
-                  setShowLockedWarning(false);
-                  setLockedSampleId(null);
-                }}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                Copy
-              </Button>
-            </div>
-          </div>
-        </div>,
-        document.body
       )}
 
       {/* Folder Dropdown Portal */}
