@@ -115,9 +115,6 @@ const PersonaSplitEdge = memo(
               ) : (
                 <span className="px-1 text-lg font-bold leading-none text-blue-700">{personas}</span>
               )}
-              <span className="text-sm font-medium text-blue-700">
-                {personas === 1 ? 'sample' : 'samples'}
-              </span>
             </div>
           </EdgeLabelRenderer>
         )}

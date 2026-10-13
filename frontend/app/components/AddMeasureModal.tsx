@@ -426,24 +426,6 @@ export default function AddMeasureModal({ isOpen, onClose, onAdd, editingMeasure
               </div>
             )}
           </div>
-
-          {/* How the measure may be used */}
-          <div className="flex items-start gap-2">
-            <input
-              type="checkbox"
-              id="measure-scale-only"
-              checked={scaleOnly}
-              onChange={(e) => { setScaleOnly(e.target.checked); touch(); }}
-              className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:cursor-not-allowed"
-            />
-            <label htmlFor="measure-scale-only" className="text-sm text-gray-700">
-              <span className="font-semibold text-gray-900">Scale only</span>
-              <span className="block text-gray-500">
-                Placeholder: tick this if the measure can only be put to a persona as a scale.
-                Leave it clear to also allow it as a rating on a step.
-              </span>
-            </label>
-          </div>
         </form>
       </div>
     </Modal>
